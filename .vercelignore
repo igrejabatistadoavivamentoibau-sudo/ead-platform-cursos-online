@@ -1,0 +1,11 @@
+.git
+.gitignore
+README.md
+SETUP.md
+SUPABASE_SETUP.md
+docs/
+scripts/
+.env
+.env.local
+.DS_Store
+node_modules/
