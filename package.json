@@ -11,9 +11,9 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
     "dotenv-local": "^1.0.3",
-    "next": "16.3.0",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "next": "^14.2.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-hook-form": "^7.85.0",
     "zod": "^4.4.3"
   },
