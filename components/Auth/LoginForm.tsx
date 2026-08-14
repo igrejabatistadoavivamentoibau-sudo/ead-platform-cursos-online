@@ -3,45 +3,11 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Mail, Lock, Eye, EyeOff, GraduationCap, Presentation, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 type UserRole = 'student' | 'teacher' | 'director'
-
-function MailIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
-      <path d="m4 8 8 5 8-5" />
-    </svg>
-  )
-}
-
-function LockIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="5" y="11" width="14" height="9" rx="2" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-    </svg>
-  )
-}
-
-function EyeIcon({ visible }: { visible: boolean }) {
-  if (!visible) {
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    )
-  }
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9.9 4.24A9.4 9.4 0 0 1 12 4c6.5 0 10 7 10 7a17.6 17.6 0 0 1-2.2 3.15M6.6 6.6C3.5 8.5 2 11 2 11s3.5 7 10 7a9.6 9.6 0 0 0 5-1.4" />
-      <path d="M14.12 14.12A3 3 0 1 1 9.88 9.88" />
-      <path d="M2 2l20 20" />
-    </svg>
-  )
-}
+type Portal = 'aluno' | 'professor'
 
 function GoogleIcon() {
   return (
@@ -54,7 +20,14 @@ function GoogleIcon() {
   )
 }
 
+const ROLE_LABEL: Record<UserRole, string> = {
+  student: 'aluno',
+  teacher: 'professor',
+  director: 'professor',
+}
+
 export default function LoginForm() {
+  const [portal, setPortal] = useState<Portal>('aluno')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -89,14 +62,23 @@ export default function LoginForm() {
 
       if (userError) throw userError
 
-      // Redirecionar baseado no role
       const role = userData.role as UserRole
+      const expectedPortal: Portal = role === 'student' ? 'aluno' : 'professor'
+
+      // Confere se a pessoa entrou pela aba certa (aluno x professor)
+      if (expectedPortal !== portal) {
+        await supabase.auth.signOut()
+        throw new Error(
+          `Essa conta é de ${ROLE_LABEL[role]}. Use a aba "Portal do ${
+            expectedPortal === 'aluno' ? 'Aluno' : 'Professor'
+          }" para entrar.`
+        )
+      }
+
       if (role === 'student') {
         router.push('/dashboard/student')
-      } else if (role === 'teacher' || role === 'director') {
-        router.push('/dashboard/teacher')
       } else {
-        throw new Error('Role de usuário inválido')
+        router.push('/dashboard/teacher')
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao fazer login'
@@ -126,14 +108,48 @@ export default function LoginForm() {
 
   return (
     <div className="w-full">
+      {/* Seletor de portal */}
+      <div className="grid grid-cols-2 gap-1 p-1 mb-6 bg-gray-100 rounded-xl">
+        <button
+          type="button"
+          onClick={() => {
+            setPortal('aluno')
+            setError(null)
+          }}
+          className={`flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg py-2.5 text-[13px] sm:text-sm font-semibold whitespace-nowrap transition-all ${
+            portal === 'aluno'
+              ? 'bg-white text-green-700 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <GraduationCap className="h-4 w-4 shrink-0" strokeWidth={2.25} />
+          <span><span className="hidden sm:inline">Portal do </span>Aluno</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setPortal('professor')
+            setError(null)
+          }}
+          className={`flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg py-2.5 text-[13px] sm:text-sm font-semibold whitespace-nowrap transition-all ${
+            portal === 'professor'
+              ? 'bg-white text-green-700 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Presentation className="h-4 w-4 shrink-0" strokeWidth={2.25} />
+          <span><span className="hidden sm:inline">Portal do </span>Professor</span>
+        </button>
+      </div>
+
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
             E-mail
           </label>
           <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
-              <MailIcon />
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-gray-400">
+              <Mail className="h-[18px] w-[18px]" strokeWidth={2} />
             </span>
             <input
               id="email"
@@ -142,24 +158,24 @@ export default function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="seu@email.com"
               disabled={isLoading}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:opacity-50"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500 transition-colors disabled:opacity-50"
               required
             />
           </div>
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-1.5">
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">
               Senha
             </label>
-            <Link href="#" className="text-sm text-green-600 hover:text-green-700 font-medium">
+            <Link href="#" className="text-sm text-green-700 hover:text-green-800 font-medium">
               Esqueceu sua senha?
             </Link>
           </div>
           <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
-              <LockIcon />
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-gray-400">
+              <Lock className="h-[18px] w-[18px]" strokeWidth={2} />
             </span>
             <input
               id="password"
@@ -168,22 +184,26 @@ export default function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Digite sua senha"
               disabled={isLoading}
-              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:opacity-50"
+              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500 transition-colors disabled:opacity-50"
               required
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600"
+              className="absolute inset-y-0 right-3.5 flex items-center text-gray-400 hover:text-gray-600"
               aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
             >
-              <EyeIcon visible={showPassword} />
+              {showPassword ? (
+                <EyeOff className="h-[18px] w-[18px]" strokeWidth={2} />
+              ) : (
+                <Eye className="h-[18px] w-[18px]" strokeWidth={2} />
+              )}
             </button>
           </div>
         </div>
 
         {error && (
-          <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+          <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm leading-snug">
             {error}
           </div>
         )}
@@ -191,7 +211,7 @@ export default function LoginForm() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-green-600 text-white py-2.5 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-green-700 text-white py-2.5 rounded-xl font-semibold hover:bg-green-800 active:bg-green-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-green-900/10"
         >
           {isLoading ? 'Entrando...' : 'Entrar'}
         </button>
@@ -207,22 +227,17 @@ export default function LoginForm() {
         type="button"
         onClick={handleGoogleLogin}
         disabled={isGoogleLoading}
-        className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-lg py-2.5 font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-xl py-2.5 font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
       >
         <GoogleIcon />
         {isGoogleLoading ? 'Redirecionando...' : 'Entrar com Google'}
       </button>
 
-      <div className="mt-6 flex items-start gap-3 bg-gray-50 rounded-xl p-4">
-        <span className="mt-0.5 text-green-600 shrink-0">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
+      <div className="mt-6 flex items-start gap-3 bg-gray-50 rounded-xl p-4 ring-1 ring-gray-100">
+        <span className="mt-0.5 text-green-700 shrink-0">
+          <Users className="h-5 w-5" strokeWidth={2} />
         </span>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 leading-snug">
           <span className="font-semibold text-gray-800">Ainda não tem acesso?</span>
           <br />
           Fale com a liderança da sua célula.
