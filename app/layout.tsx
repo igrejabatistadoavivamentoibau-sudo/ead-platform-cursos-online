@@ -13,7 +13,7 @@ interface LayoutProps {
 
 export default function RootLayout({ children }: LayoutProps) {
   return (
-    <html lang="pt-BR" className="h-full">
+    <html lang="pt-BR" className="h-full scroll-smooth">
       <body className="min-h-full flex flex-col bg-white text-gray-900 font-sans antialiased">
         {children}
       </body>
