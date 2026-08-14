@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Mail, Lock, Eye, EyeOff, GraduationCap, Presentation, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-type UserRole = 'student' | 'teacher' | 'director'
+type UserRole = 'aluno' | 'professor' | 'admin'
 type Portal = 'aluno' | 'professor'
 
 function GoogleIcon() {
@@ -21,9 +21,15 @@ function GoogleIcon() {
 }
 
 const ROLE_LABEL: Record<UserRole, string> = {
-  student: 'aluno',
-  teacher: 'professor',
-  director: 'professor',
+  aluno: 'aluno',
+  professor: 'professor',
+  admin: 'administrador',
+}
+
+const DASHBOARD_BY_ROLE: Record<UserRole, string> = {
+  aluno: '/dashboard/student',
+  professor: '/dashboard/teacher',
+  admin: '/dashboard/admin',
 }
 
 export default function LoginForm() {
@@ -63,23 +69,25 @@ export default function LoginForm() {
       if (userError) throw userError
 
       const role = userData.role as UserRole
-      const expectedPortal: Portal = role === 'student' ? 'aluno' : 'professor'
 
-      // Confere se a pessoa entrou pela aba certa (aluno x professor)
-      if (expectedPortal !== portal) {
-        await supabase.auth.signOut()
-        throw new Error(
-          `Essa conta é de ${ROLE_LABEL[role]}. Use a aba "Portal do ${
-            expectedPortal === 'aluno' ? 'Aluno' : 'Professor'
-          }" para entrar.`
-        )
+      // Administrador entra por qualquer aba — não faz sentido a checagem
+      // de portal para quem gerencia a plataforma inteira.
+      if (role !== 'admin') {
+        const expectedPortal: Portal = role === 'aluno' ? 'aluno' : 'professor'
+
+        // Confere se a pessoa entrou pela aba certa (aluno x professor)
+        if (expectedPortal !== portal) {
+          await supabase.auth.signOut()
+          throw new Error(
+            `Essa conta é de ${ROLE_LABEL[role]}. Use a aba "Portal do ${
+              expectedPortal === 'aluno' ? 'Aluno' : 'Professor'
+            }" para entrar.`
+          )
+        }
       }
 
-      if (role === 'student') {
-        router.push('/dashboard/student')
-      } else {
-        router.push('/dashboard/teacher')
-      }
+      router.push(DASHBOARD_BY_ROLE[role])
+      router.refresh()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao fazer login'
       setError(errorMessage)
@@ -154,6 +162,7 @@ export default function LoginForm() {
             <input
               id="email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="seu@email.com"
@@ -180,6 +189,7 @@ export default function LoginForm() {
             <input
               id="password"
               type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Digite sua senha"

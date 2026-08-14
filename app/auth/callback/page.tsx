@@ -32,11 +32,14 @@ export default function AuthCallbackPage() {
         return
       }
 
-      if (userData.role === 'student') {
-        router.push('/dashboard/student')
-      } else {
-        router.push('/dashboard/teacher')
+      const dashboardByRole: Record<string, string> = {
+        aluno: '/dashboard/student',
+        professor: '/dashboard/teacher',
+        admin: '/dashboard/admin',
       }
+
+      router.push(dashboardByRole[userData.role] ?? '/')
+      router.refresh()
     }
 
     finishLogin()
