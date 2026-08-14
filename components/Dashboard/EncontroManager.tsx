@@ -45,7 +45,7 @@ export default function EncontroManager({
   }
 
   return (
-    <div className="bg-white rounded-2xl ring-1 ring-gray-200 shadow-sm p-5 sm:p-6">
+    <div className="card-alive p-5 sm:p-6">
       <h2 className="font-semibold text-gray-900 mb-4">Encontros e lista de chamada</h2>
 
       <form onSubmit={handleCriar} className="flex flex-col sm:flex-row gap-2 mb-5">
@@ -54,19 +54,19 @@ export default function EncontroManager({
           value={titulo}
           onChange={(e) => setTitulo(e.target.value)}
           placeholder="Tema do encontro (opcional)"
-          className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500"
+          className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
         />
         <input
           type="date"
           required
           value={data}
           onChange={(e) => setData(e.target.value)}
-          className="px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500"
+          className="px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
         />
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex items-center justify-center gap-2 bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors disabled:opacity-50 whitespace-nowrap"
+          className="inline-flex items-center justify-center gap-2 bg-brand-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-800 transition-colors disabled:opacity-50 whitespace-nowrap"
         >
           <CalendarPlus className="h-4 w-4" strokeWidth={2.25} />
           {isPending ? 'Criando...' : 'Novo encontro'}
@@ -88,7 +88,7 @@ export default function EncontroManager({
                 className="flex items-center justify-between py-3 group"
               >
                 <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-50 text-green-700 shrink-0">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700 shrink-0">
                     <ClipboardCheck className="h-4 w-4" strokeWidth={2} />
                   </span>
                   <div>
@@ -98,7 +98,7 @@ export default function EncontroManager({
                     <p className="text-xs text-gray-500">{formatarData(encontro.data)}</p>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-green-600 transition-colors" />
+                <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-brand-600 transition-colors" />
               </Link>
             </li>
           ))}

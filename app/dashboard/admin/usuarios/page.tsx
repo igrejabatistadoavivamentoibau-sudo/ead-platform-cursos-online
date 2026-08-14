@@ -22,7 +22,7 @@ export default async function UsuariosPage() {
 
       <CriarUsuarioForm />
 
-      <div className="bg-white rounded-2xl ring-1 ring-gray-200 shadow-sm px-5 sm:px-6">
+      <div className="card-alive px-5 sm:px-6">
         {usuarios && usuarios.length > 0 ? (
           <ul className="divide-y divide-gray-100">
             {usuarios.map((u) => (
@@ -31,7 +31,7 @@ export default async function UsuariosPage() {
           </ul>
         ) : (
           <div className="py-10 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-green-50 text-green-700">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
               <Users2 className="h-6 w-6" strokeWidth={2} />
             </div>
             <p className="text-gray-500">Nenhum usuário cadastrado ainda.</p>

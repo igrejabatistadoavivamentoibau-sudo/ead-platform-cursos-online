@@ -65,14 +65,14 @@ export default function ChamadaForm({
 
   if (linhas.length === 0) {
     return (
-      <div className="bg-white rounded-2xl ring-1 ring-gray-200 p-10 text-center text-gray-500">
+      <div className="card-alive p-10 text-center text-gray-500">
         Nenhum aluno matriculado nesta turma ainda. Matricule alunos antes de fazer a chamada.
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-2xl ring-1 ring-gray-200 shadow-sm overflow-hidden">
+    <div className="card-alive overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-5 border-b border-gray-100">
         <p className="text-sm text-gray-500">
           <span className="font-semibold text-gray-800">{presentes}</span> de {linhas.length} presentes
@@ -81,7 +81,7 @@ export default function ChamadaForm({
           <button
             type="button"
             onClick={() => marcarTodos(true)}
-            className="text-xs font-semibold text-green-700 hover:text-green-800 px-2.5 py-1 rounded-lg hover:bg-green-50"
+            className="text-xs font-semibold text-brand-700 hover:text-brand-800 px-2.5 py-1 rounded-lg hover:bg-brand-50"
           >
             Marcar todos presentes
           </button>
@@ -105,7 +105,7 @@ export default function ChamadaForm({
               aria-label={`Marcar presença de ${linha.name}`}
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 transition-colors ${
                 linha.presente
-                  ? 'bg-green-700 ring-green-700 text-white'
+                  ? 'bg-brand-700 ring-brand-700 text-white'
                   : 'bg-white ring-gray-300 text-transparent hover:ring-gray-400'
               }`}
             >
@@ -130,12 +130,12 @@ export default function ChamadaForm({
           type="button"
           onClick={handleSalvar}
           disabled={isPending}
-          className="inline-flex items-center gap-2 bg-green-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-800 transition-colors disabled:opacity-50"
         >
           <Save className="h-4 w-4" strokeWidth={2.25} />
           {isPending ? 'Salvando...' : 'Salvar chamada'}
         </button>
-        {salvo && <span className="text-sm text-green-700 font-medium">Chamada salva ✓</span>}
+        {salvo && <span className="text-sm text-brand-700 font-medium">Chamada salva ✓</span>}
         {error && <span className="text-sm text-red-600 font-medium">{error}</span>}
       </div>
     </div>

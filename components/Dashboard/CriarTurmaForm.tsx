@@ -48,7 +48,7 @@ export default function CriarTurmaForm({ professores }: { professores: Professor
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors shadow-sm"
+        className="inline-flex items-center gap-2 bg-brand-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-800 transition-colors shadow-sm"
       >
         <Plus className="h-4 w-4" strokeWidth={2.5} />
         Criar turma
@@ -59,7 +59,7 @@ export default function CriarTurmaForm({ professores }: { professores: Professor
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white rounded-2xl ring-1 ring-gray-200 shadow-sm p-5 sm:p-6 mb-6"
+      className="card-alive p-5 sm:p-6 mb-6"
     >
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-gray-900">Nova turma</h2>
@@ -82,7 +82,7 @@ export default function CriarTurmaForm({ professores }: { professores: Professor
             value={nome}
             onChange={(e) => setNome(e.target.value)}
             placeholder="Ex: Turma 2026.2"
-            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500"
+            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
           />
         </div>
 
@@ -93,7 +93,7 @@ export default function CriarTurmaForm({ professores }: { professores: Professor
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
             placeholder="Ex: Módulo de liderança básica"
-            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500"
+            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
           />
         </div>
 
@@ -102,7 +102,7 @@ export default function CriarTurmaForm({ professores }: { professores: Professor
           <select
             value={professorId}
             onChange={(e) => setProfessorId(e.target.value)}
-            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500 bg-white"
+            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 bg-white"
           >
             <option value="">Sem professor definido ainda</option>
             {professores.map((p) => (
@@ -119,7 +119,7 @@ export default function CriarTurmaForm({ professores }: { professores: Professor
             type="date"
             value={dataInicio}
             onChange={(e) => setDataInicio(e.target.value)}
-            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500"
+            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
           />
         </div>
       </div>
@@ -134,7 +134,7 @@ export default function CriarTurmaForm({ professores }: { professores: Professor
         <button
           type="submit"
           disabled={isPending}
-          className="bg-green-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors disabled:opacity-50"
+          className="bg-brand-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-800 transition-colors disabled:opacity-50"
         >
           {isPending ? 'Criando...' : 'Criar turma'}
         </button>

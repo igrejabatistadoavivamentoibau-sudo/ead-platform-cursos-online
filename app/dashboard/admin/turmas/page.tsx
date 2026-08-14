@@ -11,7 +11,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_STYLE: Record<string, string> = {
   planejada: 'bg-amber-50 text-amber-700 ring-amber-200',
-  em_andamento: 'bg-green-50 text-green-700 ring-green-200',
+  em_andamento: 'bg-brand-50 text-brand-700 ring-brand-200',
   encerrada: 'bg-gray-100 text-gray-500 ring-gray-200',
 }
 
@@ -54,13 +54,20 @@ export default async function TurmasPage() {
               <Link
                 key={turma.id}
                 href={`/dashboard/admin/turmas/${turma.id}`}
-                className="group bg-white rounded-2xl ring-1 ring-gray-200 shadow-sm p-5 hover:shadow-md hover:ring-green-300 transition-all flex flex-col"
+                className="group card-alive card-sheen p-5 flex flex-col overflow-hidden"
               >
+                <span className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-500 via-brand-400 to-accent-400 scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-500" />
+
                 <div className="flex items-start justify-between gap-3 mb-3">
-                  <h2 className="font-semibold text-gray-900 leading-snug">{turma.nome}</h2>
+                  <h2 className="font-semibold text-gray-900 leading-snug transition-colors duration-300 group-hover:text-brand-800">
+                    {turma.nome}
+                  </h2>
                   <span
-                    className={`shrink-0 text-[11px] font-semibold px-2 py-1 rounded-full ring-1 ${STATUS_STYLE[turma.status]}`}
+                    className={`shrink-0 inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full ring-1 ${STATUS_STYLE[turma.status]}`}
                   >
+                    {turma.status === 'em_andamento' && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand-500 animate-soft-pulse" />
+                    )}
                     {STATUS_LABEL[turma.status]}
                   </span>
                 </div>
@@ -74,17 +81,20 @@ export default async function TurmasPage() {
                     {contagemPorTurma.get(turma.id) ?? 0}
                   </span>
                 </div>
-                <div className="mt-3 flex items-center gap-1 text-green-700 text-sm font-medium group-hover:gap-2 transition-all">
+                <div className="mt-3 flex items-center gap-1.5 text-brand-700 text-sm font-semibold">
                   Abrir turma
-                  <ArrowRight className="h-4 w-4" strokeWidth={2.25} />
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
+                    strokeWidth={2.25}
+                  />
                 </div>
               </Link>
             )
           })}
         </div>
       ) : (
-        <div className="mt-6 bg-white rounded-2xl ring-1 ring-gray-200 p-10 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-green-50 text-green-700">
+        <div className="mt-6 card-alive p-10 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
             <GraduationCap className="h-6 w-6" strokeWidth={2} />
           </div>
           <p className="text-gray-500">Nenhuma turma criada ainda. Comece criando a primeira acima.</p>

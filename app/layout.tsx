@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import "@fontsource-variable/inter";
+import "@fontsource-variable/plus-jakarta-sans";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Escola de Líderes IBAU",
-  description: "Plataforma de ensino para a Escola de Líderes da Igreja Batista da Avivamento IBAU",
+  description: "Plataforma de ensino para a Escola de Líderes da Igreja Batista do Avivamento — IBAU",
 };
 
 interface LayoutProps {

@@ -54,7 +54,7 @@ export default function CriarUsuarioForm() {
           setOpen(true)
           setCriado(null)
         }}
-        className="inline-flex items-center gap-2 bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors shadow-sm"
+        className="inline-flex items-center gap-2 bg-brand-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-800 transition-colors shadow-sm"
       >
         <UserPlus className="h-4 w-4" strokeWidth={2.5} />
         Criar usuário
@@ -63,7 +63,7 @@ export default function CriarUsuarioForm() {
   }
 
   return (
-    <div className="bg-white rounded-2xl ring-1 ring-gray-200 shadow-sm p-5 sm:p-6 mb-6">
+    <div className="card-alive p-5 sm:p-6 mb-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-gray-900">Nova conta</h2>
         <button
@@ -77,9 +77,9 @@ export default function CriarUsuarioForm() {
       </div>
 
       {criado ? (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-          <p className="text-sm font-semibold text-green-800 mb-2">Conta criada com sucesso!</p>
-          <p className="text-sm text-green-700">
+        <div className="bg-brand-50 border border-brand-200 rounded-xl p-4">
+          <p className="text-sm font-semibold text-brand-800 mb-2">Conta criada com sucesso!</p>
+          <p className="text-sm text-brand-700">
             Anote e repasse essas credenciais para a pessoa — a senha não fica salva em nenhum
             outro lugar:
           </p>
@@ -90,7 +90,7 @@ export default function CriarUsuarioForm() {
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="mt-3 text-sm font-semibold text-green-700 hover:text-green-800"
+            className="mt-3 text-sm font-semibold text-brand-700 hover:text-brand-800"
           >
             Fechar
           </button>
@@ -105,7 +105,7 @@ export default function CriarUsuarioForm() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500"
+                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
               />
             </div>
             <div>
@@ -115,7 +115,7 @@ export default function CriarUsuarioForm() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500"
+                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
               />
             </div>
             <div>
@@ -123,7 +123,7 @@ export default function CriarUsuarioForm() {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as typeof role)}
-                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500 bg-white"
+                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 bg-white"
               >
                 {ROLE_OPTIONS.map((r) => (
                   <option key={r.value} value={r.value}>
@@ -140,12 +140,12 @@ export default function CriarUsuarioForm() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] font-mono focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500"
+                  className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
                 />
                 <button
                   type="button"
                   onClick={() => setPassword(gerarSenha())}
-                  className="px-3 py-2.5 rounded-xl text-xs font-semibold text-green-700 hover:bg-green-50 ring-1 ring-green-200 whitespace-nowrap"
+                  className="px-3 py-2.5 rounded-xl text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-brand-200 whitespace-nowrap"
                 >
                   Gerar nova
                 </button>
@@ -163,7 +163,7 @@ export default function CriarUsuarioForm() {
             <button
               type="submit"
               disabled={isPending}
-              className="bg-green-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors disabled:opacity-50"
+              className="bg-brand-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-800 transition-colors disabled:opacity-50"
             >
               {isPending ? 'Criando...' : 'Criar conta'}
             </button>

@@ -1,17 +1,174 @@
 @import "tailwindcss";
 
+/* ============================================================
+   SISTEMA DE DESIGN — Escola de Líderes IBAU
+   Paleta "jade premium": verdes profundos e saturados com um
+   dourado discreto como cor de destaque. Tokens centralizados
+   aqui para que toda a plataforma tenha a mesma linguagem visual.
+   ============================================================ */
+
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0c1f17;
+
+  /* Verde da marca, refinado em 11 tons */
+  --brand-50: #eefbf4;
+  --brand-100: #d6f5e3;
+  --brand-200: #b0e9cc;
+  --brand-300: #7bd7ad;
+  --brand-400: #45bd8a;
+  --brand-500: #1fa06f;
+  --brand-600: #12805a;
+  --brand-700: #0f664a;
+  --brand-800: #0f513c;
+  --brand-900: #0d4333;
+  --brand-950: #05261d;
+
+  /* Dourado de destaque — usado com muita parcimônia */
+  --accent-300: #f2d492;
+  --accent-400: #e6bd68;
+  --accent-500: #d4a24c;
+
+  /* Sombras em camadas, com tom esverdeado em vez de cinza puro:
+     é o que dá a sensação "premium" em vez de sombra genérica. */
+  --shadow-sm: 0 1px 2px rgba(5, 38, 29, 0.06), 0 1px 3px rgba(5, 38, 29, 0.04);
+  --shadow-md: 0 4px 12px -2px rgba(5, 38, 29, 0.08), 0 2px 6px -2px rgba(5, 38, 29, 0.05);
+  --shadow-lg: 0 12px 28px -6px rgba(5, 38, 29, 0.12), 0 6px 12px -6px rgba(5, 38, 29, 0.07);
+  --shadow-xl: 0 24px 48px -12px rgba(5, 38, 29, 0.18), 0 10px 20px -10px rgba(5, 38, 29, 0.1);
+  --shadow-brand: 0 12px 32px -8px rgba(18, 128, 90, 0.35);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Plus Jakarta Sans Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+
+  --color-accent-300: var(--accent-300);
+  --color-accent-400: var(--accent-400);
+  --color-accent-500: var(--accent-500);
+
+  --shadow-soft: var(--shadow-sm);
+  --shadow-card: var(--shadow-md);
+  --shadow-float: var(--shadow-lg);
+  --shadow-deep: var(--shadow-xl);
+  --shadow-glow: var(--shadow-brand);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Títulos usam a fonte display, com tracking levemente fechado —
+   detalhe pequeno que separa um layout amador de um profissional. */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* ============================================================
+   CLASSES UTILITÁRIAS DE MOVIMENTO
+   Usadas nos cards para que nada fique "duro como pedra".
+   ============================================================ */
+
+/* Card base: sobe, ganha sombra e ilumina a borda no hover */
+.card-alive {
+  position: relative;
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.35s ease;
+  border: 1px solid rgba(5, 38, 29, 0.07);
+  will-change: transform;
+}
+
+.card-alive:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--brand-200);
+}
+
+/* Brilho suave que atravessa o card no hover */
+.card-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  opacity: 0;
+  transform: translateX(-60%);
+  transition: opacity 0.5s ease, transform 0.7s ease;
+  pointer-events: none;
+}
+
+.card-sheen:hover::after {
+  opacity: 1;
+  transform: translateX(60%);
+}
+
+/* Ícone que "respira" quando o card recebe hover */
+.icon-pop {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease, color 0.3s ease;
+}
+
+.group:hover .icon-pop {
+  transform: scale(1.08) rotate(-3deg);
+}
+
+/* Entrada suave de conteúdo */
+@keyframes float-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-float-in {
+  animation: float-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Pulso lento usado em indicadores de "ao vivo"/status ativo */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 2.4s ease-in-out infinite;
+}
+
+/* Barra de progresso animada ao aparecer */
+@keyframes grow-bar {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.animate-grow-bar {
+  transform-origin: left;
+  animation: grow-bar 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Respeita quem prefere menos movimento (acessibilidade) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

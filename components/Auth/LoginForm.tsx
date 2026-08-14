@@ -126,7 +126,7 @@ export default function LoginForm() {
           }}
           className={`flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg py-2.5 text-[13px] sm:text-sm font-semibold whitespace-nowrap transition-all ${
             portal === 'aluno'
-              ? 'bg-white text-green-700 shadow-sm'
+              ? 'bg-white text-brand-700 shadow-sm'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
@@ -141,7 +141,7 @@ export default function LoginForm() {
           }}
           className={`flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg py-2.5 text-[13px] sm:text-sm font-semibold whitespace-nowrap transition-all ${
             portal === 'professor'
-              ? 'bg-white text-green-700 shadow-sm'
+              ? 'bg-white text-brand-700 shadow-sm'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
@@ -167,7 +167,7 @@ export default function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="seu@email.com"
               disabled={isLoading}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500 transition-colors disabled:opacity-50"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-colors disabled:opacity-50"
               required
             />
           </div>
@@ -178,7 +178,7 @@ export default function LoginForm() {
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">
               Senha
             </label>
-            <Link href="#" className="text-sm text-green-700 hover:text-green-800 font-medium">
+            <Link href="#" className="text-sm text-brand-700 hover:text-brand-800 font-medium">
               Esqueceu sua senha?
             </Link>
           </div>
@@ -194,7 +194,7 @@ export default function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Digite sua senha"
               disabled={isLoading}
-              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500 transition-colors disabled:opacity-50"
+              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-colors disabled:opacity-50"
               required
             />
             <button
@@ -221,7 +221,7 @@ export default function LoginForm() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-green-700 text-white py-2.5 rounded-xl font-semibold hover:bg-green-800 active:bg-green-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-green-900/10"
+          className="w-full bg-brand-700 text-white py-2.5 rounded-xl font-semibold hover:bg-brand-800 active:bg-brand-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-brand-900/10"
         >
           {isLoading ? 'Entrando...' : 'Entrar'}
         </button>
@@ -244,7 +244,7 @@ export default function LoginForm() {
       </button>
 
       <div className="mt-6 flex items-start gap-3 bg-gray-50 rounded-xl p-4 ring-1 ring-gray-100">
-        <span className="mt-0.5 text-green-700 shrink-0">
+        <span className="mt-0.5 text-brand-700 shrink-0">
           <Users className="h-5 w-5" strokeWidth={2} />
         </span>
         <p className="text-sm text-gray-600 leading-snug">

@@ -4,132 +4,144 @@ import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
-interface Slide {
-  caption: string
-  gradient: string
-  /**
-   * Quando houver uma foto real (da igreja, das aulas, etc.), coloque o
-   * arquivo em /public/carousel/ e informe o caminho aqui — o carrossel
-   * troca automaticamente o gradiente pela foto. Até lá, cada slide usa um
-   * gradiente + ícone como espaço reservado.
-   */
-  image?: string
+export interface CarouselSlide {
+  id: string
+  titulo: string | null
+  url: string | null
+  gradient?: string
 }
 
-const slides: Slide[] = [
-  {
-    caption: 'Formação de Líderes',
-    gradient: 'from-green-800 via-green-700 to-emerald-600',
-  },
-  {
-    caption: 'Aulas e Encontros',
-    gradient: 'from-emerald-700 via-green-600 to-green-500',
-  },
-  {
-    caption: 'Comunhão em Célula',
-    gradient: 'from-green-900 via-green-700 to-emerald-600',
-  },
-  {
-    caption: 'Um só Corpo, uma só Visão',
-    gradient: 'from-teal-800 via-green-700 to-green-600',
-  },
+/** Usado enquanto o admin ainda não cadastrou nenhuma foto. */
+const SLIDES_PADRAO: CarouselSlide[] = [
+  { id: 'p1', titulo: 'Formação de Líderes', url: null, gradient: 'from-brand-900 via-brand-700 to-brand-500' },
+  { id: 'p2', titulo: 'Aulas e Encontros', url: null, gradient: 'from-brand-800 via-brand-600 to-emerald-500' },
+  { id: 'p3', titulo: 'Comunhão em Célula', url: null, gradient: 'from-brand-950 via-brand-800 to-brand-600' },
+  { id: 'p4', titulo: 'Um só Corpo, uma só Visão', url: null, gradient: 'from-teal-900 via-brand-700 to-brand-500' },
 ]
 
-const AUTOPLAY_MS = 6000
+const AUTOPLAY_MS = 5500
 
-export default function HeroCarousel() {
+export default function HeroCarousel({ slides }: { slides?: CarouselSlide[] }) {
+  const lista = slides && slides.length > 0 ? slides : SLIDES_PADRAO
   const [index, setIndex] = useState(0)
-  const [paused, setPaused] = useState(false)
 
-  const goTo = useCallback((i: number) => {
-    setIndex((i + slides.length) % slides.length)
-  }, [])
+  const goTo = useCallback(
+    (i: number) => setIndex((i + lista.length) % lista.length),
+    [lista.length]
+  )
 
   const next = useCallback(() => goTo(index + 1), [goTo, index])
   const prev = useCallback(() => goTo(index - 1), [goTo, index])
 
+  // Passa sozinho, sempre. Não pausa no hover — a pessoa não precisa
+  // fazer nada para ver as fotos. O timer reinicia quando `index` muda,
+  // então após clicar numa seta o slide seguinte ainda recebe o tempo cheio.
   useEffect(() => {
-    if (paused) return
-    const timer = setInterval(() => {
-      setIndex((current) => (current + 1) % slides.length)
+    if (lista.length <= 1) return
+    const timer = setTimeout(() => {
+      setIndex((atual) => (atual + 1) % lista.length)
     }, AUTOPLAY_MS)
-    return () => clearInterval(timer)
-  }, [paused])
+    return () => clearTimeout(timer)
+  }, [index, lista.length])
 
   return (
-    <div
-      className="absolute inset-0 overflow-hidden"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-    >
-      {/* Slides */}
-      {slides.map((slide, i) => (
-        <div
-          key={slide.caption}
-          aria-hidden={i !== index}
-          className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-            i === index ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
-          {slide.image ? (
-            <Image
-              src={slide.image}
-              alt={slide.caption}
-              fill
-              priority={i === 0}
-              className="object-cover"
-            />
-          ) : (
-            <div className={`h-full w-full bg-gradient-to-br ${slide.gradient}`}>
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(255,255,255,0.14),transparent_45%),radial-gradient(circle_at_85%_85%,rgba(0,0,0,0.2),transparent_50%)]" />
-            </div>
-          )}
-        </div>
-      ))}
-
-      {/* Véu escuro para legibilidade do texto por cima */}
-      <div className="absolute inset-0 bg-gradient-to-t from-green-950/85 via-green-950/30 to-green-950/10" />
-
-      {/* Legenda do slide atual */}
-      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:bottom-10 sm:right-10 md:right-14">
-        <span className="inline-flex items-center rounded-full bg-white/15 backdrop-blur-sm px-4 py-1.5 text-sm font-medium text-white ring-1 ring-white/25 whitespace-nowrap">
-          {slides[index].caption}
-        </span>
-      </div>
-
-      {/* Setas */}
-      <button
-        type="button"
-        onClick={prev}
-        aria-label="Slide anterior"
-        className="hidden sm:flex absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/25 backdrop-blur-sm ring-1 ring-white/20 transition-colors"
-      >
-        <ChevronLeft className="h-5 w-5" strokeWidth={2.25} />
-      </button>
-      <button
-        type="button"
-        onClick={next}
-        aria-label="Próximo slide"
-        className="hidden sm:flex absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/25 backdrop-blur-sm ring-1 ring-white/20 transition-colors"
-      >
-        <ChevronRight className="h-5 w-5" strokeWidth={2.25} />
-      </button>
-
-      {/* Indicadores */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2">
-        {slides.map((slide, i) => (
-          <button
-            key={slide.caption}
-            type="button"
-            onClick={() => goTo(i)}
-            aria-label={`Ir para o slide ${i + 1}`}
-            aria-current={i === index}
-            className={`h-1.5 rounded-full transition-all ${
-              i === index ? 'w-6 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/70'
+    <div className="absolute inset-0 overflow-hidden">
+      {lista.map((slide, i) => {
+        const ativo = i === index
+        return (
+          <div
+            key={slide.id}
+            aria-hidden={!ativo}
+            className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${
+              ativo ? 'opacity-100' : 'opacity-0'
             }`}
-          />
-        ))}
-      </div>
+          >
+            {slide.url ? (
+              <Image
+                src={slide.url}
+                alt={slide.titulo || 'Foto da Escola de Líderes'}
+                fill
+                priority={i === 0}
+                sizes="100vw"
+                /* Zoom lento (efeito Ken Burns) enquanto o slide está visível:
+                   dá vida à foto parada sem distrair. */
+                className={`object-cover transition-transform duration-[6000ms] ease-out ${
+                  ativo ? 'scale-110' : 'scale-100'
+                }`}
+              />
+            ) : (
+              <div className={`h-full w-full bg-gradient-to-br ${slide.gradient}`}>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(255,255,255,0.16),transparent_45%),radial-gradient(circle_at_85%_85%,rgba(0,0,0,0.22),transparent_50%)]" />
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Véu escuro para o texto por cima ficar sempre legível */}
+      <div className="absolute inset-0 bg-gradient-to-t from-brand-950/90 via-brand-950/45 to-brand-950/25" />
+      <div className="absolute inset-0 bg-gradient-to-r from-brand-950/70 via-transparent to-transparent" />
+
+      {/* Legenda do slide atual — só no desktop. No celular a área do banner
+          já está ocupada pelo selo da igreja, título e botões; mais um
+          elemento ali deixaria tudo apertado e sobreposto. */}
+      {lista[index]?.titulo && (
+        <div className="hidden sm:block absolute bottom-12 right-12">
+          <span
+            key={lista[index].id}
+            className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-md px-4 py-2 text-sm font-medium text-white ring-1 ring-white/25 whitespace-nowrap animate-float-in shadow-float"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-accent-400 animate-soft-pulse" />
+            {lista[index].titulo}
+          </span>
+        </div>
+      )}
+
+      {lista.length > 1 && (
+        <>
+          {/* Setas */}
+          <button
+            type="button"
+            onClick={prev}
+            aria-label="Foto anterior"
+            className="hidden sm:flex absolute left-5 top-1/2 -translate-y-1/2 h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/25 hover:scale-110 active:scale-95 backdrop-blur-md ring-1 ring-white/20 transition-all duration-300"
+          >
+            <ChevronLeft className="h-5 w-5" strokeWidth={2.25} />
+          </button>
+          <button
+            type="button"
+            onClick={next}
+            aria-label="Próxima foto"
+            className="hidden sm:flex absolute right-5 top-1/2 -translate-y-1/2 h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/25 hover:scale-110 active:scale-95 backdrop-blur-md ring-1 ring-white/20 transition-all duration-300"
+          >
+            <ChevronRight className="h-5 w-5" strokeWidth={2.25} />
+          </button>
+
+          {/* Indicadores com barra de tempo no slide ativo */}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2">
+            {lista.map((slide, i) => (
+              <button
+                key={slide.id}
+                type="button"
+                onClick={() => goTo(i)}
+                aria-label={`Ir para a foto ${i + 1}`}
+                aria-current={i === index}
+                className={`h-1.5 rounded-full overflow-hidden transition-all duration-500 ${
+                  i === index ? 'w-10 bg-white/30' : 'w-1.5 bg-white/40 hover:bg-white/70'
+                }`}
+              >
+                {i === index && (
+                  <span
+                    key={`barra-${index}`}
+                    className="block h-full w-full bg-white origin-left"
+                    style={{ animation: `grow-bar ${AUTOPLAY_MS}ms linear both` }}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

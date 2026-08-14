@@ -28,7 +28,7 @@ export default function TurmaStatusActions({
         type="button"
         disabled={isPending}
         onClick={() => handle(iniciarTurma)}
-        className="inline-flex items-center gap-2 bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors disabled:opacity-50 shadow-sm"
+        className="inline-flex items-center gap-2 bg-brand-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-800 transition-colors disabled:opacity-50 shadow-sm"
       >
         <PlayCircle className="h-4 w-4" strokeWidth={2.25} />
         {isPending ? 'Iniciando...' : 'Iniciar turma'}

@@ -62,7 +62,7 @@ export default function MatriculaManager({
   }
 
   return (
-    <div className="bg-white rounded-2xl ring-1 ring-gray-200 shadow-sm p-5 sm:p-6">
+    <div className="card-alive p-5 sm:p-6">
       <h2 className="font-semibold text-gray-900 mb-4">Alunos matriculados ({matriculados.length})</h2>
 
       {matriculados.length > 0 ? (
@@ -94,7 +94,7 @@ export default function MatriculaManager({
           <select
             value={selecionado}
             onChange={(e) => setSelecionado(e.target.value)}
-            className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500 bg-white"
+            className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 bg-white"
           >
             <option value="">Selecione um aluno...</option>
             {alunosNaoMatriculados.map((a) => (
@@ -107,7 +107,7 @@ export default function MatriculaManager({
             type="button"
             disabled={!selecionado || isPending}
             onClick={handleAdicionar}
-            className="inline-flex items-center justify-center gap-2 bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 bg-brand-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-800 transition-colors disabled:opacity-50"
           >
             <UserPlus className="h-4 w-4" strokeWidth={2.25} />
             Adicionar

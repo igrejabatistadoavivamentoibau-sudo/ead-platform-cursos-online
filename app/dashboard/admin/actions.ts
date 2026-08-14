@@ -225,3 +225,140 @@ export async function atualizarPapel(userId: string, role: 'aluno' | 'professor'
   if (error) throw new Error(error.message)
   revalidatePath('/dashboard/admin/usuarios')
 }
+
+// ============ SLIDES DO CARROSSEL ============
+
+const TIPOS_IMAGEM = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
+const TAMANHO_MAXIMO = 8 * 1024 * 1024 // 8 MB
+
+/**
+ * Recebe a foto via FormData (jeito nativo do Next para upload em Server
+ * Action), envia para o Supabase Storage e registra o slide no banco.
+ */
+export async function criarSlide(formData: FormData) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const file = formData.get('file')
+  const titulo = (formData.get('titulo') as string | null)?.trim() || null
+
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error('Selecione uma imagem para enviar.')
+  }
+  if (!TIPOS_IMAGEM.includes(file.type)) {
+    throw new Error('Formato não suportado. Use JPG, PNG, WEBP ou AVIF.')
+  }
+  if (file.size > TAMANHO_MAXIMO) {
+    throw new Error('A imagem passa de 8 MB. Reduza o tamanho e tente de novo.')
+  }
+
+  const extensao = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+  const nomeArquivo = `${crypto.randomUUID()}.${extensao}`
+
+  const { error: uploadError } = await admin.storage
+    .from('carrossel')
+    .upload(nomeArquivo, file, { contentType: file.type, upsert: false })
+
+  if (uploadError) throw new Error(`Falha ao enviar a imagem: ${uploadError.message}`)
+
+  // Novo slide entra no fim da fila
+  const { data: ultimo } = await admin
+    .from('slides')
+    .select('ordem')
+    .order('ordem', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { error: insertError } = await admin.from('slides').insert({
+    titulo,
+    image_path: nomeArquivo,
+    ordem: (ultimo?.ordem ?? 0) + 1,
+  })
+
+  if (insertError) {
+    // Não deixa a imagem órfã no storage se o registro falhar
+    await admin.storage.from('carrossel').remove([nomeArquivo])
+    throw new Error(insertError.message)
+  }
+
+  revalidatePath('/dashboard/admin/carrossel')
+  revalidatePath('/')
+}
+
+export async function alternarSlide(slideId: string, ativo: boolean) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('slides')
+    .update({ ativo, updated_at: new Date().toISOString() })
+    .eq('id', slideId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/carrossel')
+  revalidatePath('/')
+}
+
+export async function renomearSlide(slideId: string, titulo: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('slides')
+    .update({ titulo: titulo.trim() || null, updated_at: new Date().toISOString() })
+    .eq('id', slideId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/carrossel')
+  revalidatePath('/')
+}
+
+/** Move o slide uma posição para cima ou para baixo, trocando com o vizinho. */
+export async function moverSlide(slideId: string, direcao: 'cima' | 'baixo') {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: slides, error: listError } = await admin
+    .from('slides')
+    .select('id, ordem')
+    .order('ordem', { ascending: true })
+
+  if (listError) throw new Error(listError.message)
+  if (!slides) return
+
+  const indice = slides.findIndex((s) => s.id === slideId)
+  if (indice === -1) return
+
+  const vizinho = direcao === 'cima' ? indice - 1 : indice + 1
+  if (vizinho < 0 || vizinho >= slides.length) return
+
+  const atual = slides[indice]
+  const outro = slides[vizinho]
+
+  await admin.from('slides').update({ ordem: outro.ordem }).eq('id', atual.id)
+  await admin.from('slides').update({ ordem: atual.ordem }).eq('id', outro.id)
+
+  revalidatePath('/dashboard/admin/carrossel')
+  revalidatePath('/')
+}
+
+export async function removerSlide(slideId: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: slide } = await admin
+    .from('slides')
+    .select('image_path')
+    .eq('id', slideId)
+    .single()
+
+  const { error } = await admin.from('slides').delete().eq('id', slideId)
+  if (error) throw new Error(error.message)
+
+  if (slide?.image_path) {
+    await admin.storage.from('carrossel').remove([slide.image_path])
+  }
+
+  revalidatePath('/dashboard/admin/carrossel')
+  revalidatePath('/')
+}

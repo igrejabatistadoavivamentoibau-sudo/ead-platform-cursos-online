@@ -14,7 +14,7 @@ const ROLE_LABEL: Record<string, string> = {
 const ROLE_STYLE: Record<string, string> = {
   aluno: 'bg-blue-50 text-blue-700 ring-blue-200',
   professor: 'bg-purple-50 text-purple-700 ring-purple-200',
-  admin: 'bg-green-50 text-green-700 ring-green-200',
+  admin: 'bg-brand-50 text-brand-700 ring-brand-200',
 }
 
 function gerarSenha() {
@@ -95,7 +95,7 @@ export default function UsuarioRow({
               setResultado(null)
               setError(null)
             }}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-green-700 px-2.5 py-1.5 rounded-full hover:bg-green-50"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-brand-700 px-2.5 py-1.5 rounded-full hover:bg-brand-50"
           >
             <KeyRound className="h-3.5 w-3.5" strokeWidth={2.25} />
             Trocar senha
@@ -107,7 +107,7 @@ export default function UsuarioRow({
         <div className="mt-3 bg-gray-50 rounded-xl p-3.5">
           {resultado ? (
             <div className="flex items-center gap-2 text-sm">
-              <Check className="h-4 w-4 text-green-600 shrink-0" strokeWidth={2.5} />
+              <Check className="h-4 w-4 text-brand-600 shrink-0" strokeWidth={2.5} />
               <span className="text-gray-700">
                 Nova senha: <span className="font-mono font-semibold">{resultado}</span> — repasse
                 para {name.split(' ')[0]}.
@@ -119,7 +119,7 @@ export default function UsuarioRow({
                 type="text"
                 value={novaSenha}
                 onChange={(e) => setNovaSenha(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
               />
               <button
                 type="button"
@@ -132,7 +132,7 @@ export default function UsuarioRow({
                 type="button"
                 onClick={handleTrocarSenha}
                 disabled={isPending}
-                className="px-4 py-2 rounded-lg text-xs font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 whitespace-nowrap"
+                className="px-4 py-2 rounded-lg text-xs font-semibold bg-brand-700 text-white hover:bg-brand-800 disabled:opacity-50 whitespace-nowrap"
               >
                 {isPending ? 'Salvando...' : 'Confirmar'}
               </button>
