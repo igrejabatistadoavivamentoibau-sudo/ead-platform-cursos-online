@@ -62,7 +62,7 @@ export async function registrarProgresso(aulaId: string, percentual: number) {
   // recarregar a página a cada poucos segundos de vídeo assistido.
   if (concluidaFinal && !jaConcluida) {
     revalidatePath('/dashboard/aluno')
-    revalidatePath('/dashboard/aluno/aulas')
+    revalidatePath('/dashboard/aluno/cursos')
   }
 
   return { concluida: concluidaFinal, percentual: percentualFinal }

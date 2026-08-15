@@ -29,7 +29,7 @@ export default async function AlunoHome() {
 
   const { data: matriculas } = await supabase
     .from('turma_alunos')
-    .select('turma_id, turmas(id, nome, descricao, status, users(name))')
+    .select('turma_id, turmas(id, nome, descricao, status, curso_id, users(name))')
     .eq('aluno_id', sessao.id)
 
   const turmas = (matriculas ?? []).map((m) => {
@@ -38,6 +38,7 @@ export default async function AlunoHome() {
       nome?: string
       descricao?: string
       status?: string
+      curso_id?: string | null
       users?: { name?: string } | null
     } | null
     return {
@@ -45,6 +46,7 @@ export default async function AlunoHome() {
       nome: turma?.nome as string,
       descricao: turma?.descricao as string | undefined,
       status: turma?.status as string,
+      cursoId: turma?.curso_id ?? null,
       professorNome: turma?.users?.name as string | undefined,
     }
   })
@@ -58,8 +60,12 @@ export default async function AlunoHome() {
           .select('presente, encontros(data, titulo, turma_id)')
           .eq('aluno_id', sessao.id)
       : Promise.resolve({ data: null }),
-    turmaAtiva
-      ? supabase.from('aulas').select('id').eq('turma_id', turmaAtiva.id).eq('publicada', true)
+    turmaAtiva?.cursoId
+      ? supabase
+          .from('aulas')
+          .select('id')
+          .eq('curso_id', turmaAtiva.cursoId)
+          .eq('publicada', true)
       : Promise.resolve({ data: null }),
     supabase
       .from('aula_progresso')
@@ -167,7 +173,7 @@ export default async function AlunoHome() {
 
           {/* Atalho para as aulas */}
           <Link
-            href="/dashboard/aluno/aulas"
+            href="/dashboard/aluno/cursos"
             className="group relative mt-6 flex items-center justify-between gap-4 overflow-hidden rounded-2xl bg-white ring-1 ring-gray-200 p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-float hover:ring-brand-300"
           >
             <div className="flex items-center gap-4 min-w-0">
@@ -176,7 +182,7 @@ export default async function AlunoHome() {
               </span>
               <div className="min-w-0">
                 <h3 className="font-bold text-gray-900 group-hover:text-brand-800 transition-colors">
-                  Assistir vídeo aulas
+                  Meus cursos
                 </h3>
                 <p className="text-sm text-gray-500">
                   {totalAulas > 0

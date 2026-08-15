@@ -73,7 +73,7 @@ export default function PortalNav({
       {/* ===== Topo no celular ===== */}
       <div className="md:hidden sticky top-0 z-50 flex items-center justify-between bg-brand-950 text-white px-4 h-14 shadow-float">
         <Link href={links[0]?.href ?? '/'} className="flex items-center gap-2.5">
-          <Image src="/ibau-logo-transparent.png" alt="Logo IBAU" width={26} height={26} />
+          <Image src="/ibau-capelo.png" alt="Escola de Líderes IBAU" width={26} height={28} />
           <span className="font-semibold text-sm">{titulo}</span>
         </Link>
         <button
@@ -147,16 +147,17 @@ export default function PortalNav({
           {!collapsed && (
             <Link href={links[0]?.href ?? '/'} className="flex items-center gap-2.5 min-w-0">
               <Image
-                src="/ibau-logo-transparent.png"
-                alt="Logo IBAU"
-                width={28}
-                height={28}
-                className="shrink-0"
+                src="/ibau-marca-clara.png"
+                alt="Escola de Líderes IBAU"
+                width={104}
+                height={88}
+                className="h-9 w-auto shrink-0"
               />
-              <div className="leading-tight min-w-0">
-                <div className="text-sm font-bold truncate">Escola de Líderes</div>
-                <div className="text-[11px] text-brand-300 font-semibold tracking-wide">IBAU</div>
-              </div>
+            </Link>
+          )}
+          {collapsed && (
+            <Link href={links[0]?.href ?? '/'} className="sr-only">
+              Início
             </Link>
           )}
           <button

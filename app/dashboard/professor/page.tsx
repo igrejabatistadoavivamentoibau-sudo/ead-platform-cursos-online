@@ -1,5 +1,14 @@
 import Link from 'next/link'
-import { Presentation, Users2, PlayCircle, GraduationCap, ClipboardList, Video, ArrowRight } from 'lucide-react'
+import {
+  Presentation,
+  Users2,
+  PlayCircle,
+  GraduationCap,
+  ClipboardList,
+  Video,
+  TrendingUp,
+  BookOpenText,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
 
@@ -22,7 +31,7 @@ export default async function ProfessorHome() {
   // Admin enxerga todas as turmas; professor, apenas as suas.
   const consultaTurmas = supabase
     .from('turmas')
-    .select('id, nome, descricao, status')
+    .select('id, nome, descricao, status, curso_id, cursos(titulo)')
     .order('created_at', { ascending: false })
 
   const { data: turmas } =
@@ -39,9 +48,14 @@ export default async function ProfessorHome() {
     ids.length
       ? supabase.from('encontros').select('turma_id').in('turma_id', ids)
       : Promise.resolve({ data: [] as { turma_id: string }[] }),
-    ids.length
-      ? supabase.from('aulas').select('turma_id').in('turma_id', ids)
-      : Promise.resolve({ data: [] as { turma_id: string }[] }),
+    (() => {
+      // Aulas agora pertencem ao curso, então contamos por curso e depois
+      // mapeamos de volta para cada turma.
+      const cursoIds = [...new Set((turmas ?? []).map((t) => t.curso_id).filter(Boolean))]
+      return cursoIds.length
+        ? supabase.from('aulas').select('curso_id').in('curso_id', cursoIds as string[])
+        : Promise.resolve({ data: [] as { curso_id: string }[] })
+    })(),
   ])
 
   const contar = (lista: { turma_id: string }[] | null) => {
@@ -52,7 +66,13 @@ export default async function ProfessorHome() {
 
   const alunosPorTurma = contar(matriculas)
   const encontrosPorTurma = contar(encontros)
-  const aulasPorTurma = contar(aulas)
+
+  const aulasPorCurso = new Map<string, number>()
+  for (const a of (aulas ?? []) as { curso_id: string }[]) {
+    aulasPorCurso.set(a.curso_id, (aulasPorCurso.get(a.curso_id) ?? 0) + 1)
+  }
+  const aulasDaTurma = (cursoId: string | null) =>
+    cursoId ? (aulasPorCurso.get(cursoId) ?? 0) : 0
 
   const emAndamento = (turmas ?? []).filter((t) => t.status === 'em_andamento').length
   const totalAlunos = (turmas ?? []).reduce((s, t) => s + (alunosPorTurma.get(t.id) ?? 0), 0)
@@ -128,6 +148,19 @@ export default async function ProfessorHome() {
                 </span>
               </div>
 
+              {(() => {
+                const c = turma.cursos as unknown as { titulo?: string } | null
+                return c?.titulo ? (
+                  <p className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-50 ring-1 ring-brand-200 rounded-full px-2.5 py-1 mb-3">
+                    <BookOpenText className="h-3.5 w-3.5" strokeWidth={2} />
+                    {c.titulo}
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-700 bg-amber-50 ring-1 ring-amber-200 rounded-full px-2.5 py-1 inline-block mb-3">
+                    Sem curso definido
+                  </p>
+                )
+              })()}
               {turma.descricao && (
                 <p className="text-sm text-gray-500 mb-4 line-clamp-2">{turma.descricao}</p>
               )}
@@ -150,24 +183,32 @@ export default async function ProfessorHome() {
                 <span className="flex items-center gap-1.5">
                   <Video className="h-4 w-4 text-brand-600" strokeWidth={2} />
                   <span className="font-semibold text-gray-700 tabular-nums">
-                    {aulasPorTurma.get(turma.id) ?? 0}
+                    {aulasDaTurma(turma.curso_id)}
                   </span>
                   aulas
                 </span>
               </div>
 
-              {sessao.permissoes.gerenciar_aulas && (
-                <Link
-                  href={`/dashboard/professor/turmas/${turma.id}/aulas`}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800"
-                >
-                  Gerenciar vídeo aulas
-                  <ArrowRight
-                    className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
-                    strokeWidth={2.25}
-                  />
-                </Link>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {sessao.permissoes.ver_alunos && (
+                  <Link
+                    href={`/dashboard/professor/turmas/${turma.id}/avanco`}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 text-white px-3.5 py-2 text-xs font-semibold transition-all hover:bg-brand-700 hover:shadow-glow"
+                  >
+                    <TrendingUp className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    Ver avanço da turma
+                  </Link>
+                )}
+                {sessao.permissoes.gerenciar_aulas && turma.curso_id && (
+                  <Link
+                    href={`/dashboard/professor/cursos/${turma.curso_id}`}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-white ring-1 ring-gray-200 text-gray-700 px-3.5 py-2 text-xs font-semibold transition-all hover:ring-brand-300 hover:text-brand-800"
+                  >
+                    <Video className="h-3.5 w-3.5 text-brand-600" strokeWidth={2.25} />
+                    Vídeo aulas
+                  </Link>
+                )}
+              </div>
             </div>
           ))}
         </div>

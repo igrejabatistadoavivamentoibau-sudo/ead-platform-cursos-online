@@ -394,43 +394,52 @@ async function exigirPermissaoAction(chave: ChavePermissao) {
   return { user, role: perfil.role as UserRole }
 }
 
-/** Professor só mexe na própria turma; admin mexe em qualquer uma. */
-async function garantirAcessoATurma(turmaId: string, userId: string, role: UserRole) {
+/**
+ * Professor só mexe em curso que ele leciona em alguma turma;
+ * admin mexe em qualquer um.
+ */
+async function garantirAcessoAoCurso(cursoId: string, userId: string, role: UserRole) {
   if (role === 'admin') return
   const admin = createAdminClient()
-  const { data: turma } = await admin
+  const { count } = await admin
     .from('turmas')
-    .select('professor_id')
-    .eq('id', turmaId)
-    .single()
+    .select('id', { count: 'exact', head: true })
+    .eq('curso_id', cursoId)
+    .eq('professor_id', userId)
 
-  if (turma?.professor_id !== userId) {
-    throw new Error('Esta turma não está sob sua responsabilidade.')
+  if (!count) {
+    throw new Error('Este curso não está sob sua responsabilidade.')
   }
 }
 
+function revalidarAulas(cursoId: string) {
+  revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+  revalidatePath(`/dashboard/professor/cursos/${cursoId}`)
+  revalidatePath('/dashboard/aluno/cursos')
+}
+
 export async function criarAula(input: {
-  turma_id: string
+  curso_id: string
   titulo: string
   descricao?: string
   video_url?: string
   duracao_minutos?: number
 }) {
   const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
-  await garantirAcessoATurma(input.turma_id, user.id, role)
+  await garantirAcessoAoCurso(input.curso_id, user.id, role)
   const admin = createAdminClient()
 
-  // Número da aula é sequencial dentro da turma (Aula 1, Aula 2, ...)
+  // Número da aula é sequencial dentro do curso (Aula 1, Aula 2, ...)
   const { data: ultima } = await admin
     .from('aulas')
     .select('numero')
-    .eq('turma_id', input.turma_id)
+    .eq('curso_id', input.curso_id)
     .order('numero', { ascending: false })
     .limit(1)
     .maybeSingle()
 
   const { error } = await admin.from('aulas').insert({
-    turma_id: input.turma_id,
+    curso_id: input.curso_id,
     numero: (ultima?.numero ?? 0) + 1,
     titulo: input.titulo,
     descricao: input.descricao || null,
@@ -439,17 +448,16 @@ export async function criarAula(input: {
   })
 
   if (error) throw new Error(error.message)
-  revalidatePath(`/dashboard/admin/turmas/${input.turma_id}/aulas`)
-  revalidatePath(`/dashboard/professor/turmas/${input.turma_id}/aulas`)
+  revalidarAulas(input.curso_id)
 }
 
 export async function atualizarAula(
   aulaId: string,
-  turmaId: string,
+  cursoId: string,
   input: { titulo?: string; descricao?: string; video_url?: string; duracao_minutos?: number }
 ) {
   const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
-  await garantirAcessoATurma(turmaId, user.id, role)
+  await garantirAcessoAoCurso(cursoId, user.id, role)
   const admin = createAdminClient()
 
   const { error } = await admin
@@ -466,13 +474,12 @@ export async function atualizarAula(
     .eq('id', aulaId)
 
   if (error) throw new Error(error.message)
-  revalidatePath(`/dashboard/admin/turmas/${turmaId}/aulas`)
-  revalidatePath(`/dashboard/professor/turmas/${turmaId}/aulas`)
+  revalidarAulas(cursoId)
 }
 
-export async function publicarAula(aulaId: string, turmaId: string, publicada: boolean) {
+export async function publicarAula(aulaId: string, cursoId: string, publicada: boolean) {
   const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
-  await garantirAcessoATurma(turmaId, user.id, role)
+  await garantirAcessoAoCurso(cursoId, user.id, role)
   const admin = createAdminClient()
 
   const { error } = await admin
@@ -481,20 +488,19 @@ export async function publicarAula(aulaId: string, turmaId: string, publicada: b
     .eq('id', aulaId)
 
   if (error) throw new Error(error.message)
-  revalidatePath(`/dashboard/admin/turmas/${turmaId}/aulas`)
-  revalidatePath(`/dashboard/professor/turmas/${turmaId}/aulas`)
+  revalidarAulas(cursoId)
 }
 
 /** Troca a aula de posição com a vizinha, renumerando as duas. */
-export async function moverAula(aulaId: string, turmaId: string, direcao: 'cima' | 'baixo') {
+export async function moverAula(aulaId: string, cursoId: string, direcao: 'cima' | 'baixo') {
   const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
-  await garantirAcessoATurma(turmaId, user.id, role)
+  await garantirAcessoAoCurso(cursoId, user.id, role)
   const admin = createAdminClient()
 
   const { data: aulas } = await admin
     .from('aulas')
     .select('id, numero')
-    .eq('turma_id', turmaId)
+    .eq('curso_id', cursoId)
     .order('numero', { ascending: true })
 
   if (!aulas) return
@@ -512,20 +518,18 @@ export async function moverAula(aulaId: string, turmaId: string, direcao: 'cima'
   await admin.from('aulas').update({ numero: atual.numero }).eq('id', outra.id)
   await admin.from('aulas').update({ numero: outra.numero }).eq('id', atual.id)
 
-  revalidatePath(`/dashboard/admin/turmas/${turmaId}/aulas`)
-  revalidatePath(`/dashboard/professor/turmas/${turmaId}/aulas`)
+  revalidarAulas(cursoId)
 }
 
-export async function removerAula(aulaId: string, turmaId: string) {
+export async function removerAula(aulaId: string, cursoId: string) {
   const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
-  await garantirAcessoATurma(turmaId, user.id, role)
+  await garantirAcessoAoCurso(cursoId, user.id, role)
   const admin = createAdminClient()
 
   const { error } = await admin.from('aulas').delete().eq('id', aulaId)
   if (error) throw new Error(error.message)
 
-  revalidatePath(`/dashboard/admin/turmas/${turmaId}/aulas`)
-  revalidatePath(`/dashboard/professor/turmas/${turmaId}/aulas`)
+  revalidarAulas(cursoId)
 }
 
 // ============ PERMISSÕES ============
@@ -550,4 +554,163 @@ export async function atualizarPermissoes(
   if (error) throw new Error(error.message)
   revalidatePath('/dashboard/admin/usuarios')
   revalidatePath('/dashboard/admin/permissoes')
+}
+
+// ============ CURSOS ============
+
+const TIPOS_IMAGEM_CURSO = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
+const TAMANHO_MAXIMO_CAPA = 8 * 1024 * 1024
+
+/** Faz upload da capa (se enviada) e devolve o caminho no storage. */
+async function subirCapa(formData: FormData): Promise<string | null> {
+  const file = formData.get('capa')
+  if (!(file instanceof File) || file.size === 0) return null
+
+  if (!TIPOS_IMAGEM_CURSO.includes(file.type)) {
+    throw new Error('Capa em formato não suportado. Use JPG, PNG ou WEBP.')
+  }
+  if (file.size > TAMANHO_MAXIMO_CAPA) {
+    throw new Error('A capa passa de 8 MB. Reduza o tamanho e tente de novo.')
+  }
+
+  const admin = createAdminClient()
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+  const nome = `${crypto.randomUUID()}.${ext}`
+
+  const { error } = await admin.storage
+    .from('cursos')
+    .upload(nome, file, { contentType: file.type, upsert: false })
+
+  if (error) throw new Error(`Falha ao enviar a capa: ${error.message}`)
+  return nome
+}
+
+export async function criarCurso(formData: FormData) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const titulo = (formData.get('titulo') as string)?.trim()
+  if (!titulo) throw new Error('Informe o nome do curso.')
+
+  const capa = await subirCapa(formData)
+
+  const { data: ultimo } = await admin
+    .from('cursos')
+    .select('ordem')
+    .order('ordem', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { error } = await admin.from('cursos').insert({
+    titulo,
+    subtitulo: (formData.get('subtitulo') as string)?.trim() || null,
+    descricao: (formData.get('descricao') as string)?.trim() || null,
+    categoria: (formData.get('categoria') as string)?.trim() || null,
+    nivel: (formData.get('nivel') as string) || 'iniciante',
+    cor: (formData.get('cor') as string) || 'esmeralda',
+    carga_horaria: formData.get('carga_horaria')
+      ? Number(formData.get('carga_horaria'))
+      : null,
+    capa_path: capa,
+    ordem: (ultimo?.ordem ?? 0) + 1,
+  })
+
+  if (error) {
+    if (capa) await admin.storage.from('cursos').remove([capa])
+    throw new Error(error.message)
+  }
+
+  revalidatePath('/dashboard/admin/cursos')
+  revalidatePath('/')
+}
+
+export async function atualizarCurso(cursoId: string, formData: FormData) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const capa = await subirCapa(formData)
+
+  // Se trocou a capa, apaga a antiga para não acumular lixo no storage
+  if (capa) {
+    const { data: antigo } = await admin
+      .from('cursos')
+      .select('capa_path')
+      .eq('id', cursoId)
+      .single()
+    if (antigo?.capa_path) {
+      await admin.storage.from('cursos').remove([antigo.capa_path])
+    }
+  }
+
+  const { error } = await admin
+    .from('cursos')
+    .update({
+      titulo: (formData.get('titulo') as string)?.trim(),
+      subtitulo: (formData.get('subtitulo') as string)?.trim() || null,
+      descricao: (formData.get('descricao') as string)?.trim() || null,
+      categoria: (formData.get('categoria') as string)?.trim() || null,
+      nivel: (formData.get('nivel') as string) || 'iniciante',
+      cor: (formData.get('cor') as string) || 'esmeralda',
+      carga_horaria: formData.get('carga_horaria')
+        ? Number(formData.get('carga_horaria'))
+        : null,
+      ...(capa ? { capa_path: capa } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', cursoId)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/dashboard/admin/cursos')
+  revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+  revalidatePath('/')
+}
+
+export async function publicarCurso(cursoId: string, publicado: boolean) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('cursos')
+    .update({ publicado, updated_at: new Date().toISOString() })
+    .eq('id', cursoId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/cursos')
+  revalidatePath('/')
+}
+
+export async function removerCurso(cursoId: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: curso } = await admin
+    .from('cursos')
+    .select('capa_path')
+    .eq('id', cursoId)
+    .single()
+
+  const { error } = await admin.from('cursos').delete().eq('id', cursoId)
+  if (error) throw new Error(error.message)
+
+  if (curso?.capa_path) {
+    await admin.storage.from('cursos').remove([curso.capa_path])
+  }
+
+  revalidatePath('/dashboard/admin/cursos')
+  revalidatePath('/')
+}
+
+/** Liga uma turma a um curso — é o que define o conteúdo que a turma verá. */
+export async function definirCursoDaTurma(turmaId: string, cursoId: string | null) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('turmas')
+    .update({ curso_id: cursoId, updated_at: new Date().toISOString() })
+    .eq('id', turmaId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
 }

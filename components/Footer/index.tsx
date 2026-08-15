@@ -21,7 +21,7 @@ export default function Footer() {
           <div>
             <Link href="/" className="group flex items-center gap-2.5 mb-4">
               <Image
-                src="/ibau-logo-transparent.png"
+                src="/ibau-marca-clara.png"
                 alt="Logo IBAU"
                 width={32}
                 height={32}

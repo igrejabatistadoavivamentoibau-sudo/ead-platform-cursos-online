@@ -42,11 +42,11 @@ const CAMPO =
   'w-full px-3.5 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-[15px] transition-all focus:outline-none focus:bg-white focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500'
 
 export default function AulasManager({
-  turmaId,
+  cursoId,
   aulas,
   totalAlunos,
 }: {
-  turmaId: string
+  cursoId: string
   aulas: AulaItem[]
   totalAlunos: number
 }) {
@@ -78,7 +78,7 @@ export default function AulasManager({
     acao(
       () =>
         criarAula({
-          turma_id: turmaId,
+          curso_id: cursoId,
           titulo: form.titulo,
           descricao: form.descricao || undefined,
           video_url: form.video_url || undefined,
@@ -94,7 +94,7 @@ export default function AulasManager({
   const handleSalvarEdicao = (aulaId: string) => {
     acao(
       () =>
-        atualizarAula(aulaId, turmaId, {
+        atualizarAula(aulaId, cursoId, {
           titulo: form.titulo,
           descricao: form.descricao,
           video_url: form.video_url,
@@ -415,7 +415,7 @@ export default function AulasManager({
                         <button
                           type="button"
                           disabled={isPending}
-                          onClick={() => acao(() => publicarAula(aula.id, turmaId, !aula.publicada))}
+                          onClick={() => acao(() => publicarAula(aula.id, cursoId, !aula.publicada))}
                           className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-brand-700 px-2.5 py-1.5 rounded-lg hover:bg-brand-50 transition-colors disabled:opacity-40"
                         >
                           {aula.publicada ? (
@@ -446,7 +446,7 @@ export default function AulasManager({
                         <button
                           type="button"
                           disabled={isPending || i === 0}
-                          onClick={() => acao(() => moverAula(aula.id, turmaId, 'cima'))}
+                          onClick={() => acao(() => moverAula(aula.id, cursoId, 'cima'))}
                           className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:text-brand-700 hover:bg-brand-50 transition-colors disabled:opacity-25 disabled:hover:bg-transparent"
                           aria-label="Mover aula para cima"
                           title="Mover para cima"
@@ -456,7 +456,7 @@ export default function AulasManager({
                         <button
                           type="button"
                           disabled={isPending || i === aulas.length - 1}
-                          onClick={() => acao(() => moverAula(aula.id, turmaId, 'baixo'))}
+                          onClick={() => acao(() => moverAula(aula.id, cursoId, 'baixo'))}
                           className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:text-brand-700 hover:bg-brand-50 transition-colors disabled:opacity-25 disabled:hover:bg-transparent"
                           aria-label="Mover aula para baixo"
                           title="Mover para baixo"
@@ -467,7 +467,7 @@ export default function AulasManager({
                         <button
                           type="button"
                           disabled={isPending}
-                          onClick={() => acao(() => removerAula(aula.id, turmaId))}
+                          onClick={() => acao(() => removerAula(aula.id, cursoId))}
                           className="ml-auto flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
                           aria-label="Remover aula"
                           title="Remover aula"
