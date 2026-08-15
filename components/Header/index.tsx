@@ -36,7 +36,7 @@ export default function Header() {
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
         <Link href="/" className="group flex items-center gap-2.5">
           <Image
-            src="/ibau-marca.png"
+            src="/ibau-simbolo.png"
             alt="Logo IBAU"
             width={34}
             height={34}
