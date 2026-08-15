@@ -34,9 +34,10 @@ export function formatarData(data: string) {
 export async function carregarChamada(encontroId: string): Promise<DadosChamada | null> {
   const supabase = await createClient()
 
+  // O nome do professor sai por consulta separada — ver lib/consulta.ts
   const { data: encontro } = await supabase
     .from('encontros')
-    .select('id, titulo, data, turma_id, turmas(nome, cursos(titulo), users(name))')
+    .select('id, titulo, data, turma_id, turmas(nome, professor_id, cursos(titulo))')
     .eq('id', encontroId)
     .single()
 
@@ -44,9 +45,13 @@ export async function carregarChamada(encontroId: string): Promise<DadosChamada 
 
   const turma = encontro.turmas as unknown as {
     nome?: string
+    professor_id?: string | null
     cursos?: { titulo?: string } | null
-    users?: { name?: string } | null
   } | null
+
+  const { data: professor } = turma?.professor_id
+    ? await supabase.from('users').select('name').eq('id', turma.professor_id).maybeSingle()
+    : { data: null }
 
   const { data: presencas } = await supabase
     .from('presencas')
@@ -68,7 +73,7 @@ export async function carregarChamada(encontroId: string): Promise<DadosChamada 
   return {
     turma: turma?.nome ?? 'Turma',
     curso: turma?.cursos?.titulo ?? null,
-    professor: turma?.users?.name ?? null,
+    professor: professor?.name ?? null,
     titulo: (encontro.titulo as string) || 'Encontro',
     data: encontro.data as string,
     linhas,

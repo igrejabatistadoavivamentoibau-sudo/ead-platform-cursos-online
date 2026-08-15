@@ -27,29 +27,39 @@ export default async function AlunoHome() {
   const sessao = await exigirSessao()
   const supabase = await createClient()
 
+  // Sem o join aninhado users(name): entre turmas e users existe mais de um
+  // caminho possível e a consulta falhava calada (ver lib/consulta.ts).
   const { data: matriculas } = await supabase
     .from('turma_alunos')
-    .select('turma_id, turmas(id, nome, descricao, status, curso_id, users(name))')
+    .select('turma_id, turmas(id, nome, descricao, status, curso_id, professor_id)')
     .eq('aluno_id', sessao.id)
 
-  const turmas = (matriculas ?? []).map((m) => {
-    const turma = m.turmas as unknown as {
-      id?: string
-      nome?: string
-      descricao?: string
-      status?: string
-      curso_id?: string | null
-      users?: { name?: string } | null
-    } | null
-    return {
-      id: turma?.id as string,
-      nome: turma?.nome as string,
-      descricao: turma?.descricao as string | undefined,
-      status: turma?.status as string,
-      cursoId: turma?.curso_id ?? null,
-      professorNome: turma?.users?.name as string | undefined,
-    }
-  })
+  const brutas = (matriculas ?? []).map(
+    (m) =>
+      m.turmas as unknown as {
+        id?: string
+        nome?: string
+        descricao?: string
+        status?: string
+        curso_id?: string | null
+        professor_id?: string | null
+      } | null
+  )
+
+  const idsProfessores = [...new Set(brutas.map((t) => t?.professor_id).filter(Boolean))]
+  const { data: professores } = idsProfessores.length
+    ? await supabase.from('users').select('id, name').in('id', idsProfessores as string[])
+    : { data: [] as { id: string; name: string }[] }
+  const nomePorId = new Map((professores ?? []).map((p) => [p.id, p.name]))
+
+  const turmas = brutas.map((turma) => ({
+    id: turma?.id as string,
+    nome: turma?.nome as string,
+    descricao: turma?.descricao as string | undefined,
+    status: turma?.status as string,
+    cursoId: turma?.curso_id ?? null,
+    professorNome: turma?.professor_id ? nomePorId.get(turma.professor_id) : undefined,
+  }))
 
   const turmaAtiva = turmas.find((t) => t.status === 'em_andamento') ?? turmas[0]
 

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Users2, ArrowRight, GraduationCap } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import CriarTurmaForm from '@/components/Dashboard/CriarTurmaForm'
+import { exigirDados, indicePorId } from '@/lib/consulta'
 
 const STATUS_LABEL: Record<string, string> = {
   planejada: 'Planejada',
@@ -18,18 +19,28 @@ const STATUS_STYLE: Record<string, string> = {
 export default async function TurmasPage() {
   const supabase = await createClient()
 
-  const [{ data: turmas }, { data: professores }] = await Promise.all([
+  // Sem join embutido: o nome do professor vem de uma consulta própria.
+  // Ver o porquê em lib/consulta.ts — entre turmas e users existe mais de um
+  // caminho possível, e o join embutido falhava silenciosamente.
+  const [resTurmas, resProfessores] = await Promise.all([
     supabase
       .from('turmas')
-      .select('id, nome, descricao, status, data_inicio, professor_id, users(name)')
+      .select('id, nome, descricao, status, data_inicio, professor_id')
       .order('created_at', { ascending: false }),
     supabase.from('users').select('id, name').eq('role', 'professor').order('name'),
   ])
 
+  const turmas = exigirDados(resTurmas, 'as turmas')
+  const professores = exigirDados(resProfessores, 'os professores')
+  const nomePorId = indicePorId(professores)
+
   // Conta matrículas por turma
-  const { data: matriculas } = await supabase.from('turma_alunos').select('turma_id')
+  const matriculas = exigirDados(
+    await supabase.from('turma_alunos').select('turma_id'),
+    'as matrículas'
+  ) as { turma_id: string }[]
   const contagemPorTurma = new Map<string, number>()
-  for (const m of matriculas ?? []) {
+  for (const m of matriculas) {
     contagemPorTurma.set(m.turma_id, (contagemPorTurma.get(m.turma_id) ?? 0) + 1)
   }
 
@@ -49,7 +60,9 @@ export default async function TurmasPage() {
       {turmas && turmas.length > 0 ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
           {turmas.map((turma) => {
-            const professorNome = (turma.users as unknown as { name?: string } | null)?.name
+            const professorNome = turma.professor_id
+              ? nomePorId.get(turma.professor_id)?.name
+              : undefined
             return (
               <Link
                 key={turma.id}

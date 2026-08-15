@@ -26,7 +26,7 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
 
   const { data: turma } = await supabase
     .from('turmas')
-    .select('id, nome, descricao, status, data_inicio, professor_id, curso_id, users(name)')
+    .select('id, nome, descricao, status, data_inicio, professor_id, curso_id')
     .eq('id', id)
     .single()
 
@@ -56,7 +56,11 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
     }
   })
 
-  const professorNome = (turma.users as unknown as { name?: string } | null)?.name
+  // Nome do professor por consulta direta, sem join embutido (ver lib/consulta.ts)
+  const { data: professor } = turma.professor_id
+    ? await supabase.from('users').select('name').eq('id', turma.professor_id).maybeSingle()
+    : { data: null }
+  const professorNome = professor?.name
 
   return (
     <div className="p-5 sm:p-8">
