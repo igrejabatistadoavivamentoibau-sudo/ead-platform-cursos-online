@@ -173,7 +173,7 @@ export default function VideoPlayer({
           </>
         )}
 
-        {(info.tipo === 'vimeo' || info.tipo === 'drive') && (
+        {(info.tipo === 'vimeo' || info.tipo === 'drive' || info.iframe) && (
           <iframe
             src={info.embed}
             className="h-full w-full"
@@ -183,7 +183,7 @@ export default function VideoPlayer({
           />
         )}
 
-        {(info.tipo === 'arquivo' || info.tipo === 'onedrive') && !falhouVideo && (
+        {(info.tipo === 'arquivo' || info.tipo === 'onedrive') && !info.iframe && !falhouVideo && (
           <video
             src={info.embed ?? info.url}
             controls
@@ -207,7 +207,7 @@ export default function VideoPlayer({
             <p className="text-[14px] font-semibold text-white">Não consegui abrir este vídeo</p>
             <p className="max-w-sm text-[12.5px] leading-relaxed text-white/60">
               {info.tipo === 'onedrive'
-                ? 'No OneDrive, abra o arquivo, clique em Compartilhar e libere para "qualquer pessoa com o link". Sem isso a plataforma não consegue exibir o vídeo.'
+                ? 'Os links novos do OneDrive exigem sessão da Microsoft. Abra o vídeo no OneDrive, use "Incorporar" e cole aqui o código que aparecer — a plataforma aceita o código inteiro.'
                 : 'O endereço do vídeo não respondeu. Confira se o link continua válido.'}
             </p>
           </div>
@@ -264,7 +264,7 @@ export default function VideoPlayer({
               ler o tempo do vídeo — então a conclusão fica na mão do aluno.
               Sem este botão, uma aula hospedada no Drive nunca geraria
               presença automática no EAD, e o aluno ficaria sem o selo. */}
-          {!marcaProgressoSozinho(info.tipo) && (
+          {!marcaProgressoSozinho(info) && (
             <div className="mt-3 border-t border-gray-200 pt-3">
               <p className="mb-2 text-[11.5px] leading-snug text-gray-500">
                 Este vídeo não consegue registrar seu avanço sozinho. Quando terminar de

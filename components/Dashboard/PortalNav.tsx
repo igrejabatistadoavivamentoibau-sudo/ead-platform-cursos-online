@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
 import * as Icones from 'lucide-react'
-import { Menu, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Menu, X, PanelLeftClose, PanelLeftOpen, ChevronRight } from 'lucide-react'
 import LogoutButton from './LogoutButton'
 
 export interface ItemNav {
@@ -18,24 +18,37 @@ export interface ItemNav {
   grupo?: string
 }
 
-const STORAGE_KEY = 'ibau:sidebar-collapsed'
+const CHAVE_RECOLHIDA = 'ibau:sidebar-collapsed'
+const CHAVE_GAVETAS = 'ibau:sidebar-gavetas'
 
 const ACENTO = {
-  brand: { texto: 'text-brand-300', ponto: 'bg-brand-400', selo: 'text-brand-300/90' },
-  roxo: { texto: 'text-violet-300', ponto: 'bg-violet-400', selo: 'text-violet-300/90' },
-  azul: { texto: 'text-sky-300', ponto: 'bg-sky-400', selo: 'text-sky-300/90' },
+  brand: { texto: 'text-brand-300', barra: 'bg-brand-400', anel: 'ring-brand-400/40' },
+  roxo: { texto: 'text-violet-300', barra: 'bg-violet-400', anel: 'ring-violet-400/40' },
+  azul: { texto: 'text-sky-300', barra: 'bg-sky-400', anel: 'ring-sky-400/40' },
 }
 
 /**
  * Barra lateral dos três portais.
  *
- * Decisões de design:
- * - 232px em vez de 256px, e linhas mais baixas: ocupa menos e pesa menos.
- * - Itens agrupados por seção com rótulos micro — é o que dá leitura rápida
- *   num menu com muitos itens, em vez de uma lista corrida.
- * - Estado ativo por barra de acento + texto claro, não por bloco preenchido:
- *   marca a posição sem criar um "tijolo" visual.
- * - Superfície com gradiente sutil e borda de 1px, em vez de cor chapada.
+ * DECISÕES DE DESIGN
+ *
+ * 1. Gavetas em vez de lista corrida.
+ *    Cada seção é um botão que abre e fecha. Numa lista corrida o olho
+ *    precisa varrer tudo para achar um item; com gavetas a pessoa lê três
+ *    ou quatro títulos e abre só o que interessa. O estado de cada gaveta
+ *    fica salvo, então o menu volta do jeito que a pessoa deixou.
+ *
+ * 2. Item ativo marcado por barra de acento, não por bloco preenchido.
+ *    Bloco colorido vira um "tijolo" que domina a tela inteira. A barra
+ *    fina marca a posição com a mesma clareza e deixa o menu calmo.
+ *
+ * 3. Hierarquia por espaço e peso, não por linhas divisórias.
+ *    Interface cara separa com espaço em branco; interface amadora põe
+ *    borda em tudo. Sobraram duas divisórias: topo e rodapé.
+ *
+ * 4. Rodapé com a pessoa, não um "sair" solto.
+ *    Iniciais, nome e papel. Resolve a dúvida de "com qual conta eu estou?",
+ *    frequente em quem é admin e professor ao mesmo tempo.
  */
 export default function PortalNav({
   name,
@@ -53,32 +66,48 @@ export default function PortalNav({
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [fechadas, setFechadas] = useState<string[]>([])
   const [hydrated, setHydrated] = useState(false)
 
-  useEffect(() => {
-    setCollapsed(localStorage.getItem(STORAGE_KEY) === '1')
-    setHydrated(true)
-  }, [])
+  const acento = ACENTO[cor]
 
-  const toggleCollapsed = () =>
-    setCollapsed((v) => {
-      localStorage.setItem(STORAGE_KEY, v ? '0' : '1')
-      return !v
-    })
+  const grupos = useMemo(() => {
+    const saida: { nome: string | null; itens: ItemNav[] }[] = []
+    for (const link of links) {
+      const chave = link.grupo ?? null
+      const ultimo = saida[saida.length - 1]
+      if (ultimo && ultimo.nome === chave) ultimo.itens.push(link)
+      else saida.push({ nome: chave, itens: [link] })
+    }
+    return saida
+  }, [links])
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href)
 
-  const acento = ACENTO[cor]
+  useEffect(() => {
+    setCollapsed(localStorage.getItem(CHAVE_RECOLHIDA) === '1')
+    try {
+      const salvo = JSON.parse(localStorage.getItem(CHAVE_GAVETAS) ?? '[]')
+      if (Array.isArray(salvo)) setFechadas(salvo)
+    } catch {
+      setFechadas([])
+    }
+    setHydrated(true)
+  }, [])
 
-  // Agrupa preservando a ordem de entrada
-  const grupos: { nome: string | null; itens: ItemNav[] }[] = []
-  for (const link of links) {
-    const chave = link.grupo ?? null
-    const ultimo = grupos[grupos.length - 1]
-    if (ultimo && ultimo.nome === chave) ultimo.itens.push(link)
-    else grupos.push({ nome: chave, itens: [link] })
-  }
+  const alternarRecolhida = () =>
+    setCollapsed((v) => {
+      localStorage.setItem(CHAVE_RECOLHIDA, v ? '0' : '1')
+      return !v
+    })
+
+  const alternarGaveta = (nome: string) =>
+    setFechadas((atual) => {
+      const proximo = atual.includes(nome) ? atual.filter((n) => n !== nome) : [...atual, nome]
+      localStorage.setItem(CHAVE_GAVETAS, JSON.stringify(proximo))
+      return proximo
+    })
 
   const Icone = ({ nome, className }: { nome: string; className: string }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,43 +115,56 @@ export default function PortalNav({
     return <C className={className} strokeWidth={1.9} />
   }
 
-  /** Um item do menu, usado no desktop e no celular. */
-  const ItemLink = ({ link, aoClicar }: { link: ItemNav; aoClicar?: () => void }) => {
+  const iniciais =
+    name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? '')
+      .join('') || '?'
+
+  const ItemLink = ({
+    link,
+    aoClicar,
+    recolhido = false,
+  }: {
+    link: ItemNav
+    aoClicar?: () => void
+    recolhido?: boolean
+  }) => {
     const active = isActive(link.href, link.exact)
     return (
       <Link
         href={link.href}
         onClick={aoClicar}
-        title={collapsed ? link.label : undefined}
+        title={recolhido ? link.label : undefined}
         aria-current={active ? 'page' : undefined}
-        className={`group relative flex items-center rounded-lg text-[13px] font-medium transition-colors duration-200 ${
-          collapsed ? 'justify-center h-9 w-9 mx-auto' : 'gap-2.5 px-2.5 py-[7px]'
+        className={`group relative flex items-center rounded-lg text-[13px] transition-all duration-200 ${
+          recolhido ? 'mx-auto h-9 w-9 justify-center' : 'gap-2.5 py-[7px] pl-2.5 pr-2'
         } ${
           active
-            ? 'bg-white/[0.07] text-white'
-            : 'text-white/55 hover:text-white/90 hover:bg-white/[0.04]'
+            ? 'bg-white/[0.08] font-semibold text-white'
+            : 'font-medium text-white/50 hover:bg-white/[0.05] hover:text-white/90'
         }`}
       >
-        {/* Barra de acento marca o item ativo sem encher o fundo */}
-        {active && !collapsed && (
+        {active && (
           <span
-            className={`absolute -left-2.5 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full ${acento.ponto}`}
-          />
-        )}
-        {active && collapsed && (
-          <span
-            className={`absolute -left-1.5 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full ${acento.ponto}`}
+            className={`absolute top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full ${acento.barra} ${
+              recolhido ? '-left-1.5' : '-left-2'
+            }`}
           />
         )}
 
         <Icone
           nome={link.icone}
-          className={`h-4 w-4 shrink-0 transition-colors ${active ? acento.texto : ''}`}
+          className={`h-[17px] w-[17px] shrink-0 transition-colors ${
+            active ? acento.texto : 'text-white/45 group-hover:text-white/75'
+          }`}
         />
-        {!collapsed && <span className="truncate">{link.label}</span>}
+        {!recolhido && <span className="truncate">{link.label}</span>}
 
-        {collapsed && (
-          <span className="pointer-events-none absolute left-full ml-2.5 z-50 whitespace-nowrap rounded-md bg-brand-950 px-2 py-1 text-[12px] font-medium text-white opacity-0 shadow-float ring-1 ring-white/10 transition-opacity duration-200 group-hover:opacity-100">
+        {recolhido && (
+          <span className="pointer-events-none absolute left-full z-50 ml-2.5 whitespace-nowrap rounded-md bg-brand-950 px-2.5 py-1.5 text-[12px] font-medium text-white opacity-0 shadow-float ring-1 ring-white/10 transition-opacity duration-200 group-hover:opacity-100">
             {link.label}
           </span>
         )}
@@ -130,12 +172,99 @@ export default function PortalNav({
     )
   }
 
+  /**
+   * Uma gaveta.
+   *
+   * A animação usa grid-template-rows de 0fr para 1fr — é o único jeito de
+   * animar altura automática em CSS puro, sem medir o conteúdo com
+   * JavaScript toda vez que abre.
+   */
+  const Gaveta = ({
+    grupo,
+    aoClicar,
+  }: {
+    grupo: { nome: string | null; itens: ItemNav[] }
+    aoClicar?: () => void
+  }) => {
+    // Itens sem seção ficam sempre à vista, no topo.
+    if (!grupo.nome) {
+      return (
+        <div className="space-y-0.5">
+          {grupo.itens.map((l) => (
+            <ItemLink key={l.href} link={l} aoClicar={aoClicar} />
+          ))}
+        </div>
+      )
+    }
+
+    const temAtivo = grupo.itens.some((l) => isActive(l.href, l.exact))
+    // Gaveta que contém a página aberta nunca fica fechada: senão o menu
+    // esconderia justamente onde a pessoa está.
+    const aberta = temAtivo || !fechadas.includes(grupo.nome)
+
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => alternarGaveta(grupo.nome as string)}
+          aria-expanded={aberta}
+          className="flex w-full items-center gap-1.5 rounded-md py-1.5 pl-2 pr-2 text-[10px] font-bold uppercase tracking-[0.13em] text-white/35 transition-colors hover:text-white/65"
+        >
+          <ChevronRight
+            className={`h-3 w-3 shrink-0 transition-transform duration-300 ${aberta ? 'rotate-90' : ''}`}
+            strokeWidth={2.6}
+          />
+          <span className="truncate">{grupo.nome}</span>
+          {!aberta && (
+            <span className="ml-auto text-[10px] font-semibold tabular-nums text-white/25">
+              {grupo.itens.length}
+            </span>
+          )}
+        </button>
+
+        <div
+          className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+            aberta ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div className="space-y-0.5 pt-0.5">
+              {grupo.itens.map((l) => (
+                <ItemLink key={l.href} link={l} aoClicar={aoClicar} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const Rodape = ({ aoClicar }: { aoClicar?: () => void }) => (
+    <div className="flex items-center gap-2.5 px-1">
+      <span
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[11px] font-bold text-white ring-1 ${acento.anel}`}
+      >
+        {iniciais}
+      </span>
+      <span className="min-w-0 flex-1 leading-tight">
+        <span className="block truncate text-[12.5px] font-semibold text-white/90">{name}</span>
+        <span className="block truncate text-[10.5px] text-white/40">{selo}</span>
+      </span>
+      <span onClick={aoClicar}>
+        <LogoutButton
+          iconOnly
+          className="!p-1.5 !text-white/35 hover:!text-white hover:!bg-white/10 rounded-lg"
+        />
+      </span>
+    </div>
+  )
+
   return (
     <>
       {/* ===================== CELULAR ===================== */}
-      <div className="md:hidden sticky top-0 z-50 flex h-14 items-center justify-between border-b border-white/10 bg-brand-950 px-4">
+      <div className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-white/[0.07] bg-brand-950 px-4 md:hidden">
         <Link href={links[0]?.href ?? '/'} className="flex items-center gap-2.5">
-          <Image src="/ibau-capelo.png" alt="Escola de Líderes IBAU" width={24} height={26} />
+          <Image src="/ibau-marca-clara.png" alt="" width={30} height={26} className="h-6 w-auto" />
           <span className="text-[13px] font-semibold text-white">{titulo}</span>
         </Link>
         <button
@@ -150,7 +279,7 @@ export default function PortalNav({
       </div>
 
       <div
-        className={`md:hidden fixed inset-0 z-40 transition-opacity duration-300 ${
+        className={`fixed inset-0 z-40 transition-opacity duration-300 md:hidden ${
           mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
       >
@@ -159,66 +288,50 @@ export default function PortalNav({
           onClick={() => setMobileOpen(false)}
         />
         <nav
-          className={`absolute bottom-0 left-0 top-14 w-64 overflow-y-auto border-r border-white/10 bg-brand-950 px-3 py-4 transition-transform duration-300 ease-out ${
+          className={`absolute bottom-0 left-0 top-14 flex w-[266px] flex-col bg-brand-950 transition-transform duration-300 ease-out ${
             mobileOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <span
-            className={`mb-4 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] ${acento.selo}`}
-          >
-            <span className={`h-1 w-1 rounded-full ${acento.ponto}`} />
-            {selo}
-          </span>
-
-          {grupos.map((g, i) => (
-            <div key={g.nome ?? `g${i}`} className={i > 0 ? 'mt-5' : ''}>
-              {g.nome && (
-                <p className="mb-1.5 px-2.5 text-[10px] font-bold uppercase tracking-[0.13em] text-white/30">
-                  {g.nome}
-                </p>
-              )}
-              <div className="space-y-0.5">
-                {g.itens.map((link) => (
-                  <ItemLink key={link.href} link={link} aoClicar={() => setMobileOpen(false)} />
-                ))}
-              </div>
-            </div>
-          ))}
-
-          <div className="mt-6 border-t border-white/10 pt-4">
-            <p className="mb-2 truncate text-[13px] font-medium text-white/90">{name}</p>
-            <LogoutButton className="!text-[13px] !text-white/50 hover:!text-white" />
+          <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
+            {grupos.map((g, i) => (
+              <Gaveta key={g.nome ?? `g${i}`} grupo={g} aoClicar={() => setMobileOpen(false)} />
+            ))}
+          </div>
+          <div className="border-t border-white/[0.07] p-3">
+            <Rodape aoClicar={() => setMobileOpen(false)} />
           </div>
         </nav>
       </div>
 
       {/* ===================== DESKTOP ===================== */}
       <aside
-        className={`sticky top-0 hidden min-h-screen shrink-0 flex-col border-r border-white/[0.07] bg-gradient-to-b from-brand-900 via-brand-950 to-brand-950 transition-[width] duration-300 ease-out md:flex ${
-          collapsed ? 'w-16' : 'w-[232px]'
+        className={`sticky top-0 hidden h-screen shrink-0 flex-col bg-gradient-to-b from-brand-900 via-brand-950 to-brand-950 transition-[width] duration-300 ease-out md:flex ${
+          collapsed ? 'w-[62px]' : 'w-[236px]'
         } ${hydrated ? '' : 'md:opacity-0'}`}
       >
+        {/* Fio de luz na borda direita: separa do conteúdo sem virar uma
+            linha dura de 1px cinza atravessando a tela inteira. */}
+        <span className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-white/[0.14] via-white/[0.06] to-transparent" />
+
         {/* --- Topo: marca --- */}
         <div
-          className={`flex h-14 items-center border-b border-white/[0.07] ${
-            collapsed ? 'justify-center px-2' : 'justify-between pl-4 pr-2.5'
+          className={`flex h-14 shrink-0 items-center border-b border-white/[0.06] ${
+            collapsed ? 'justify-center px-2' : 'justify-between pl-3.5 pr-2'
           }`}
         >
-          {collapsed ? (
-            <Link href={links[0]?.href ?? '/'} title="Início" className="flex items-center">
-              <Image src="/ibau-capelo.png" alt="Escola de Líderes IBAU" width={24} height={26} />
-            </Link>
-          ) : (
-            <Link href={links[0]?.href ?? '/'} className="flex min-w-0 items-center gap-2.5">
-              <Image
-                src="/ibau-capelo.png"
-                alt=""
-                width={26}
-                height={28}
-                className="h-[26px] w-auto shrink-0"
-              />
-              {/* Duas linhas: em 232px de largura o nome inteiro numa linha
-                  só era cortado no meio da palavra. */}
+          <Link
+            href={links[0]?.href ?? '/'}
+            title={collapsed ? 'Início' : undefined}
+            className="flex min-w-0 items-center gap-2.5"
+          >
+            <Image
+              src="/ibau-marca-clara.png"
+              alt=""
+              width={34}
+              height={29}
+              className="h-[26px] w-auto shrink-0"
+            />
+            {!collapsed && (
               <span className="min-w-0 leading-none">
                 <span className="block truncate font-display text-[12.5px] font-bold tracking-[-0.01em] text-white">
                   Escola de Líderes
@@ -229,99 +342,64 @@ export default function PortalNav({
                   IBAU
                 </span>
               </span>
-            </Link>
-          )}
+            )}
+          </Link>
 
           {!collapsed && (
             <button
               type="button"
-              onClick={toggleCollapsed}
+              onClick={alternarRecolhida}
               aria-label="Recolher menu"
-              aria-expanded
               title="Recolher menu"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/40 transition-colors hover:bg-white/[0.07] hover:text-white/80"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/35 transition-colors hover:bg-white/[0.07] hover:text-white/80"
             >
-              <PanelLeftClose className="h-[18px] w-[18px]" strokeWidth={1.9} />
+              <PanelLeftClose className="h-[17px] w-[17px]" strokeWidth={1.9} />
             </button>
           )}
         </div>
 
-        {/* --- Selo do portal --- */}
-        {!collapsed && (
-          <div className="px-4 pb-1 pt-3.5">
-            <span
-              className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] ${acento.selo}`}
-            >
-              <span className={`h-1 w-1 rounded-full ${acento.ponto}`} />
-              {selo}
-            </span>
-          </div>
-        )}
-
-        {/* --- Botão de expandir, quando recolhido --- */}
-        {collapsed && (
-          <div className="flex justify-center pt-3">
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              aria-label="Expandir menu"
-              aria-expanded={false}
-              title="Expandir menu"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-white/40 transition-colors hover:bg-white/[0.07] hover:text-white/80"
-            >
-              <PanelLeftOpen className="h-[18px] w-[18px]" strokeWidth={1.9} />
-            </button>
-          </div>
-        )}
-
         {/* --- Navegação --- */}
-        <nav className={`flex-1 py-3 ${collapsed ? 'px-2' : 'px-4'}`}>
-          {grupos.map((g, i) => (
-            <div key={g.nome ?? `g${i}`} className={i > 0 ? (collapsed ? 'mt-3' : 'mt-5') : ''}>
-              {g.nome &&
-                (collapsed ? (
-                  <div className="mx-auto mb-2 h-px w-5 bg-white/10" />
-                ) : (
-                  <p className="mb-1.5 px-2.5 text-[10px] font-bold uppercase tracking-[0.13em] text-white/30">
-                    {g.nome}
-                  </p>
-                ))}
-              <div className="space-y-0.5">
-                {g.itens.map((link) => (
-                  <ItemLink key={link.href} link={link} />
-                ))}
-              </div>
-            </div>
-          ))}
+        <nav
+          className={`flex-1 overflow-y-auto py-3 ${
+            collapsed ? 'space-y-1 px-2.5' : 'space-y-3 px-3'
+          }`}
+        >
+          {collapsed
+            ? // Recolhida, gaveta não faz sentido em 62px: viram só ícones,
+              // com um fio curto separando os grupos.
+              grupos.map((g, i) => (
+                <div key={g.nome ?? `g${i}`} className="space-y-1">
+                  {i > 0 && <span className="mx-auto my-2 block h-px w-5 bg-white/10" />}
+                  {g.itens.map((l) => (
+                    <ItemLink key={l.href} link={l} recolhido />
+                  ))}
+                </div>
+              ))
+            : grupos.map((g, i) => <Gaveta key={g.nome ?? `g${i}`} grupo={g} />)}
         </nav>
 
-        {/* --- Rodapé: usuário --- */}
-        <div className={`border-t border-white/[0.07] ${collapsed ? 'px-2 py-3' : 'p-3'}`}>
+        {/* --- Rodapé: quem está logado --- */}
+        <div className={`shrink-0 border-t border-white/[0.06] ${collapsed ? 'p-2' : 'p-3'}`}>
           {collapsed ? (
             <div className="flex flex-col items-center gap-2">
               <span
-                title={name}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-[12px] font-semibold text-white/90 ring-1 ring-white/10"
+                title={`${name} — ${selo}`}
+                className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.08] text-[11px] font-bold text-white ring-1 ${acento.anel}`}
               >
-                {name.charAt(0).toUpperCase()}
+                {iniciais}
               </span>
-              <LogoutButton className="!text-white/40 hover:!text-white" iconOnly />
+              <button
+                type="button"
+                onClick={alternarRecolhida}
+                aria-label="Expandir menu"
+                title="Expandir menu"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/35 transition-colors hover:bg-white/[0.07] hover:text-white/80"
+              >
+                <PanelLeftOpen className="h-[17px] w-[17px]" strokeWidth={1.9} />
+              </button>
             </div>
           ) : (
-            <div className="rounded-lg bg-white/[0.04] p-2.5">
-              <div className="mb-2 flex items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-[12px] font-semibold text-white/90 ring-1 ring-white/10">
-                  {name.charAt(0).toUpperCase()}
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-[13px] font-medium leading-tight text-white/90">
-                    {name}
-                  </p>
-                  <p className="text-[11px] leading-tight text-white/35">{titulo}</p>
-                </div>
-              </div>
-              <LogoutButton className="!text-[12px] !text-white/45 hover:!text-white" />
-            </div>
+            <Rodape />
           )}
         </div>
       </aside>

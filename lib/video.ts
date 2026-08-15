@@ -6,6 +6,8 @@ export interface VideoInfo {
   url: string
   /** Endereço pronto para tocar dentro da plataforma (iframe/player). */
   embed?: string
+  /** Precisa ser exibido em iframe (player da origem) em vez de <video>. */
+  iframe?: boolean
 }
 
 /**
@@ -20,8 +22,15 @@ export interface VideoInfo {
  * pela plataforma, e a igreja normalmente já tem o arquivo no Drive.
  */
 export function analisarVideo(url: string | null | undefined): VideoInfo {
-  const limpa = (url ?? '').trim()
+  let limpa = (url ?? '').trim()
   if (!limpa) return { tipo: 'desconhecido', url: '' }
+
+  // Se a pessoa colou o código de incorporação inteiro (<iframe src="...">),
+  // pegamos o endereço de dentro. É o caso mais comum de "colei e não
+  // funcionou": o botão Incorporar do OneDrive e do Google Drive copia o
+  // bloco de HTML completo, não só o endereço.
+  const dentroDoIframe = limpa.match(/<iframe[^>]*\ssrc=["']([^"']+)["']/i)
+  if (dentroDoIframe) limpa = dentroDoIframe[1].trim()
 
   const youtube =
     limpa.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|live\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/)
@@ -54,6 +63,15 @@ export function analisarVideo(url: string | null | undefined): VideoInfo {
   // Microsoft resolve isso com uma API pública de compartilhamento: você
   // codifica o PRÓPRIO link em base64 e pede o conteúdo. É o caminho oficial
   // e funciona igual para 1drv.ms, onedrive.live.com e SharePoint.
+  // Caminho garantido: o endereço que o próprio OneDrive gera no botão
+  // "Incorporar". Como quem monta é a Microsoft, ele sempre abre.
+  if (/onedrive\.live\.com\/embed/i.test(limpa) || /sharepoint\.com\/.*action=embedview/i.test(limpa)) {
+    return { tipo: 'onedrive', url: limpa, embed: limpa, iframe: true }
+  }
+
+  // Caminho por link de compartilhamento comum. Funciona nos links antigos;
+  // nos novos (1drv.ms/v/c/...) a Microsoft passou a exigir sessão, e aí o
+  // player avisa para usar o "Incorporar".
   if (/(?:1drv\.ms|onedrive\.live\.com|sharepoint\.com)\//i.test(limpa)) {
     return {
       tipo: 'onedrive',
@@ -111,10 +129,12 @@ export const ORIGEM_VIDEO: Record<TipoVideo, string> = {
  * direto — são os dois casos em que conseguimos ler o tempo do vídeo.
  * Vimeo e Drive tocam normalmente, mas a conclusão é marcada pelo aluno.
  */
-export function marcaProgressoSozinho(tipo: TipoVideo): boolean {
-  // OneDrive entra aqui porque o link vira um arquivo de vídeo de verdade,
-  // tocado pelo player da própria plataforma — dá para ler o tempo dele.
-  return tipo === 'youtube' || tipo === 'arquivo' || tipo === 'onedrive'
+export function marcaProgressoSozinho(info: VideoInfo): boolean {
+  // Só dá para medir o avanço quando o vídeo toca no player da própria
+  // plataforma. Em iframe (Drive, Vimeo, OneDrive incorporado) quem controla
+  // é a origem, e ela não conta nada para fora.
+  if (info.iframe) return false
+  return info.tipo === 'youtube' || info.tipo === 'arquivo' || info.tipo === 'onedrive'
 }
 
 /** Miniatura do vídeo, quando a plataforma oferece uma. */

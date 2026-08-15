@@ -54,13 +54,14 @@ export default function LoginPage() {
         </header>
 
         <div className="relative animate-float-in">
+          {/* Painel escuro: versao de letras claras da marca */}
           <Image
-            src="/ibau-capelo.png"
+            src="/ibau-marca-clara.png"
             alt="Escola de Líderes IBAU"
-            width={190}
-            height={200}
+            width={230}
+            height={196}
             priority
-            className="mb-9 drop-shadow-[0_24px_48px_rgba(0,0,0,0.55)]"
+            className="mb-9 h-auto w-[200px] drop-shadow-[0_24px_48px_rgba(0,0,0,0.55)]"
           />
 
           <p className="text-[13px] font-semibold uppercase tracking-[0.22em] text-accent-400 mb-4">
@@ -116,13 +117,14 @@ export default function LoginPage() {
               Voltar para o início
             </Link>
 
+            {/* Fundo claro no celular: versao de letras escuras */}
             <Image
-              src="/ibau-capelo.png"
+              src="/ibau-marca.png"
               alt="Escola de Líderes IBAU"
-              width={82}
-              height={86}
+              width={130}
+              height={111}
               priority
-              className="mb-5 drop-shadow-lg"
+              className="mb-5 h-auto w-[112px]"
             />
             <h1 className="font-display text-2xl font-extrabold text-gray-900 leading-tight">
               Escola de Líderes
