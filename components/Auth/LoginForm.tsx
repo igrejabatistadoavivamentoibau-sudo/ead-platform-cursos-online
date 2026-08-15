@@ -32,6 +32,17 @@ const DASHBOARD_POR_PAPEL: Record<UserRole, string> = {
   admin: '/dashboard/admin',
 }
 
+/**
+ * Por qual portal cada papel entra. O administrador usa o portal do
+ * professor — ele leciona e gerencia, mas não é aluno da escola. Isso
+ * mantém a separação clara: quem entra pelo portal do aluno é aluno.
+ */
+const PORTAL_POR_PAPEL: Record<UserRole, Portal> = {
+  aluno: 'aluno',
+  professor: 'professor',
+  admin: 'professor',
+}
+
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
@@ -84,17 +95,18 @@ export default function LoginForm() {
         throw new Error('Sua conta ainda não foi liberada. Fale com a administração.')
       }
 
-      // Administrador entra por qualquer aba — ele gerencia a plataforma toda.
-      if (role !== 'admin') {
-        const portalEsperado: Portal = role === 'aluno' ? 'aluno' : 'professor'
-        if (portalEsperado !== portal) {
-          await supabase.auth.signOut()
-          throw new Error(
-            `Esta conta é de ${ROLE_LABEL[role]}. Entre pela aba "Portal do ${
-              portalEsperado === 'aluno' ? 'Aluno' : 'Professor'
-            }".`
-          )
-        }
+      // Cada conta tem UM portal de entrada. O administrador entra pelo
+      // portal do professor (ele leciona e gerencia), nunca pelo do aluno —
+      // administrador não é aluno da escola.
+      const portalEsperado = PORTAL_POR_PAPEL[role]
+
+      if (portalEsperado !== portal) {
+        await supabase.auth.signOut()
+        throw new Error(
+          `Esta conta é de ${ROLE_LABEL[role]}. Entre pelo "Portal do ${
+            portalEsperado === 'aluno' ? 'Aluno' : 'Professor'
+          }".`
+        )
       }
 
       router.push(DASHBOARD_POR_PAPEL[role])
@@ -120,44 +132,89 @@ export default function LoginForm() {
     }
   }
 
-  const abas: { valor: Portal; rotulo: string; icone: typeof GraduationCap }[] = [
-    { valor: 'aluno', rotulo: 'Aluno', icone: GraduationCap },
-    { valor: 'professor', rotulo: 'Professor', icone: Presentation },
+  const abas = [
+    {
+      valor: 'aluno' as Portal,
+      rotulo: 'Aluno',
+      icone: GraduationCap,
+      descricao: 'Para quem estuda: assista às aulas e acompanhe seu avanço.',
+      texto: 'text-sky-700',
+      pastilha: 'bg-sky-50 ring-1 ring-sky-200',
+      faixa: 'from-sky-500 to-cyan-400',
+      aviso: 'bg-sky-50/70 ring-sky-200 text-sky-900',
+      iconeCor: 'text-sky-600',
+    },
+    {
+      valor: 'professor' as Portal,
+      rotulo: 'Professor',
+      icone: Presentation,
+      descricao: 'Para quem ensina e coordena: turmas, chamada e vídeo aulas.',
+      texto: 'text-violet-700',
+      pastilha: 'bg-violet-50 ring-1 ring-violet-200',
+      faixa: 'from-violet-500 to-purple-400',
+      aviso: 'bg-violet-50/70 ring-violet-200 text-violet-900',
+      iconeCor: 'text-violet-600',
+    },
   ]
+
+  const abaAtiva = abas.find((a) => a.valor === portal)!
 
   return (
     <div className="w-full">
-      {/* Seletor de portal */}
-      <div className="relative grid grid-cols-2 gap-1 p-1 mb-7 bg-gray-100/80 rounded-2xl">
-        {/* Pastilha que desliza entre as abas */}
-        <span
-          className="absolute top-1 bottom-1 w-[calc(50%-0.25rem)] rounded-xl bg-white shadow-card transition-transform duration-300 ease-out"
-          style={{ transform: portal === 'aluno' ? 'translateX(0)' : 'translateX(calc(100% + 0.25rem))' }}
-          aria-hidden="true"
-        />
-        {abas.map((aba) => {
-          const ativo = portal === aba.valor
-          return (
-            <button
-              key={aba.valor}
-              type="button"
-              onClick={() => {
-                setPortal(aba.valor)
-                setError(null)
-              }}
-              aria-pressed={ativo}
-              className={`relative z-10 flex items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] sm:text-sm font-semibold whitespace-nowrap transition-colors duration-300 ${
-                ativo ? 'text-brand-700' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <aba.icone className="h-4 w-4 shrink-0" strokeWidth={2.25} />
-              <span>
-                <span className="hidden sm:inline">Portal do </span>
-                {aba.rotulo}
-              </span>
-            </button>
-          )
-        })}
+      {/* ===== Seletor de portal =====
+          Cada portal tem cor própria (azul para aluno, roxo para professor),
+          as mesmas usadas dentro do sistema. Assim a pessoa reconhece de
+          relance em qual área está entrando. */}
+      <div className="mb-3">
+        <span className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">
+          Entrar como
+        </span>
+
+        <div className="relative grid grid-cols-2 gap-1 p-1 bg-gray-100/80 rounded-2xl">
+          {/* Pastilha que desliza entre as abas */}
+          <span
+            className={`absolute top-1 bottom-1 w-[calc(50%-0.25rem)] rounded-xl shadow-card transition-all duration-300 ease-out ${abaAtiva.pastilha}`}
+            style={{
+              transform: portal === 'aluno' ? 'translateX(0)' : 'translateX(calc(100% + 0.25rem))',
+            }}
+            aria-hidden="true"
+          />
+          {abas.map((aba) => {
+            const ativo = portal === aba.valor
+            return (
+              <button
+                key={aba.valor}
+                type="button"
+                onClick={() => {
+                  setPortal(aba.valor)
+                  setError(null)
+                }}
+                aria-pressed={ativo}
+                className={`relative z-10 flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] sm:text-sm font-bold whitespace-nowrap transition-colors duration-300 ${
+                  ativo ? aba.texto : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <aba.icone
+                  className={`h-4 w-4 shrink-0 ${ativo ? aba.iconeCor : ''}`}
+                  strokeWidth={2.25}
+                />
+                <span>
+                  <span className="hidden sm:inline">Portal do </span>
+                  {aba.rotulo}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Explicação do portal escolhido — evita a pessoa entrar pela aba errada */}
+      <div
+        key={portal}
+        className={`flex items-start gap-2.5 rounded-xl ring-1 px-3.5 py-2.5 mb-6 text-[13px] leading-snug animate-float-in ${abaAtiva.aviso}`}
+      >
+        <abaAtiva.icone className="h-4 w-4 shrink-0 mt-px" strokeWidth={2.25} />
+        <span>{abaAtiva.descricao}</span>
       </div>
 
       <form onSubmit={handleLogin} className="space-y-4">
@@ -235,10 +292,12 @@ export default function LoginForm() {
           </div>
         )}
 
+        {/* O botão assume a cor do portal escolhido — mais um reforço visual
+            de que aluno e professor são entradas diferentes. */}
         <button
           type="submit"
           disabled={isLoading}
-          className="group w-full flex items-center justify-center gap-2 bg-gradient-to-br from-brand-600 to-brand-700 text-white py-3 rounded-xl font-semibold transition-all duration-300 hover:from-brand-700 hover:to-brand-800 hover:shadow-glow active:scale-[0.99] disabled:opacity-60 disabled:active:scale-100 shadow-card"
+          className={`group w-full flex items-center justify-center gap-2 bg-gradient-to-br text-white py-3 rounded-xl font-semibold transition-all duration-300 hover:shadow-float active:scale-[0.99] disabled:opacity-60 disabled:active:scale-100 shadow-card ${abaAtiva.faixa}`}
         >
           {isLoading ? (
             <>
@@ -247,7 +306,7 @@ export default function LoginForm() {
             </>
           ) : (
             <>
-              Entrar
+              Entrar como {abaAtiva.rotulo}
               <ArrowRight
                 className="h-[18px] w-[18px] transition-transform duration-300 group-hover:translate-x-1"
                 strokeWidth={2.25}
