@@ -31,11 +31,11 @@
 
   /* Sombras em camadas, com tom esverdeado em vez de cinza puro:
      é o que dá a sensação "premium" em vez de sombra genérica. */
-  --shadow-sm: 0 1px 2px rgba(5, 38, 29, 0.06), 0 1px 3px rgba(5, 38, 29, 0.04);
-  --shadow-md: 0 4px 12px -2px rgba(5, 38, 29, 0.08), 0 2px 6px -2px rgba(5, 38, 29, 0.05);
-  --shadow-lg: 0 12px 28px -6px rgba(5, 38, 29, 0.12), 0 6px 12px -6px rgba(5, 38, 29, 0.07);
-  --shadow-xl: 0 24px 48px -12px rgba(5, 38, 29, 0.18), 0 10px 20px -10px rgba(5, 38, 29, 0.1);
-  --shadow-brand: 0 12px 32px -8px rgba(18, 128, 90, 0.35);
+  --shadow-sm: 0 1px 2px rgba(5, 38, 29, 0.05), 0 0 0 1px rgba(5, 38, 29, 0.04);
+  --shadow-md: 0 2px 4px -1px rgba(5, 38, 29, 0.06), 0 6px 16px -4px rgba(5, 38, 29, 0.08);
+  --shadow-lg: 0 4px 8px -2px rgba(5, 38, 29, 0.06), 0 16px 32px -8px rgba(5, 38, 29, 0.12);
+  --shadow-xl: 0 8px 16px -4px rgba(5, 38, 29, 0.08), 0 28px 56px -16px rgba(5, 38, 29, 0.18);
+  --shadow-brand: 0 4px 12px -2px rgba(18, 128, 90, 0.24), 0 12px 28px -8px rgba(18, 128, 90, 0.28);
 }
 
 @theme inline {
@@ -79,7 +79,13 @@ body {
    detalhe pequeno que separa um layout amador de um profissional. */
 h1, h2, h3, h4 {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.021em;
+}
+
+/* Números de painel: largura fixa evita "dança" quando o valor muda */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 /* ============================================================
@@ -96,14 +102,14 @@ h1, h2, h3, h4 {
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
               box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
               border-color 0.35s ease;
-  border: 1px solid rgba(5, 38, 29, 0.07);
+  border: 1px solid rgba(5, 38, 29, 0.08);
   will-change: transform;
 }
 
 .card-alive:hover {
-  transform: translateY(-6px);
+  transform: translateY(-3px);
   box-shadow: var(--shadow-lg);
-  border-color: var(--brand-200);
+  border-color: rgba(5, 38, 29, 0.12);
 }
 
 /* Brilho suave que atravessa o card no hover */

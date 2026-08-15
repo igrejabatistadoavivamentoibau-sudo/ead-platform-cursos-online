@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { BookOpenText, Clock, Users2, ArrowRight, CheckCircle2, PlayCircle } from 'lucide-react'
+import { BookOpenText, Clock, Users2, ArrowRight, Check, Play } from 'lucide-react'
 import { corDoCurso, urlDaCapa, NIVEL_LABEL, type Curso } from '@/lib/cursos'
 
 export interface CursoCardProps {
@@ -27,128 +27,133 @@ export default function CursoCard({
   const cor = corDoCurso(curso.cor)
   const capa = urlDaCapa(curso.capa_path)
   const concluido = progresso !== undefined && progresso >= 100
+  const iniciado = progresso !== undefined && progresso > 0
 
   return (
     <Link
       href={href}
-      className="group relative flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-brand-950/[0.07] shadow-soft transition-all duration-400 hover:-translate-y-1.5 hover:shadow-float hover:ring-brand-950/10"
+      className="group relative flex flex-col overflow-hidden rounded-xl bg-white ring-1 ring-brand-950/[0.07] transition-all duration-300 hover:-translate-y-[3px] hover:shadow-float hover:ring-brand-950/[0.1]"
     >
-      {/* ---------- Capa ---------- */}
-      <div className="relative aspect-[16/10] overflow-hidden">
+      {/* ---------------- Capa ---------------- */}
+      <div className="relative aspect-[16/9] overflow-hidden">
         {capa ? (
           <Image
             src={capa}
             alt={curso.titulo}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover transition-transform duration-700 group-hover:scale-105"
+            className="object-cover transition-transform duration-[900ms] ease-out group-hover:scale-[1.04]"
           />
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${cor.gradiente}`}>
-            {/* Padrão geométrico discreto quando não há foto de capa */}
+            {/* Textura discreta em vez de um gradiente chapado */}
             <div
-              className="absolute inset-0 opacity-[0.13]"
+              className="absolute inset-0 opacity-[0.10]"
               style={{
                 backgroundImage:
-                  'radial-gradient(circle at 1px 1px, rgba(255,255,255,.9) 1px, transparent 0)',
-                backgroundSize: '22px 22px',
+                  'radial-gradient(circle at 1px 1px, rgba(255,255,255,.85) 1px, transparent 0)',
+                backgroundSize: '18px 18px',
               }}
             />
-            <div className="absolute -bottom-10 -right-6 opacity-20">
-              <BookOpenText className="h-40 w-40 text-white" strokeWidth={1} />
-            </div>
+            <BookOpenText
+              className="absolute -bottom-6 -right-3 h-32 w-32 text-white/[0.14]"
+              strokeWidth={0.9}
+            />
           </div>
         )}
 
-        {/* Véu inferior para os selos ficarem legíveis sobre qualquer foto */}
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-950/75 via-transparent to-transparent" />
+        {/* Véu só na base, para os selos não competirem com a foto */}
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-brand-950/55 to-transparent" />
 
-        {/* Selos superiores */}
-        <div className="absolute top-3 left-3 right-3 flex items-start justify-between gap-2">
-          {curso.categoria && (
-            <span className="rounded-full bg-white/90 backdrop-blur-sm px-2.5 py-1 text-[11px] font-bold text-brand-900 shadow-soft">
+        {/* Selos do topo */}
+        <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
+          {curso.categoria ? (
+            <span className="rounded-md bg-white/95 px-2 py-[3px] text-[10.5px] font-semibold tracking-wide text-brand-950 shadow-soft backdrop-blur-sm">
               {curso.categoria}
             </span>
+          ) : (
+            <span />
           )}
+
           {mostrarStatus && !curso.publicado && (
-            <span className="ml-auto rounded-full bg-gray-900/85 backdrop-blur-sm px-2.5 py-1 text-[11px] font-semibold text-white">
+            <span className="rounded-md bg-brand-950/80 px-2 py-[3px] text-[10.5px] font-semibold text-white/90 backdrop-blur-sm">
               Rascunho
             </span>
           )}
           {concluido && (
-            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-glow">
-              <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.5} />
+            <span className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-[3px] text-[10.5px] font-bold text-white shadow-soft">
+              <Check className="h-3 w-3" strokeWidth={3} />
               Concluído
             </span>
           )}
         </div>
 
-        {/* Nível, no rodapé da capa */}
-        <span className="absolute bottom-3 left-3 rounded-full bg-white/15 backdrop-blur-md px-2.5 py-1 text-[11px] font-semibold text-white ring-1 ring-white/20">
-          {NIVEL_LABEL[curso.nivel]}
-        </span>
-
-        {/* Botão fantasma que aparece no hover */}
-        <span className="absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-brand-800 opacity-0 translate-y-2 shadow-float transition-all duration-400 group-hover:opacity-100 group-hover:translate-y-0">
-          <PlayCircle className="h-5 w-5" strokeWidth={2} />
-        </span>
+        {/* Nível + play, na base da capa */}
+        <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
+          <span className="rounded-md bg-white/[0.16] px-2 py-[3px] text-[10.5px] font-medium text-white ring-1 ring-white/20 backdrop-blur-md">
+            {NIVEL_LABEL[curso.nivel]}
+          </span>
+          <span className="flex h-8 w-8 translate-y-1 items-center justify-center rounded-full bg-white/95 text-brand-900 opacity-0 shadow-float transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+            <Play className="ml-[1px] h-3.5 w-3.5 fill-current" strokeWidth={0} />
+          </span>
+        </div>
       </div>
 
-      {/* ---------- Conteúdo ---------- */}
-      <div className="flex flex-1 flex-col p-5">
-        <h3 className="font-display font-bold text-[17px] leading-snug text-gray-900 transition-colors duration-300 group-hover:text-brand-800">
+      {/* ---------------- Corpo ---------------- */}
+      <div className="flex flex-1 flex-col p-4">
+        <h3 className="font-display text-[15px] font-bold leading-snug tracking-[-0.01em] text-gray-900 transition-colors duration-200 group-hover:text-brand-800">
           {curso.titulo}
         </h3>
 
         {curso.subtitulo && (
-          <p className="mt-1 text-sm text-gray-500 line-clamp-2 leading-relaxed">
+          <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-gray-500">
             {curso.subtitulo}
           </p>
         )}
 
-        {/* Métricas */}
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-500">
+        {/* Métricas — peso leve de propósito, são apoio e não protagonistas */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11.5px] text-gray-400">
           {totalAulas !== undefined && (
-            <span className="inline-flex items-center gap-1.5">
-              <BookOpenText className="h-3.5 w-3.5" strokeWidth={2} />
-              <span className="font-semibold text-gray-700 tabular-nums">{totalAulas}</span>
-              aula{totalAulas === 1 ? '' : 's'}
+            <span className="inline-flex items-center gap-1">
+              <BookOpenText className="h-3.5 w-3.5" strokeWidth={1.9} />
+              <span className="font-semibold text-gray-600 tabular-nums">{totalAulas}</span>
+              aulas
             </span>
           )}
           {curso.carga_horaria && (
-            <span className="inline-flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" strokeWidth={2} />
-              <span className="font-semibold text-gray-700 tabular-nums">
+            <span className="inline-flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" strokeWidth={1.9} />
+              <span className="font-semibold text-gray-600 tabular-nums">
                 {curso.carga_horaria}h
               </span>
             </span>
           )}
           {totalAlunos !== undefined && (
-            <span className="inline-flex items-center gap-1.5">
-              <Users2 className="h-3.5 w-3.5" strokeWidth={2} />
-              <span className="font-semibold text-gray-700 tabular-nums">{totalAlunos}</span>
-              aluno{totalAlunos === 1 ? '' : 's'}
+            <span className="inline-flex items-center gap-1">
+              <Users2 className="h-3.5 w-3.5" strokeWidth={1.9} />
+              <span className="font-semibold text-gray-600 tabular-nums">{totalAlunos}</span>
+              alunos
             </span>
           )}
         </div>
 
         {/* Progresso do aluno */}
         {progresso !== undefined && (
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="font-medium text-gray-600">
+          <div className="mt-3.5">
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <span className="text-[11.5px] text-gray-500">
                 {aulasConcluidas !== undefined && totalAulas !== undefined
                   ? `${aulasConcluidas} de ${totalAulas} aulas`
                   : 'Seu progresso'}
               </span>
-              <span className={`font-bold tabular-nums ${cor.texto}`}>
+              <span className={`text-[12px] font-bold tabular-nums ${cor.texto}`}>
                 {Math.round(progresso)}%
               </span>
             </div>
-            <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-[3px] overflow-hidden rounded-full bg-gray-100">
               <div
-                className={`h-full rounded-full ${cor.solido} transition-[width] duration-700`}
-                style={{ width: `${Math.max(progresso, 2)}%` }}
+                className={`h-full rounded-full ${cor.solido} transition-[width] duration-700 ease-out`}
+                style={{ width: `${Math.max(progresso, 1.5)}%` }}
               />
             </div>
           </div>
@@ -156,17 +161,17 @@ export default function CursoCard({
 
         {/* Chamada de ação */}
         <div
-          className={`mt-4 pt-4 border-t border-gray-100 flex items-center gap-1.5 text-sm font-semibold ${cor.texto}`}
+          className={`mt-auto flex items-center gap-1 pt-3.5 text-[12.5px] font-semibold ${cor.texto}`}
         >
           {progresso !== undefined
             ? concluido
               ? 'Rever curso'
-              : progresso > 0
+              : iniciado
                 ? 'Continuar curso'
                 : 'Começar curso'
             : 'Abrir curso'}
           <ArrowRight
-            className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
+            className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1"
             strokeWidth={2.25}
           />
         </div>

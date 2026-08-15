@@ -11,7 +11,12 @@ export default async function ProfessorLayout({ children }: { children: React.Re
 
   // Admin visitando a área de professor tem um caminho de volta explícito.
   if (sessao.role === 'admin') {
-    links.push({ href: '/dashboard/admin', label: 'Voltar ao painel admin', icone: 'ShieldCheck' })
+    links.push({
+      href: '/dashboard/admin',
+      label: 'Painel admin',
+      icone: 'ShieldCheck',
+      grupo: 'Administração',
+    })
   }
 
   return (

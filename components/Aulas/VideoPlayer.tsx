@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CheckCircle2, VideoOff, Loader2 } from 'lucide-react'
+import { CheckCircle2, VideoOff, Loader2, Eye } from 'lucide-react'
 import { analisarVideo, PERCENTUAL_CONCLUSAO } from '@/lib/video'
 import { registrarProgresso } from '@/app/dashboard/aluno/actions'
 
@@ -10,6 +10,12 @@ interface Props {
   videoUrl: string | null
   concluidaInicial: boolean
   percentualInicial: number
+  /**
+   * Modo pré-visualização (admin/professor testando a experiência do aluno).
+   * O vídeo toca normalmente, mas nada é gravado: nem progresso, nem selo
+   * de conclusão. Assim o teste não suja os dados de ninguém.
+   */
+  somenteLeitura?: boolean
 }
 
 /* A API de iframe do YouTube é carregada sob demanda e uma única vez. */
@@ -42,6 +48,7 @@ export default function VideoPlayer({
   videoUrl,
   concluidaInicial,
   percentualInicial,
+  somenteLeitura = false,
 }: Props) {
   const info = analisarVideo(videoUrl)
   const [concluida, setConcluida] = useState(concluidaInicial)
@@ -57,6 +64,12 @@ export default function VideoPlayer({
      percentuais, ou imediatamente quando a aula é concluída. */
   const enviarProgresso = useCallback(
     async (pct: number, forcar = false) => {
+      // Em pré-visualização apenas acompanhamos na tela, sem gravar nada.
+      if (somenteLeitura) {
+        setPercentual((atual) => Math.max(atual, Math.round(pct)))
+        return
+      }
+
       const arredondado = Math.round(pct)
       const virouConcluida = arredondado >= PERCENTUAL_CONCLUSAO && !concluidaRef.current
 
@@ -80,7 +93,7 @@ export default function VideoPlayer({
         setSalvando(false)
       }
     },
-    [aulaId]
+    [aulaId, somenteLeitura]
   )
 
   /* ---------- YouTube ---------- */
@@ -185,7 +198,25 @@ export default function VideoPlayer({
       </div>
 
       {/* Selo de conclusão + barra de progresso */}
-      {concluida ? (
+      {somenteLeitura ? (
+        <div className="rounded-xl bg-amber-50 ring-1 ring-amber-200 px-4 py-3">
+          <div className="flex items-center justify-between text-xs mb-1.5">
+            <span className="font-semibold text-amber-800 inline-flex items-center gap-1.5">
+              <Eye className="h-3.5 w-3.5" strokeWidth={2.25} />
+              Pré-visualização — seu progresso não é salvo
+            </span>
+            <span className="font-bold text-amber-800 tabular-nums">
+              {Math.round(percentual)}%
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-amber-200/60 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-[width] duration-700"
+              style={{ width: `${percentual}%` }}
+            />
+          </div>
+        </div>
+      ) : concluida ? (
         <div className="flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-brand-50 to-brand-100/60 ring-1 ring-brand-200 px-4 py-3 animate-float-in">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white shadow-glow">
             <CheckCircle2 className="h-5 w-5" strokeWidth={2.25} />

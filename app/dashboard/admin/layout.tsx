@@ -11,12 +11,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const links: ItemNav[] = [
     { href: '/dashboard/admin', label: 'Visão geral', icone: 'LayoutDashboard', exact: true },
-    { href: '/dashboard/admin/cursos', label: 'Cursos', icone: 'BookOpenText' },
-    { href: '/dashboard/admin/turmas', label: 'Turmas', icone: 'GraduationCap' },
-    { href: '/dashboard/admin/usuarios', label: 'Usuários', icone: 'Users2' },
-    { href: '/dashboard/admin/permissoes', label: 'Permissões', icone: 'ShieldCheck' },
-    { href: '/dashboard/admin/carrossel', label: 'Fotos da capa', icone: 'Images' },
-    { href: '/dashboard/professor', label: 'Ver como professor', icone: 'Presentation' },
+
+    { href: '/dashboard/admin/cursos', label: 'Cursos', icone: 'BookOpenText', grupo: 'Ensino' },
+    { href: '/dashboard/admin/turmas', label: 'Turmas', icone: 'GraduationCap', grupo: 'Ensino' },
+
+    { href: '/dashboard/admin/usuarios', label: 'Usuários', icone: 'Users2', grupo: 'Pessoas' },
+    { href: '/dashboard/admin/permissoes', label: 'Permissões', icone: 'ShieldCheck', grupo: 'Pessoas' },
+
+    { href: '/dashboard/admin/carrossel', label: 'Fotos da capa', icone: 'Images', grupo: 'Site' },
+    { href: '/dashboard/professor', label: 'Ver como professor', icone: 'Presentation', grupo: 'Site' },
   ]
 
   return (

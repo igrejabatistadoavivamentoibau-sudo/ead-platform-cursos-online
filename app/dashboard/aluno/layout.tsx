@@ -3,7 +3,7 @@ import PortalNav, { type ItemNav } from '@/components/Dashboard/PortalNav'
 
 const links: ItemNav[] = [
   { href: '/dashboard/aluno', label: 'Início', icone: 'LayoutDashboard', exact: true },
-  { href: '/dashboard/aluno/cursos', label: 'Meus cursos', icone: 'BookOpenText' },
+  { href: '/dashboard/aluno/cursos', label: 'Meus cursos', icone: 'BookOpenText', grupo: 'Estudos' },
 ]
 
 export default async function AlunoLayout({ children }: { children: React.ReactNode }) {
