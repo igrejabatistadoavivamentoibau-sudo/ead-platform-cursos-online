@@ -1,11 +1,18 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const ROLE_HOME: Record<string, string> = {
+const HOME_POR_PAPEL: Record<string, string> = {
   admin: '/dashboard/admin',
-  professor: '/dashboard/teacher',
-  aluno: '/dashboard/student',
+  professor: '/dashboard/professor',
+  aluno: '/dashboard/aluno',
 }
+
+/** Quem pode entrar em cada área. Admin também entra na área de professor. */
+const PAPEIS_PERMITIDOS: { prefixo: string; papeis: string[] }[] = [
+  { prefixo: '/dashboard/admin', papeis: ['admin'] },
+  { prefixo: '/dashboard/professor', papeis: ['professor', 'admin'] },
+  { prefixo: '/dashboard/aluno', papeis: ['aluno'] },
+]
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
@@ -29,8 +36,10 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Importante: getUser() valida o token com o servidor do Supabase
-  // (diferente de getSession(), que só lê o cookie local).
+  // Valida a sessão com o Supabase. Antes fazíamos isto E MAIS uma consulta
+  // ao banco só para descobrir o papel da pessoa — duas idas e voltas em
+  // toda navegação. Agora o papel vem dentro do próprio token (app_metadata),
+  // sincronizado por gatilho no banco, então sobra apenas esta chamada.
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -44,13 +53,8 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    const home = profile?.role ? ROLE_HOME[profile.role] : undefined
+    const role = (user.app_metadata?.role as string | undefined) ?? undefined
+    const home = role ? HOME_POR_PAPEL[role] : undefined
 
     if (!home) {
       const url = request.nextUrl.clone()
@@ -58,9 +62,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    // Admin pode navegar em qualquer /dashboard/admin/**.
-    // Aluno/professor só acessam a própria área.
-    if (!path.startsWith(home)) {
+    const regra = PAPEIS_PERMITIDOS.find((r) => path.startsWith(r.prefixo))
+
+    // Área desconhecida ou área que este papel não pode acessar →
+    // manda para a casa dele.
+    if (!regra || !regra.papeis.includes(role!)) {
       const url = request.nextUrl.clone()
       url.pathname = home
       return NextResponse.redirect(url)

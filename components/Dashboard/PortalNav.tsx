@@ -4,37 +4,43 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
-import {
-  LayoutDashboard,
-  Users2,
-  GraduationCap,
-  Images,
-  Menu,
-  X,
-  ShieldCheck,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from 'lucide-react'
+import * as Icones from 'lucide-react'
+import { Menu, X, PanelLeftClose } from 'lucide-react'
 import LogoutButton from './LogoutButton'
 
-const links = [
-  { href: '/dashboard/admin', label: 'Visão geral', icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/admin/turmas', label: 'Turmas', icon: GraduationCap, exact: false },
-  { href: '/dashboard/admin/usuarios', label: 'Usuários', icon: Users2, exact: false },
-  { href: '/dashboard/admin/carrossel', label: 'Fotos da capa', icon: Images, exact: false },
-]
+export interface ItemNav {
+  href: string
+  label: string
+  /** Nome do ícone no lucide-react (ex.: 'LayoutDashboard'). */
+  icone: string
+  exact?: boolean
+}
 
 const STORAGE_KEY = 'ibau:sidebar-collapsed'
 
-export default function AdminNav({ name }: { name: string }) {
+/**
+ * Barra lateral retrátil compartilhada pelos três portais (admin, professor
+ * e aluno). O selo muda de cor conforme o papel, deixando visualmente claro
+ * em qual área a pessoa está.
+ */
+export default function PortalNav({
+  name,
+  titulo,
+  selo,
+  cor,
+  links,
+}: {
+  name: string
+  titulo: string
+  selo: string
+  cor: 'brand' | 'roxo' | 'azul'
+  links: ItemNav[]
+}) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
-  // Lembra a preferência da pessoa entre visitas. Só lemos depois da
-  // montagem para não quebrar a hidratação do React (servidor não tem
-  // acesso ao localStorage).
   useEffect(() => {
     setCollapsed(localStorage.getItem(STORAGE_KEY) === '1')
     setHydrated(true)
@@ -47,16 +53,28 @@ export default function AdminNav({ name }: { name: string }) {
     })
   }
 
-  const isActive = (href: string, exact: boolean) =>
+  const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href)
+
+  const CORES = {
+    brand: 'bg-white/10 text-brand-200',
+    roxo: 'bg-purple-400/15 text-purple-200',
+    azul: 'bg-sky-400/15 text-sky-200',
+  }[cor]
+
+  const Icone = ({ nome, className }: { nome: string; className: string }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const C = (Icones as any)[nome] ?? Icones.Circle
+    return <C className={className} strokeWidth={2} />
+  }
 
   return (
     <>
-      {/* ===== Barra superior no celular ===== */}
+      {/* ===== Topo no celular ===== */}
       <div className="md:hidden sticky top-0 z-50 flex items-center justify-between bg-brand-950 text-white px-4 h-14 shadow-float">
-        <Link href="/dashboard/admin" className="flex items-center gap-2.5">
+        <Link href={links[0]?.href ?? '/'} className="flex items-center gap-2.5">
           <Image src="/ibau-logo-transparent.png" alt="Logo IBAU" width={26} height={26} />
-          <span className="font-semibold text-sm">Painel Admin</span>
+          <span className="font-semibold text-sm">{titulo}</span>
         </Link>
         <button
           type="button"
@@ -84,31 +102,28 @@ export default function AdminNav({ name }: { name: string }) {
             mobileOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-[11px] font-semibold text-brand-200 uppercase tracking-wider mb-4">
-            <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2.5} />
-            Administrador
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider mb-4 ${CORES}`}
+          >
+            {selo}
           </span>
 
           <div className="space-y-1">
-            {links.map((link) => {
-              const Icon = link.icon
-              const active = isActive(link.href, link.exact)
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    active
-                      ? 'bg-brand-500/25 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]'
-                      : 'text-brand-100/80 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={2} />
-                  {link.label}
-                </Link>
-              )
-            })}
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  isActive(link.href, link.exact)
+                    ? 'bg-brand-500/25 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]'
+                    : 'text-brand-100/80 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <Icone nome={link.icone} className="h-[18px] w-[18px] shrink-0" />
+                {link.label}
+              </Link>
+            ))}
           </div>
 
           <div className="mt-6 pt-4 border-t border-white/10">
@@ -118,20 +133,19 @@ export default function AdminNav({ name }: { name: string }) {
         </nav>
       </div>
 
-      {/* ===== Sidebar no desktop (retrátil) ===== */}
+      {/* ===== Sidebar no desktop ===== */}
       <aside
         className={`hidden md:flex md:flex-col shrink-0 bg-brand-950 text-white min-h-screen sticky top-0 transition-[width] duration-300 ease-out ${
           collapsed ? 'w-[76px]' : 'w-64'
         } ${hydrated ? '' : 'md:opacity-0'}`}
       >
-        {/* Cabeçalho com logo + botão de gaveta */}
         <div
           className={`flex items-center h-16 border-b border-white/10 ${
             collapsed ? 'justify-center px-2' : 'justify-between px-4'
           }`}
         >
           {!collapsed && (
-            <Link href="/dashboard/admin" className="flex items-center gap-2.5 min-w-0">
+            <Link href={links[0]?.href ?? '/'} className="flex items-center gap-2.5 min-w-0">
               <Image
                 src="/ibau-logo-transparent.png"
                 alt="Logo IBAU"
@@ -161,27 +175,25 @@ export default function AdminNav({ name }: { name: string }) {
           </button>
         </div>
 
-        {/* Selo de administrador */}
         <div className={`pt-3 pb-1 ${collapsed ? 'px-2 flex justify-center' : 'px-4'}`}>
           {collapsed ? (
             <span
-              title="Administrador"
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-brand-200"
+              title={selo}
+              className={`flex h-8 w-8 items-center justify-center rounded-lg text-[10px] font-bold ${CORES}`}
             >
-              <ShieldCheck className="h-4 w-4" strokeWidth={2.5} />
+              {selo.charAt(0)}
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-[11px] font-semibold text-brand-200 uppercase tracking-wider">
-              <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2.5} />
-              Administrador
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider ${CORES}`}
+            >
+              {selo}
             </span>
           )}
         </div>
 
-        {/* Links */}
         <nav className={`flex-1 py-4 space-y-1 ${collapsed ? 'px-2' : 'px-3'}`}>
           {links.map((link) => {
-            const Icon = link.icon
             const active = isActive(link.href, link.exact)
             return (
               <Link
@@ -196,14 +208,11 @@ export default function AdminNav({ name }: { name: string }) {
                     : 'text-brand-100/75 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                {/* Marcador vertical do item ativo */}
                 {active && !collapsed && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-brand-300" />
                 )}
-                <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={2} />
+                <Icone nome={link.icone} className="h-[18px] w-[18px] shrink-0" />
                 {!collapsed && <span className="truncate">{link.label}</span>}
-
-                {/* Tooltip quando recolhido */}
                 {collapsed && (
                   <span className="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-lg bg-brand-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-float transition-opacity duration-200 group-hover:opacity-100 z-50">
                     {link.label}
@@ -214,7 +223,6 @@ export default function AdminNav({ name }: { name: string }) {
           })}
         </nav>
 
-        {/* Rodapé com usuário */}
         <div className={`py-4 border-t border-white/10 ${collapsed ? 'px-2' : 'px-4'}`}>
           {collapsed ? (
             <div className="flex flex-col items-center gap-3">

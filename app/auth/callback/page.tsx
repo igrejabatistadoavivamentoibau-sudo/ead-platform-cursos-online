@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Loader2, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+
+const DASHBOARD_POR_PAPEL: Record<string, string> = {
+  aluno: '/dashboard/aluno',
+  professor: '/dashboard/professor',
+  admin: '/dashboard/admin',
+}
 
 export default function AuthCallbackPage() {
   const router = useRouter()
@@ -10,48 +17,47 @@ export default function AuthCallbackPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    const finishLogin = async () => {
-      const { data, error: sessionError } = await supabase.auth.getSession()
+    const concluirLogin = async () => {
+      const {
+        data: { user },
+        error: sessionError,
+      } = await supabase.auth.getUser()
 
-      if (sessionError || !data.session) {
+      if (sessionError || !user) {
         setError('Não foi possível concluir o login. Tente novamente.')
         return
       }
 
-      const userId = data.session.user.id
+      // Papel vem do token — sem consulta extra ao banco.
+      const role = user.app_metadata?.role as string | undefined
+      const destino = role ? DASHBOARD_POR_PAPEL[role] : undefined
 
-      const { data: userData } = await supabase
-        .from('users')
-        .select('id, role')
-        .eq('id', userId)
-        .single()
-
-      if (!userData) {
-        // Login OAuth de usuário sem perfil cadastrado na tabela `users` ainda.
-        router.push('/')
+      if (!destino) {
+        await supabase.auth.signOut()
+        setError('Esta conta ainda não foi liberada. Fale com a administração.')
         return
       }
 
-      const dashboardByRole: Record<string, string> = {
-        aluno: '/dashboard/student',
-        professor: '/dashboard/teacher',
-        admin: '/dashboard/admin',
-      }
-
-      router.push(dashboardByRole[userData.role] ?? '/')
+      router.push(destino)
       router.refresh()
     }
 
-    finishLogin()
+    concluirLogin()
   }, [router, supabase])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50/50 via-white to-brand-50/30 px-4">
       <div className="text-center">
         {error ? (
-          <p className="text-red-600">{error}</p>
+          <div className="flex items-start gap-2.5 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm max-w-sm">
+            <AlertCircle className="h-[18px] w-[18px] shrink-0 mt-px" strokeWidth={2.25} />
+            <span className="text-left">{error}</span>
+          </div>
         ) : (
-          <p className="text-gray-500">Concluindo login...</p>
+          <div className="flex flex-col items-center gap-3 text-gray-500">
+            <Loader2 className="h-7 w-7 animate-spin text-brand-600" strokeWidth={2} />
+            <p>Concluindo login...</p>
+          </div>
         )}
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { resolverPermissoes, type ChavePermissao, type UserRole } from '@/lib/permissoes'
 
 /**
  * Confirma, a partir da sessão (cookies), que quem está chamando a action
@@ -361,4 +362,192 @@ export async function removerSlide(slideId: string) {
 
   revalidatePath('/dashboard/admin/carrossel')
   revalidatePath('/')
+}
+
+// ============ VÍDEO AULAS ============
+
+/**
+ * Confirma que quem chama tem a permissão pedida. Diferente de requireAdmin,
+ * isto permite que um professor com permissão liberada também execute.
+ */
+async function exigirPermissaoAction(chave: ChavePermissao) {
+  const session = await createSessionClient()
+  const {
+    data: { user },
+  } = await session.auth.getUser()
+
+  if (!user) throw new Error('Não autenticado.')
+
+  const { data: perfil } = await session
+    .from('users')
+    .select('role, permissoes')
+    .eq('id', user.id)
+    .single()
+
+  if (!perfil) throw new Error('Perfil não encontrado.')
+
+  const permissoes = resolverPermissoes(perfil.role as UserRole, perfil.permissoes)
+  if (!permissoes[chave]) {
+    throw new Error('Você não tem permissão para executar essa ação.')
+  }
+
+  return { user, role: perfil.role as UserRole }
+}
+
+/** Professor só mexe na própria turma; admin mexe em qualquer uma. */
+async function garantirAcessoATurma(turmaId: string, userId: string, role: UserRole) {
+  if (role === 'admin') return
+  const admin = createAdminClient()
+  const { data: turma } = await admin
+    .from('turmas')
+    .select('professor_id')
+    .eq('id', turmaId)
+    .single()
+
+  if (turma?.professor_id !== userId) {
+    throw new Error('Esta turma não está sob sua responsabilidade.')
+  }
+}
+
+export async function criarAula(input: {
+  turma_id: string
+  titulo: string
+  descricao?: string
+  video_url?: string
+  duracao_minutos?: number
+}) {
+  const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
+  await garantirAcessoATurma(input.turma_id, user.id, role)
+  const admin = createAdminClient()
+
+  // Número da aula é sequencial dentro da turma (Aula 1, Aula 2, ...)
+  const { data: ultima } = await admin
+    .from('aulas')
+    .select('numero')
+    .eq('turma_id', input.turma_id)
+    .order('numero', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { error } = await admin.from('aulas').insert({
+    turma_id: input.turma_id,
+    numero: (ultima?.numero ?? 0) + 1,
+    titulo: input.titulo,
+    descricao: input.descricao || null,
+    video_url: input.video_url || null,
+    duracao_minutos: input.duracao_minutos || null,
+  })
+
+  if (error) throw new Error(error.message)
+  revalidatePath(`/dashboard/admin/turmas/${input.turma_id}/aulas`)
+  revalidatePath(`/dashboard/professor/turmas/${input.turma_id}/aulas`)
+}
+
+export async function atualizarAula(
+  aulaId: string,
+  turmaId: string,
+  input: { titulo?: string; descricao?: string; video_url?: string; duracao_minutos?: number }
+) {
+  const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
+  await garantirAcessoATurma(turmaId, user.id, role)
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('aulas')
+    .update({
+      ...(input.titulo !== undefined ? { titulo: input.titulo } : {}),
+      ...(input.descricao !== undefined ? { descricao: input.descricao || null } : {}),
+      ...(input.video_url !== undefined ? { video_url: input.video_url || null } : {}),
+      ...(input.duracao_minutos !== undefined
+        ? { duracao_minutos: input.duracao_minutos || null }
+        : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', aulaId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath(`/dashboard/admin/turmas/${turmaId}/aulas`)
+  revalidatePath(`/dashboard/professor/turmas/${turmaId}/aulas`)
+}
+
+export async function publicarAula(aulaId: string, turmaId: string, publicada: boolean) {
+  const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
+  await garantirAcessoATurma(turmaId, user.id, role)
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('aulas')
+    .update({ publicada, updated_at: new Date().toISOString() })
+    .eq('id', aulaId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath(`/dashboard/admin/turmas/${turmaId}/aulas`)
+  revalidatePath(`/dashboard/professor/turmas/${turmaId}/aulas`)
+}
+
+/** Troca a aula de posição com a vizinha, renumerando as duas. */
+export async function moverAula(aulaId: string, turmaId: string, direcao: 'cima' | 'baixo') {
+  const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
+  await garantirAcessoATurma(turmaId, user.id, role)
+  const admin = createAdminClient()
+
+  const { data: aulas } = await admin
+    .from('aulas')
+    .select('id, numero')
+    .eq('turma_id', turmaId)
+    .order('numero', { ascending: true })
+
+  if (!aulas) return
+  const i = aulas.findIndex((a) => a.id === aulaId)
+  if (i === -1) return
+
+  const j = direcao === 'cima' ? i - 1 : i + 1
+  if (j < 0 || j >= aulas.length) return
+
+  const atual = aulas[i]
+  const outra = aulas[j]
+
+  // Número temporário para não violar a regra de número único por turma
+  await admin.from('aulas').update({ numero: -1 }).eq('id', atual.id)
+  await admin.from('aulas').update({ numero: atual.numero }).eq('id', outra.id)
+  await admin.from('aulas').update({ numero: outra.numero }).eq('id', atual.id)
+
+  revalidatePath(`/dashboard/admin/turmas/${turmaId}/aulas`)
+  revalidatePath(`/dashboard/professor/turmas/${turmaId}/aulas`)
+}
+
+export async function removerAula(aulaId: string, turmaId: string) {
+  const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
+  await garantirAcessoATurma(turmaId, user.id, role)
+  const admin = createAdminClient()
+
+  const { error } = await admin.from('aulas').delete().eq('id', aulaId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/dashboard/admin/turmas/${turmaId}/aulas`)
+  revalidatePath(`/dashboard/professor/turmas/${turmaId}/aulas`)
+}
+
+// ============ PERMISSÕES ============
+
+export async function atualizarPermissoes(
+  userId: string,
+  permissoes: Partial<Record<ChavePermissao, boolean>>
+) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: alvo } = await admin.from('users').select('role').eq('id', userId).single()
+  if (alvo?.role === 'admin') {
+    throw new Error('Administradores têm acesso total e não podem ser limitados.')
+  }
+
+  const { error } = await admin
+    .from('users')
+    .update({ permissoes, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/usuarios')
+  revalidatePath('/dashboard/admin/permissoes')
 }

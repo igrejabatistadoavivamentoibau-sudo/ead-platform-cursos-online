@@ -2,6 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "devCommand": "next dev",
+  "regions": ["gru1"],
   "git": {
     "deploymentEnabled": {
       "main": true
