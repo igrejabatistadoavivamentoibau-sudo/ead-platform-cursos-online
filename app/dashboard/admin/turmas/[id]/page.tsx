@@ -7,6 +7,7 @@ import MatriculaManager from '@/components/Dashboard/MatriculaManager'
 import EncontroManager from '@/components/Dashboard/EncontroManager'
 import CursoDaTurma from '@/components/Dashboard/CursoDaTurma'
 import { BotaoLink } from '@/components/ui'
+import ExcluirTurma from '@/components/Dashboard/ExcluirTurma'
 
 const STATUS_LABEL: Record<string, string> = {
   planejada: 'Planejada',
@@ -103,6 +104,10 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
           )}
           <TurmaStatusActions turmaId={turma.id} status={turma.status} />
         </div>
+      </div>
+
+      <div className="mb-6 flex justify-end">
+        <ExcluirTurma turmaId={turma.id} nomeDaTurma={turma.nome} />
       </div>
 
       {/* As telas pedagógicas da turma são as mesmas do professor — o admin

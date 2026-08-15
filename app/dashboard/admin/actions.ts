@@ -81,6 +81,53 @@ export async function encerrarTurma(turmaId: string) {
   revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
 }
 
+/**
+ * Conta o que será perdido junto com a turma.
+ *
+ * Serve para a tela de confirmação dizer exatamente o que vai sumir, em vez
+ * de um "tem certeza?" genérico. Apagar turma é irreversível e leva junto
+ * matrículas, encontros, presenças, avaliações, notas e atividades — a
+ * pessoa merece ver esse tamanho antes de decidir.
+ */
+export async function resumoDaTurma(turmaId: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const contar = async (tabela: string) => {
+    const { count } = await admin
+      .from(tabela)
+      .select('id', { count: 'exact', head: true })
+      .eq('turma_id', turmaId)
+    return count ?? 0
+  }
+
+  const [alunos, encontros, avaliacoes, atividades] = await Promise.all([
+    contar('turma_alunos'),
+    contar('encontros'),
+    contar('avaliacoes'),
+    contar('atividades'),
+  ])
+
+  return { alunos, encontros, avaliacoes, atividades }
+}
+
+/**
+ * Apaga a turma.
+ *
+ * As aulas NÃO são afetadas: elas pertencem ao curso, não à turma. Ou seja,
+ * apagar uma turma de teste não destrói o conteúdo que já foi montado.
+ */
+export async function removerTurma(turmaId: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { error } = await admin.from('turmas').delete().eq('id', turmaId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/dashboard/admin/turmas')
+  revalidatePath('/dashboard/professor')
+}
+
 export async function matricularAluno(turmaId: string, alunoId: string) {
   await requireAdmin()
   const admin = createAdminClient()

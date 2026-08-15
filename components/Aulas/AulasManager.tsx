@@ -175,20 +175,32 @@ export default function AulasManager({
                 type="url"
                 value={form.video_url}
                 onChange={(e) => setForm({ ...form, video_url: e.target.value })}
-                placeholder="Cole aqui o link do YouTube, Vimeo ou do arquivo de vídeo"
+                placeholder="Cole o link do YouTube, Google Drive, Vimeo ou do arquivo"
                 className={CAMPO}
               />
-              {form.video_url && (
+              {form.video_url ? (
                 <p
                   className={`mt-1.5 text-xs font-medium ${
                     previewVideo.tipo === 'desconhecido' ? 'text-amber-600' : 'text-brand-700'
                   }`}
                 >
-                  {previewVideo.tipo === 'youtube' && 'YouTube reconhecido — conclusão automática ativada.'}
-                  {previewVideo.tipo === 'vimeo' && 'Vimeo reconhecido.'}
-                  {previewVideo.tipo === 'arquivo' && 'Arquivo de vídeo — conclusão automática ativada.'}
+                  {previewVideo.tipo === 'youtube' &&
+                    'YouTube reconhecido — o vídeo abre aqui dentro e a conclusão é automática.'}
+                  {previewVideo.tipo === 'drive' &&
+                    'Google Drive reconhecido — o vídeo abre aqui dentro. Deixe o arquivo como "qualquer pessoa com o link".'}
+                  {previewVideo.tipo === 'onedrive' &&
+                    'OneDrive reconhecido — o vídeo abre aqui dentro e a conclusão é automática. Deixe o arquivo compartilhado como "qualquer pessoa com o link".'}
+                  {previewVideo.tipo === 'vimeo' && 'Vimeo reconhecido — o vídeo abre aqui dentro.'}
+                  {previewVideo.tipo === 'arquivo' &&
+                    'Arquivo de vídeo — abre aqui dentro e a conclusão é automática.'}
                   {previewVideo.tipo === 'desconhecido' &&
-                    'Link não reconhecido. Use YouTube, Vimeo ou link direto de vídeo.'}
+                    'Link não reconhecido. Use YouTube, Google Drive, OneDrive, Vimeo ou link direto de vídeo.'}
+                </p>
+              ) : (
+                <p className="mt-1.5 text-[11.5px] leading-relaxed text-gray-500">
+                  Para vídeo grande, o link é o melhor caminho: não passa pelo limite de envio da
+                  plataforma. Em qualquer um dos casos o vídeo toca dentro da plataforma — o aluno
+                  nunca é mandado para fora.
                 </p>
               )}
             </div>

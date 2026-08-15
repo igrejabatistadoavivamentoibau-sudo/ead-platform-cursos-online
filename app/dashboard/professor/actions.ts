@@ -232,26 +232,26 @@ export async function corrigirEntrega(
 
 // ==================== AULA AVULSA (vídeo enviado) ====================
 
-const TIPOS_VIDEO = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime']
-const TAMANHO_MAXIMO_VIDEO = 200 * 1024 * 1024 // 200 MB
-
 /**
- * Sobe um arquivo de vídeo direto para a plataforma e cria a aula.
- * Pensado para o curso presencial: o professor grava o encontro e
- * disponibiliza para quem faltou ou quer rever.
+ * Prepara o envio de uma aula gravada.
+ *
+ * POR QUE O ARQUIVO NÃO PASSA MAIS PELO SERVIDOR
+ * A versão anterior recebia o arquivo de vídeo dentro de uma action. Isso
+ * não funciona em produção: a Vercel recusa qualquer requisição acima de
+ * ~4,5 MB e o Next limita ações de servidor a 1 MB. Qualquer vídeo de
+ * verdade era barrado — o envio ficava rodando e morria sem gravar nada,
+ * que é exatamente o comportamento relatado.
+ *
+ * Agora o servidor só autoriza e devolve o caminho onde o arquivo deve
+ * ficar. O navegador envia direto para o armazenamento. Além de funcionar,
+ * é mais rápido: o vídeo faz um salto a menos.
  */
-export async function criarAulaComVideo(formData: FormData) {
+export async function autorizarEnvioDeVideo(cursoId: string, nomeArquivo: string) {
   const { userId, role } = await exigir('gerenciar_aulas')
   const admin = createAdminClient()
 
-  const cursoId = formData.get('curso_id') as string
-  const titulo = (formData.get('titulo') as string)?.trim()
-  const descricao = (formData.get('descricao') as string)?.trim()
-  const file = formData.get('video')
+  if (!cursoId) throw new Error('Curso não informado.')
 
-  if (!cursoId || !titulo) throw new Error('Informe o curso e o nome da aula.')
-
-  // Professor precisa lecionar em alguma turma deste curso
   if (role !== 'admin') {
     const { count } = await admin
       .from('turmas')
@@ -261,22 +261,45 @@ export async function criarAulaComVideo(formData: FormData) {
     if (!count) throw new Error('Este curso não está sob sua responsabilidade.')
   }
 
-  let videoPath: string | null = null
+  const ext = (nomeArquivo.split('.').pop() ?? 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '')
+  return { videoPath: `${cursoId}/${crypto.randomUUID()}.${ext || 'mp4'}` }
+}
 
-  if (file instanceof File && file.size > 0) {
-    if (!TIPOS_VIDEO.includes(file.type)) {
-      throw new Error('Formato de vídeo não suportado. Use MP4, WEBM ou MOV.')
-    }
-    if (file.size > TAMANHO_MAXIMO_VIDEO) {
-      throw new Error('O vídeo passa de 200 MB. Comprima o arquivo ou use um link do YouTube.')
-    }
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'mp4'
-    videoPath = `${cursoId}/${crypto.randomUUID()}.${ext}`
+/**
+ * Registra a aula depois que o vídeo já subiu.
+ * Recebe apenas texto curto, então passa folgado por qualquer limite.
+ */
+export async function registrarAulaEnviada(dados: {
+  cursoId: string
+  titulo: string
+  descricao?: string
+  videoPath: string
+}) {
+  const { userId, role } = await exigir('gerenciar_aulas')
+  const admin = createAdminClient()
 
-    const { error: upErr } = await admin.storage
-      .from('aulas')
-      .upload(videoPath, file, { contentType: file.type, upsert: false })
-    if (upErr) throw new Error(`Falha ao enviar o vídeo: ${upErr.message}`)
+  const cursoId = dados.cursoId
+  const titulo = dados.titulo?.trim()
+  const descricao = dados.descricao?.trim()
+  const videoPath = dados.videoPath
+
+  if (!cursoId || !titulo) throw new Error('Informe o curso e o nome da aula.')
+  if (!videoPath) throw new Error('O vídeo não chegou ao armazenamento.')
+
+  // O caminho é sempre gerado pelo servidor como "<curso>/<id>.<ext>".
+  // Conferimos de novo aqui para que ninguém consiga apontar uma aula
+  // para um arquivo que está fora deste curso.
+  if (!videoPath.startsWith(`${cursoId}/`)) {
+    throw new Error('Caminho de vídeo inválido.')
+  }
+
+  if (role !== 'admin') {
+    const { count } = await admin
+      .from('turmas')
+      .select('id', { count: 'exact', head: true })
+      .eq('curso_id', cursoId)
+      .eq('professor_id', userId)
+    if (!count) throw new Error('Este curso não está sob sua responsabilidade.')
   }
 
   const { data: ultima } = await admin

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, VideoOff, Loader2, Eye } from 'lucide-react'
-import { analisarVideo, PERCENTUAL_CONCLUSAO } from '@/lib/video'
+import { analisarVideo, marcaProgressoSozinho, PERCENTUAL_CONCLUSAO } from '@/lib/video'
 import { registrarProgresso } from '@/app/dashboard/aluno/actions'
 
 interface Props {
@@ -54,6 +54,7 @@ export default function VideoPlayer({
   const [concluida, setConcluida] = useState(concluidaInicial)
   const [percentual, setPercentual] = useState(percentualInicial)
   const [salvando, setSalvando] = useState(false)
+  const [falhouVideo, setFalhouVideo] = useState(false)
   const [carregandoPlayer, setCarregandoPlayer] = useState(info.tipo === 'youtube')
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -151,7 +152,7 @@ export default function VideoPlayer({
         <p className="text-gray-600 font-medium">Vídeo ainda não disponível</p>
         <p className="text-sm text-gray-500 max-w-sm">
           {videoUrl
-            ? 'O link cadastrado não é de um vídeo reconhecido (YouTube, Vimeo ou arquivo de vídeo).'
+            ? 'O link cadastrado não foi reconhecido. Use YouTube, Google Drive, Vimeo ou link direto de vídeo.'
             : 'Assim que o professor adicionar o vídeo, ele aparece aqui.'}
         </p>
       </div>
@@ -172,9 +173,9 @@ export default function VideoPlayer({
           </>
         )}
 
-        {info.tipo === 'vimeo' && (
+        {(info.tipo === 'vimeo' || info.tipo === 'drive') && (
           <iframe
-            src={`https://player.vimeo.com/video/${info.id}`}
+            src={info.embed}
             className="h-full w-full"
             allow="autoplay; fullscreen; picture-in-picture"
             allowFullScreen
@@ -182,9 +183,9 @@ export default function VideoPlayer({
           />
         )}
 
-        {info.tipo === 'arquivo' && (
+        {(info.tipo === 'arquivo' || info.tipo === 'onedrive') && !falhouVideo && (
           <video
-            src={info.url}
+            src={info.embed ?? info.url}
             controls
             controlsList="nodownload"
             className="h-full w-full"
@@ -193,7 +194,23 @@ export default function VideoPlayer({
               if (v.duration > 0) enviarProgresso((v.currentTime / v.duration) * 100)
             }}
             onEnded={() => enviarProgresso(100, true)}
+            onError={() => setFalhouVideo(true)}
           />
+        )}
+
+        {/* O link do OneDrive só toca se o arquivo estiver compartilhado
+            publicamente. Quando não está, o navegador não diz o motivo —
+            então explicamos aqui, em vez de deixar uma tela preta. */}
+        {falhouVideo && (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center">
+            <VideoOff className="h-7 w-7 text-white/50" strokeWidth={1.75} />
+            <p className="text-[14px] font-semibold text-white">Não consegui abrir este vídeo</p>
+            <p className="max-w-sm text-[12.5px] leading-relaxed text-white/60">
+              {info.tipo === 'onedrive'
+                ? 'No OneDrive, abra o arquivo, clique em Compartilhar e libere para "qualquer pessoa com o link". Sem isso a plataforma não consegue exibir o vídeo.'
+                : 'O endereço do vídeo não respondeu. Confira se o link continua válido.'}
+            </p>
+          </div>
         )}
       </div>
 
@@ -242,10 +259,27 @@ export default function VideoPlayer({
               style={{ width: `${percentual}%` }}
             />
           </div>
-          {info.tipo === 'vimeo' && (
-            <p className="text-[11px] text-gray-500 mt-2">
-              Vídeos do Vimeo ainda não marcam conclusão automática.
-            </p>
+
+          {/* Google Drive e Vimeo tocam dentro da plataforma, mas não deixam
+              ler o tempo do vídeo — então a conclusão fica na mão do aluno.
+              Sem este botão, uma aula hospedada no Drive nunca geraria
+              presença automática no EAD, e o aluno ficaria sem o selo. */}
+          {!marcaProgressoSozinho(info.tipo) && (
+            <div className="mt-3 border-t border-gray-200 pt-3">
+              <p className="mb-2 text-[11.5px] leading-snug text-gray-500">
+                Este vídeo não consegue registrar seu avanço sozinho. Quando terminar de
+                assistir, confirme aqui para receber o selo e a presença.
+              </p>
+              <button
+                type="button"
+                disabled={salvando}
+                onClick={() => enviarProgresso(100, true)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-700 px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-50"
+              >
+                <CheckCircle2 className="h-[15px] w-[15px]" strokeWidth={2.2} />
+                {salvando ? 'Registrando...' : 'Marcar aula como assistida'}
+              </button>
+            </div>
           )}
         </div>
       )}
