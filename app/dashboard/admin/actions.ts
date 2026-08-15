@@ -607,6 +607,7 @@ export async function criarCurso(formData: FormData) {
     descricao: (formData.get('descricao') as string)?.trim() || null,
     categoria: (formData.get('categoria') as string)?.trim() || null,
     nivel: (formData.get('nivel') as string) || 'iniciante',
+    modalidade: (formData.get('modalidade') as string) || 'ead',
     cor: (formData.get('cor') as string) || 'esmeralda',
     carga_horaria: formData.get('carga_horaria')
       ? Number(formData.get('carga_horaria'))
@@ -650,6 +651,7 @@ export async function atualizarCurso(cursoId: string, formData: FormData) {
       descricao: (formData.get('descricao') as string)?.trim() || null,
       categoria: (formData.get('categoria') as string)?.trim() || null,
       nivel: (formData.get('nivel') as string) || 'iniciante',
+      modalidade: (formData.get('modalidade') as string) || 'ead',
       cor: (formData.get('cor') as string) || 'esmeralda',
       carga_horaria: formData.get('carga_horaria')
         ? Number(formData.get('carga_horaria'))

@@ -140,7 +140,11 @@ export default function LoginForm() {
       descricao: 'Para quem estuda: assista às aulas e acompanhe seu avanço.',
       texto: 'text-sky-700',
       pastilha: 'bg-sky-50 ring-1 ring-sky-200',
-      faixa: 'from-sky-500 to-cyan-400',
+      // Gradiente fechado, dentro do mesmo tom. O ciano claro da versão
+      // anterior brigava com o verde da marca e dava ar de template pronto:
+      // dois tons vizinhos do mesmo azul criam profundidade sem virar o
+      // assunto principal da tela.
+      faixa: 'from-sky-800 to-sky-600',
       aviso: 'bg-sky-50/70 ring-sky-200 text-sky-900',
       iconeCor: 'text-sky-600',
     },
@@ -151,7 +155,7 @@ export default function LoginForm() {
       descricao: 'Para quem ensina e coordena: turmas, chamada e vídeo aulas.',
       texto: 'text-violet-700',
       pastilha: 'bg-violet-50 ring-1 ring-violet-200',
-      faixa: 'from-violet-500 to-purple-400',
+      faixa: 'from-violet-800 to-violet-600',
       aviso: 'bg-violet-50/70 ring-violet-200 text-violet-900',
       iconeCor: 'text-violet-600',
     },

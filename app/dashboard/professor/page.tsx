@@ -1,16 +1,54 @@
 import Link from 'next/link'
+import type { ComponentType, ReactNode } from 'react'
 import {
   Presentation,
   Users2,
   PlayCircle,
   GraduationCap,
   ClipboardList,
+  ClipboardCheck,
+  FileText,
   Video,
   TrendingUp,
   BookOpenText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
+import { Selo } from '@/components/ui'
+import { MODALIDADE, type ModalidadeCurso } from '@/lib/cursos'
+
+/** O join do Supabase vem sem tipo forte; lemos a modalidade em um lugar só. */
+function modalidadeDaTurma(turma: { cursos?: unknown }): ModalidadeCurso {
+  const c = turma.cursos as { modalidade?: ModalidadeCurso } | null
+  return c?.modalidade ?? 'ead'
+}
+
+/** Atalho compacto do cartão de turma — mesma forma para todos. */
+function AtalhoTurma({
+  href,
+  icone: Icone,
+  children,
+  principal = false,
+}: {
+  href: string
+  icone: ComponentType<{ className?: string; strokeWidth?: number }>
+  children: ReactNode
+  principal?: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-all active:scale-[0.98] ${
+        principal
+          ? 'bg-brand-700 text-white hover:bg-brand-800'
+          : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:text-brand-800 hover:ring-brand-300'
+      }`}
+    >
+      <Icone className="h-3.5 w-3.5" strokeWidth={2.1} />
+      {children}
+    </Link>
+  )
+}
 
 const STATUS_LABEL: Record<string, string> = {
   planejada: 'Planejada',
@@ -31,7 +69,7 @@ export default async function ProfessorHome() {
   // Admin enxerga todas as turmas; professor, apenas as suas.
   const consultaTurmas = supabase
     .from('turmas')
-    .select('id, nome, descricao, status, curso_id, cursos(titulo)')
+    .select('id, nome, descricao, status, curso_id, cursos(titulo, modalidade)')
     .order('created_at', { ascending: false })
 
   const { data: turmas } =
@@ -149,16 +187,28 @@ export default async function ProfessorHome() {
               </div>
 
               {(() => {
-                const c = turma.cursos as unknown as { titulo?: string } | null
-                return c?.titulo ? (
-                  <p className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-50 ring-1 ring-brand-200 rounded-full px-2.5 py-1 mb-3">
-                    <BookOpenText className="h-3.5 w-3.5" strokeWidth={2} />
-                    {c.titulo}
-                  </p>
-                ) : (
-                  <p className="text-xs text-amber-700 bg-amber-50 ring-1 ring-amber-200 rounded-full px-2.5 py-1 inline-block mb-3">
-                    Sem curso definido
-                  </p>
+                const c = turma.cursos as unknown as {
+                  titulo?: string
+                  modalidade?: ModalidadeCurso
+                } | null
+                if (!c?.titulo) {
+                  return (
+                    <p className="text-xs text-amber-700 bg-amber-50 ring-1 ring-amber-200 rounded-full px-2.5 py-1 inline-block mb-3">
+                      Sem curso definido
+                    </p>
+                  )
+                }
+                const m = MODALIDADE[c.modalidade ?? 'ead']
+                return (
+                  <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-50 ring-1 ring-brand-200 rounded-full px-2.5 py-1">
+                      <BookOpenText className="h-3.5 w-3.5" strokeWidth={2} />
+                      {c.titulo}
+                    </span>
+                    <Selo tom={m.tom} icone={m.icone}>
+                      {m.label}
+                    </Selo>
+                  </div>
                 )
               })()}
               {turma.descricao && (
@@ -189,24 +239,49 @@ export default async function ProfessorHome() {
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              {/* Atalhos para as áreas da turma. Cada um respeita a permissão
+                  que o admin definiu no painel de controle. */}
+              <div className="flex flex-wrap items-center gap-1.5">
                 {sessao.permissoes.ver_alunos && (
-                  <Link
+                  <AtalhoTurma
                     href={`/dashboard/professor/turmas/${turma.id}/avanco`}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 text-white px-3.5 py-2 text-xs font-semibold transition-all hover:bg-brand-700 hover:shadow-glow"
+                    icone={TrendingUp}
+                    principal
                   >
-                    <TrendingUp className="h-3.5 w-3.5" strokeWidth={2.25} />
-                    Ver avanço da turma
-                  </Link>
+                    Avanço
+                  </AtalhoTurma>
+                )}
+                {sessao.permissoes.fazer_chamada && (
+                  <AtalhoTurma
+                    href={`/dashboard/professor/turmas/${turma.id}/chamada`}
+                    icone={ClipboardCheck}
+                  >
+                    {modalidadeDaTurma(turma) === 'presencial' ? 'Chamada' : 'Frequência'}
+                  </AtalhoTurma>
+                )}
+                {sessao.permissoes.ver_alunos && (
+                  <>
+                    <AtalhoTurma
+                      href={`/dashboard/professor/turmas/${turma.id}/notas`}
+                      icone={GraduationCap}
+                    >
+                      Notas
+                    </AtalhoTurma>
+                    <AtalhoTurma
+                      href={`/dashboard/professor/turmas/${turma.id}/atividades`}
+                      icone={FileText}
+                    >
+                      Atividades
+                    </AtalhoTurma>
+                  </>
                 )}
                 {sessao.permissoes.gerenciar_aulas && turma.curso_id && (
-                  <Link
+                  <AtalhoTurma
                     href={`/dashboard/professor/cursos/${turma.curso_id}`}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-white ring-1 ring-gray-200 text-gray-700 px-3.5 py-2 text-xs font-semibold transition-all hover:ring-brand-300 hover:text-brand-800"
+                    icone={Video}
                   >
-                    <Video className="h-3.5 w-3.5 text-brand-600" strokeWidth={2.25} />
                     Vídeo aulas
-                  </Link>
+                  </AtalhoTurma>
                 )}
               </div>
             </div>

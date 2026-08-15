@@ -18,7 +18,7 @@ export async function montarPreview(
     supabase.from('cursos').select('*').eq('id', cursoId).single(),
     supabase
       .from('aulas')
-      .select('id, numero, titulo, descricao, video_url, duracao_minutos, publicada')
+      .select('id, numero, titulo, descricao, video_url, video_path, duracao_minutos, publicada')
       .eq('curso_id', cursoId)
       .order('numero', { ascending: true }),
   ])

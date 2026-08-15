@@ -14,6 +14,7 @@
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
     "dotenv-local": "^1.0.3",
+    "exceljs": "^4.4.0",
     "lucide-react": "^1.31.0",
     "next": "^14.2.3",
     "react": "^18.3.1",

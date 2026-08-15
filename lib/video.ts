@@ -40,3 +40,9 @@ export function miniaturaDoVideo(url: string | null | undefined): string | null 
 
 /** Percentual a partir do qual consideramos a aula assistida por completo. */
 export const PERCENTUAL_CONCLUSAO = 95
+
+/** URL pública de um vídeo enviado direto para a plataforma. */
+export function urlDoVideo(videoPath: string | null | undefined): string | null {
+  if (!videoPath) return null
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/aulas/${videoPath}`
+}

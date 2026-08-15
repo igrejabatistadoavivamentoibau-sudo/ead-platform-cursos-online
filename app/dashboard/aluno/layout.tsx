@@ -3,7 +3,12 @@ import PortalNav, { type ItemNav } from '@/components/Dashboard/PortalNav'
 
 const links: ItemNav[] = [
   { href: '/dashboard/aluno', label: 'Início', icone: 'LayoutDashboard', exact: true },
+
   { href: '/dashboard/aluno/cursos', label: 'Meus cursos', icone: 'BookOpenText', grupo: 'Estudos' },
+  { href: '/dashboard/aluno/atividades', label: 'Minhas atividades', icone: 'FileText', grupo: 'Estudos' },
+
+  { href: '/dashboard/aluno/notas', label: 'Minhas notas', icone: 'GraduationCap', grupo: 'Desempenho' },
+  { href: '/dashboard/aluno/presencas', label: 'Minhas presenças', icone: 'ClipboardCheck', grupo: 'Desempenho' },
 ]
 
 export default async function AlunoLayout({ children }: { children: React.ReactNode }) {

@@ -1,4 +1,5 @@
 export type NivelCurso = 'iniciante' | 'intermediario' | 'avancado'
+export type ModalidadeCurso = 'ead' | 'presencial'
 export type CorCurso = 'esmeralda' | 'oceano' | 'ambar' | 'violeta' | 'rubi' | 'grafite'
 
 export interface Curso {
@@ -8,6 +9,7 @@ export interface Curso {
   descricao: string | null
   categoria: string | null
   nivel: NivelCurso
+  modalidade: ModalidadeCurso
   capa_path: string | null
   cor: CorCurso
   carga_horaria: number | null
@@ -19,6 +21,31 @@ export const NIVEL_LABEL: Record<NivelCurso, string> = {
   iniciante: 'Iniciante',
   intermediario: 'Intermediário',
   avancado: 'Avançado',
+}
+
+/**
+ * A modalidade muda o comportamento do curso, não só o rótulo:
+ * - EAD: o aluno assiste sozinho e a presença é registrada
+ *   automaticamente quando ele conclui o vídeo.
+ * - Presencial: há encontros em sala e o professor preenche a chamada,
+ *   podendo exportar em PDF timbrado ou planilha.
+ */
+export const MODALIDADE: Record<
+  ModalidadeCurso,
+  { label: string; descricao: string; icone: string; tom: 'azul' | 'ambar' }
+> = {
+  ead: {
+    label: 'EAD',
+    descricao: 'Aluno assiste às vídeo aulas no seu ritmo. Presença automática ao concluir o vídeo.',
+    icone: 'Monitor',
+    tom: 'azul',
+  },
+  presencial: {
+    label: 'Presencial',
+    descricao: 'Encontros em sala. O professor preenche a chamada e pode exportar em PDF ou Excel.',
+    icone: 'Users',
+    tom: 'ambar',
+  },
 }
 
 /**

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { BookOpenText, Clock, Users2, ArrowRight, Check, Play } from 'lucide-react'
-import { corDoCurso, urlDaCapa, NIVEL_LABEL, type Curso } from '@/lib/cursos'
+import { BookOpenText, Clock, Users2, ArrowRight, Check, Play, Monitor, Users } from 'lucide-react'
+import { corDoCurso, urlDaCapa, NIVEL_LABEL, MODALIDADE, type Curso } from '@/lib/cursos'
 
 export interface CursoCardProps {
   curso: Curso
@@ -90,8 +90,18 @@ export default function CursoCard({
 
         {/* Nível + play, na base da capa */}
         <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
-          <span className="rounded-md bg-white/[0.16] px-2 py-[3px] text-[10.5px] font-medium text-white ring-1 ring-white/20 backdrop-blur-md">
-            {NIVEL_LABEL[curso.nivel]}
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded-md bg-white/[0.18] px-2 py-[3px] text-[10.5px] font-semibold text-white ring-1 ring-white/25 backdrop-blur-md">
+              {curso.modalidade === 'presencial' ? (
+                <Users className="h-3 w-3" strokeWidth={2.2} />
+              ) : (
+                <Monitor className="h-3 w-3" strokeWidth={2.2} />
+              )}
+              {MODALIDADE[curso.modalidade]?.label ?? 'EAD'}
+            </span>
+            <span className="rounded-md bg-white/[0.12] px-2 py-[3px] text-[10.5px] font-medium text-white/90 ring-1 ring-white/15 backdrop-blur-md">
+              {NIVEL_LABEL[curso.nivel]}
+            </span>
           </span>
           <span className="flex h-8 w-8 translate-y-1 items-center justify-center rounded-full bg-white/95 text-brand-900 opacity-0 shadow-float transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
             <Play className="ml-[1px] h-3.5 w-3.5 fill-current" strokeWidth={0} />

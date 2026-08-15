@@ -2,7 +2,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { CheckCircle2, Clock, Trophy, Lock, Video, EyeOff } from 'lucide-react'
 import VideoPlayer from '@/components/Aulas/VideoPlayer'
+import ResumoAula from '@/components/Aulas/ResumoAula'
 import { corDoCurso, urlDaCapa, NIVEL_LABEL, type Curso } from '@/lib/cursos'
+import { urlDoVideo } from '@/lib/video'
 
 export interface AulaDoCurso {
   id: string
@@ -10,6 +12,7 @@ export interface AulaDoCurso {
   titulo: string
   descricao: string | null
   video_url: string | null
+  video_path?: string | null
   duracao_minutos: number | null
   /** Só vem preenchido na pré-visualização, para marcar rascunhos. */
   publicada?: boolean
@@ -35,6 +38,7 @@ export default function VisaoDoCurso({
   progressoPorAula,
   hrefAula,
   preview = false,
+  resumo,
 }: {
   curso: Curso
   aulas: AulaDoCurso[]
@@ -43,6 +47,8 @@ export default function VisaoDoCurso({
   /** Monta o link de cada aula (varia entre portal do aluno e preview). */
   hrefAula: (aulaId: string) => string
   preview?: boolean
+  /** Resumo que o aluno já escreveu para a aula aberta. */
+  resumo?: { texto: string; feedback: string | null }
 }) {
   const cor = corDoCurso(curso.cor)
   const capa = urlDaCapa(curso.capa_path)
@@ -110,7 +116,7 @@ export default function VisaoDoCurso({
           <VideoPlayer
             key={aulaAtual.id}
             aulaId={aulaAtual.id}
-            videoUrl={aulaAtual.video_url}
+            videoUrl={urlDoVideo(aulaAtual.video_path) ?? aulaAtual.video_url}
             concluidaInicial={progressoAtual?.concluida ?? false}
             percentualInicial={progressoAtual?.percentual ?? 0}
             somenteLeitura={preview}
@@ -133,6 +139,14 @@ export default function VisaoDoCurso({
               <p className="text-gray-500 mt-2 leading-relaxed">{aulaAtual.descricao}</p>
             )}
           </div>
+
+          <ResumoAula
+            key={aulaAtual.id}
+            aulaId={aulaAtual.id}
+            textoInicial={resumo?.texto ?? ''}
+            feedback={resumo?.feedback ?? null}
+            somenteLeitura={preview}
+          />
         </div>
 
         {/* ---------- Lista de aulas ---------- */}

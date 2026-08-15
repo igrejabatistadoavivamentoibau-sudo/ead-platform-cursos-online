@@ -88,40 +88,72 @@ h1, h2, h3, h4 {
   letter-spacing: -0.01em;
 }
 
+/* Seleção de texto na cor da marca — detalhe pequeno, presente em toda tela */
+::selection {
+  background: var(--brand-100);
+  color: var(--brand-950);
+}
+
+/* Foco visível e consistente para quem navega por teclado. Antes cada
+   componente definia (ou esquecia) o seu; agora é um só, em toda a plataforma. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Barra de rolagem discreta nas áreas de conteúdo (Chrome/Edge/Safari) */
+@media (min-width: 768px) {
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(5, 38, 29, 0.14);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(5, 38, 29, 0.26); background-clip: content-box; }
+}
+
 /* ============================================================
    CLASSES UTILITÁRIAS DE MOVIMENTO
    Usadas nos cards para que nada fique "duro como pedra".
    ============================================================ */
 
-/* Card base: sobe, ganha sombra e ilumina a borda no hover */
+/* Card base.
+   O movimento foi deliberadamente reduzido em relação à primeira versão:
+   card que salta 3px e brilha inteiro chama atenção para si, não para o
+   conteúdo. Interface cara é discreta — a resposta ao hover precisa ser
+   perceptível e não performática. */
 .card-alive {
   position: relative;
   background: #fff;
-  border-radius: 1rem;
+  border-radius: 0.875rem;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-              border-color 0.35s ease;
-  border: 1px solid rgba(5, 38, 29, 0.08);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.28s ease;
+  border: 1px solid rgba(5, 38, 29, 0.07);
   will-change: transform;
 }
 
 .card-alive:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-lg);
-  border-color: rgba(5, 38, 29, 0.12);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: rgba(5, 38, 29, 0.11);
 }
 
-/* Brilho suave que atravessa o card no hover */
+/* Brilho que atravessa o card no hover — quase imperceptível de propósito:
+   percebe-se o movimento da luz, não o "flash" branco. */
 .card-sheen::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.28) 50%, transparent 65%);
   opacity: 0;
   transform: translateX(-60%);
-  transition: opacity 0.5s ease, transform 0.7s ease;
+  transition: opacity 0.4s ease, transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
 
@@ -130,23 +162,23 @@ h1, h2, h3, h4 {
   transform: translateX(60%);
 }
 
-/* Ícone que "respira" quando o card recebe hover */
+/* Ícone que "respira" no hover. Sem rotação: girar ícone dá ar de brinquedo. */
 .icon-pop {
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease, color 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1), background-color 0.3s ease, color 0.3s ease;
 }
 
 .group:hover .icon-pop {
-  transform: scale(1.08) rotate(-3deg);
+  transform: scale(1.045);
 }
 
-/* Entrada suave de conteúdo */
+/* Entrada suave de conteúdo — curta, para a tela parecer rápida */
 @keyframes float-in {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-float-in {
-  animation: float-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: float-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* Pulso lento usado em indicadores de "ao vivo"/status ativo */

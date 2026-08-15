@@ -2,9 +2,17 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ImagePlus, X, Check, AlertCircle, Plus } from 'lucide-react'
+import { ImagePlus, X, Check, AlertCircle, Plus, Monitor, Users } from 'lucide-react'
 import { criarCurso, atualizarCurso } from '@/app/dashboard/admin/actions'
-import { CORES_CURSO, NIVEL_LABEL, urlDaCapa, type Curso, type CorCurso } from '@/lib/cursos'
+import {
+  CORES_CURSO,
+  NIVEL_LABEL,
+  MODALIDADE,
+  urlDaCapa,
+  type Curso,
+  type CorCurso,
+  type ModalidadeCurso,
+} from '@/lib/cursos'
 
 const CAMPO =
   'w-full px-3.5 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-[15px] transition-all focus:outline-none focus:bg-white focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500'
@@ -13,6 +21,9 @@ export default function CursoForm({ curso }: { curso?: Curso }) {
   const editando = !!curso
   const [aberto, setAberto] = useState(editando)
   const [cor, setCor] = useState<CorCurso>((curso?.cor as CorCurso) ?? 'esmeralda')
+  const [modalidade, setModalidade] = useState<ModalidadeCurso>(
+    (curso?.modalidade as ModalidadeCurso) ?? 'ead'
+  )
   const [previa, setPrevia] = useState<string | null>(urlDaCapa(curso?.capa_path) ?? null)
   const [arrastando, setArrastando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,6 +43,7 @@ export default function CursoForm({ curso }: { curso?: Curso }) {
     setError(null)
     const dados = new FormData(e.currentTarget)
     dados.set('cor', cor)
+    dados.set('modalidade', modalidade)
 
     startTransition(async () => {
       try {
@@ -80,6 +92,51 @@ export default function CursoForm({ curso }: { curso?: Curso }) {
             <X className="h-5 w-5" />
           </button>
         )}
+      </div>
+
+      {/* Modalidade primeiro: é a escolha que muda o comportamento do curso */}
+      <div className="mb-6">
+        <label className="mb-2 block text-[12.5px] font-semibold text-gray-700">
+          Modalidade do curso
+        </label>
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {(Object.keys(MODALIDADE) as ModalidadeCurso[]).map((m) => {
+            const info = MODALIDADE[m]
+            const ativo = modalidade === m
+            const Ic = m === 'ead' ? Monitor : Users
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setModalidade(m)}
+                aria-pressed={ativo}
+                className={`flex items-start gap-3 rounded-xl p-3.5 text-left ring-1 transition-all ${
+                  ativo
+                    ? 'bg-brand-50/70 ring-brand-300 shadow-sm'
+                    : 'bg-gray-50/60 ring-gray-200 hover:ring-gray-300'
+                }`}
+              >
+                <span
+                  className={`mt-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                    ativo ? 'bg-brand-600 text-white' : 'bg-white text-gray-400 ring-1 ring-gray-200'
+                  }`}
+                >
+                  <Ic className="h-4 w-4" strokeWidth={2} />
+                </span>
+                <span className="min-w-0">
+                  <span
+                    className={`block text-[13.5px] font-bold ${ativo ? 'text-brand-900' : 'text-gray-700'}`}
+                  >
+                    {info.label}
+                  </span>
+                  <span className="mt-0.5 block text-[12px] leading-snug text-gray-500">
+                    {info.descricao}
+                  </span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-[260px_1fr] gap-6">
