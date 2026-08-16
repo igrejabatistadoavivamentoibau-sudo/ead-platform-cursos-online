@@ -50,6 +50,237 @@ const ACENTO = {
  *    Iniciais, nome e papel. Resolve a dúvida de "com qual conta eu estou?",
  *    frequente em quem é admin e professor ao mesmo tempo.
  */
+
+type Acento = (typeof ACENTO)[keyof typeof ACENTO]
+
+/* ============================================================
+   Os componentes abaixo ficam FORA de PortalNav de propósito.
+   Definidos lá dentro, eles eram recriados a cada renderização —
+   e o React, vendo um componente "novo", destruía o elemento e
+   montava outro no lugar. Elemento recém-criado já nasce no estado
+   final: a transição nunca chegava a rodar, e a gaveta abria seca.
+   Fora daqui, o elemento é o MESMO entre um clique e outro, que é
+   a condição para qualquer animação de CSS existir.
+   ============================================================ */
+
+function Icone({ nome, className }: { nome: string; className: string }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const C = (Icones as any)[nome] ?? Icones.Circle
+  return <C className={className} strokeWidth={1.9} />
+}
+
+
+function ItemLink({
+  link,
+  aoClicar,
+  recolhido = false,
+  isActive,
+  acento,
+}: {
+  link: ItemNav
+  aoClicar?: () => void
+  recolhido?: boolean
+  isActive: (href: string, exact?: boolean) => boolean
+  acento: Acento
+}) {
+  const active = isActive(link.href, link.exact)
+  return (
+    <Link
+      href={link.href}
+      onClick={aoClicar}
+      title={recolhido ? link.label : undefined}
+      aria-current={active ? 'page' : undefined}
+      className={`group relative flex items-center rounded-lg text-[13px] transition-all duration-200 ${
+        recolhido ? 'mx-auto h-9 w-9 justify-center' : 'gap-2.5 py-[7px] pl-2.5 pr-2'
+      } ${
+        active
+          ? 'bg-white/[0.08] font-semibold text-white'
+          : 'font-medium text-white/50 hover:bg-white/[0.05] hover:text-white/90'
+      }`}
+    >
+      {active && (
+        <span
+          className={`absolute top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full ${acento.barra} ${
+            recolhido ? '-left-1.5' : '-left-2'
+          }`}
+        />
+      )}
+
+      <Icone
+        nome={link.icone}
+        className={`h-[17px] w-[17px] shrink-0 transition-colors ${
+          active ? acento.texto : 'text-white/45 group-hover:text-white/75'
+        }`}
+      />
+      {!recolhido && <span className="truncate">{link.label}</span>}
+
+      {recolhido && (
+        <span className="pointer-events-none absolute left-full z-50 ml-2.5 whitespace-nowrap rounded-md bg-brand-950 px-2.5 py-1.5 text-[12px] font-medium text-white opacity-0 shadow-float ring-1 ring-white/10 transition-opacity duration-200 group-hover:opacity-100">
+          {link.label}
+        </span>
+      )}
+    </Link>
+  )
+}
+
+
+/**
+ * Uma gaveta.
+ *
+ * A animação usa grid-template-rows de 0fr para 1fr — é o único jeito de
+ * animar altura automática em CSS puro, sem medir o conteúdo com
+ * JavaScript toda vez que abre.
+ */
+function Gaveta({
+  grupo,
+  aoClicar,
+  fechadas,
+  alternarGaveta,
+  isActive,
+  acento,
+}: {
+  grupo: { nome: string | null; itens: ItemNav[] }
+  aoClicar?: () => void
+  fechadas: string[]
+  alternarGaveta: (nome: string) => void
+  isActive: (href: string, exact?: boolean) => boolean
+  acento: Acento
+}) {
+  // Itens sem seção ficam sempre à vista, no topo.
+  if (!grupo.nome) {
+    return (
+      <div className="space-y-0.5">
+        {grupo.itens.map((l) => (
+          <ItemLink key={l.href} link={l} aoClicar={aoClicar} isActive={isActive} acento={acento} />
+        ))}
+      </div>
+    )
+  }
+
+  const temAtivo = grupo.itens.some((l) => isActive(l.href, l.exact))
+  // A gaveta SEMPRE obedece ao clique.
+  //
+  // A versão anterior forçava a gaveta da página atual a ficar aberta, com
+  // a intenção de nunca esconder onde a pessoa está. Na prática isso fazia
+  // o clique não surtir efeito: como sempre se está dentro de alguma seção,
+  // aquela seção simplesmente não fechava. Parecia menu quebrado.
+  // A abertura automática agora acontece na navegação (ver useEffect), que
+  // atende a mesma intenção sem tirar o controle de quem clica.
+  const aberta = !fechadas.includes(grupo.nome)
+
+  return (
+    <div>
+      {/* Cabeçalho da gaveta.
+          A versão anterior era um rótulo minúsculo e apagado, sem fundo:
+          ninguém percebia que dava para clicar. Agora tem altura de botão,
+          fundo próprio no repouso, seta em caixa visível e contador sempre
+          presente — o conjunto diz "isto abre e fecha" antes do primeiro
+          clique, que é o trabalho da affordance. */}
+      <button
+        type="button"
+        onClick={() => alternarGaveta(grupo.nome as string)}
+        aria-expanded={aberta}
+        className={`group/g flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[10.5px] font-bold uppercase tracking-[0.12em] transition-colors ${
+          aberta
+            ? 'bg-white/[0.04] text-white/60 hover:bg-white/[0.07] hover:text-white/85'
+            : 'bg-white/[0.02] text-white/45 hover:bg-white/[0.06] hover:text-white/75'
+        }`}
+      >
+        <span
+          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded transition-colors ${
+            aberta ? 'bg-white/10' : 'bg-white/[0.06] group-hover/g:bg-white/12'
+          }`}
+        >
+          <ChevronRight
+            className={`h-3 w-3 transition-transform duration-300 ${aberta ? 'rotate-90' : ''}`}
+            strokeWidth={2.8}
+          />
+        </span>
+
+        <span className="truncate">{grupo.nome}</span>
+
+        {/* Ponto discreto quando a página aberta está dentro desta gaveta,
+            mesmo com ela fechada: a pessoa não perde a referência de onde
+            está só porque recolheu a seção. */}
+        {!aberta && temAtivo && (
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${acento.barra}`} />
+        )}
+
+        <span
+          className={`ml-auto rounded px-1.5 py-px text-[10px] font-bold tabular-nums transition-all duration-300 ${
+            aberta ? 'text-white/25' : 'bg-white/10 text-white/60'
+          }`}
+        >
+          {grupo.itens.length}
+        </span>
+      </button>
+
+      {/* A abertura anima três coisas ao mesmo tempo: altura, opacidade e
+          um leve deslocamento vertical. Só a altura fica seco — o conteúdo
+          "aparece do nada" no fim. Com opacidade e deslize o conjunto tem
+          a sensação de material desdobrando, que é o que se espera de uma
+          gaveta. A curva é de saída suave, e a opacidade tem um atraso
+          pequeno na abertura para o conteúdo não surgir antes de haver
+          espaço para ele. */}
+      <div
+        className={`grid transition-[grid-template-rows] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          aberta ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div
+            className={`ml-2 space-y-0.5 border-l pl-2 pt-1 transition-all duration-300 ease-out ${
+              aberta
+                ? 'translate-y-0 border-white/[0.09] opacity-100 delay-[80ms]'
+                : '-translate-y-1 border-transparent opacity-0'
+            }`}
+          >
+            {grupo.itens.map((l) => (
+              <ItemLink key={l.href} link={l} aoClicar={aoClicar} isActive={isActive} acento={acento} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+function Rodape({
+  aoClicar,
+  nome,
+  selo,
+  iniciais,
+  acento,
+}: {
+  aoClicar?: () => void
+  nome: string
+  selo: string
+  iniciais: string
+  acento: Acento
+}) {
+  return (
+  <div className="flex items-center gap-2.5 px-1">
+    <span
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[11px] font-bold text-white ring-1 ${acento.anel}`}
+    >
+      {iniciais}
+    </span>
+    <span className="min-w-0 flex-1 leading-tight">
+      <span className="block truncate text-[12.5px] font-semibold text-white/90">{nome}</span>
+      <span className="block truncate text-[10.5px] text-white/40">{selo}</span>
+    </span>
+    <span onClick={aoClicar}>
+      <LogoutButton
+        iconOnly
+        className="!p-1.5 !text-white/35 hover:!text-white hover:!bg-white/10 rounded-lg"
+      />
+    </span>
+  </div>
+)
+}
+
+
 export default function PortalNav({
   name,
   titulo,
@@ -125,12 +356,6 @@ export default function PortalNav({
       return proximo
     })
 
-  const Icone = ({ nome, className }: { nome: string; className: string }) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const C = (Icones as any)[nome] ?? Icones.Circle
-    return <C className={className} strokeWidth={1.9} />
-  }
-
   const iniciais =
     name
       .split(' ')
@@ -138,188 +363,6 @@ export default function PortalNav({
       .slice(0, 2)
       .map((p) => p[0]?.toUpperCase() ?? '')
       .join('') || '?'
-
-  const ItemLink = ({
-    link,
-    aoClicar,
-    recolhido = false,
-  }: {
-    link: ItemNav
-    aoClicar?: () => void
-    recolhido?: boolean
-  }) => {
-    const active = isActive(link.href, link.exact)
-    return (
-      <Link
-        href={link.href}
-        onClick={aoClicar}
-        title={recolhido ? link.label : undefined}
-        aria-current={active ? 'page' : undefined}
-        className={`group relative flex items-center rounded-lg text-[13px] transition-all duration-200 ${
-          recolhido ? 'mx-auto h-9 w-9 justify-center' : 'gap-2.5 py-[7px] pl-2.5 pr-2'
-        } ${
-          active
-            ? 'bg-white/[0.08] font-semibold text-white'
-            : 'font-medium text-white/50 hover:bg-white/[0.05] hover:text-white/90'
-        }`}
-      >
-        {active && (
-          <span
-            className={`absolute top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full ${acento.barra} ${
-              recolhido ? '-left-1.5' : '-left-2'
-            }`}
-          />
-        )}
-
-        <Icone
-          nome={link.icone}
-          className={`h-[17px] w-[17px] shrink-0 transition-colors ${
-            active ? acento.texto : 'text-white/45 group-hover:text-white/75'
-          }`}
-        />
-        {!recolhido && <span className="truncate">{link.label}</span>}
-
-        {recolhido && (
-          <span className="pointer-events-none absolute left-full z-50 ml-2.5 whitespace-nowrap rounded-md bg-brand-950 px-2.5 py-1.5 text-[12px] font-medium text-white opacity-0 shadow-float ring-1 ring-white/10 transition-opacity duration-200 group-hover:opacity-100">
-            {link.label}
-          </span>
-        )}
-      </Link>
-    )
-  }
-
-  /**
-   * Uma gaveta.
-   *
-   * A animação usa grid-template-rows de 0fr para 1fr — é o único jeito de
-   * animar altura automática em CSS puro, sem medir o conteúdo com
-   * JavaScript toda vez que abre.
-   */
-  const Gaveta = ({
-    grupo,
-    aoClicar,
-  }: {
-    grupo: { nome: string | null; itens: ItemNav[] }
-    aoClicar?: () => void
-  }) => {
-    // Itens sem seção ficam sempre à vista, no topo.
-    if (!grupo.nome) {
-      return (
-        <div className="space-y-0.5">
-          {grupo.itens.map((l) => (
-            <ItemLink key={l.href} link={l} aoClicar={aoClicar} />
-          ))}
-        </div>
-      )
-    }
-
-    const temAtivo = grupo.itens.some((l) => isActive(l.href, l.exact))
-    // A gaveta SEMPRE obedece ao clique.
-    //
-    // A versão anterior forçava a gaveta da página atual a ficar aberta, com
-    // a intenção de nunca esconder onde a pessoa está. Na prática isso fazia
-    // o clique não surtir efeito: como sempre se está dentro de alguma seção,
-    // aquela seção simplesmente não fechava. Parecia menu quebrado.
-    // A abertura automática agora acontece na navegação (ver useEffect), que
-    // atende a mesma intenção sem tirar o controle de quem clica.
-    const aberta = !fechadas.includes(grupo.nome)
-
-    return (
-      <div>
-        {/* Cabeçalho da gaveta.
-            A versão anterior era um rótulo minúsculo e apagado, sem fundo:
-            ninguém percebia que dava para clicar. Agora tem altura de botão,
-            fundo próprio no repouso, seta em caixa visível e contador sempre
-            presente — o conjunto diz "isto abre e fecha" antes do primeiro
-            clique, que é o trabalho da affordance. */}
-        <button
-          type="button"
-          onClick={() => alternarGaveta(grupo.nome as string)}
-          aria-expanded={aberta}
-          className={`group/g flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[10.5px] font-bold uppercase tracking-[0.12em] transition-colors ${
-            aberta
-              ? 'bg-white/[0.04] text-white/60 hover:bg-white/[0.07] hover:text-white/85'
-              : 'bg-white/[0.02] text-white/45 hover:bg-white/[0.06] hover:text-white/75'
-          }`}
-        >
-          <span
-            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded transition-colors ${
-              aberta ? 'bg-white/10' : 'bg-white/[0.06] group-hover/g:bg-white/12'
-            }`}
-          >
-            <ChevronRight
-              className={`h-3 w-3 transition-transform duration-300 ${aberta ? 'rotate-90' : ''}`}
-              strokeWidth={2.8}
-            />
-          </span>
-
-          <span className="truncate">{grupo.nome}</span>
-
-          {/* Ponto discreto quando a página aberta está dentro desta gaveta,
-              mesmo com ela fechada: a pessoa não perde a referência de onde
-              está só porque recolheu a seção. */}
-          {!aberta && temAtivo && (
-            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${acento.barra}`} />
-          )}
-
-          <span
-            className={`ml-auto rounded px-1.5 py-px text-[10px] font-bold tabular-nums transition-all duration-300 ${
-              aberta ? 'text-white/25' : 'bg-white/10 text-white/60'
-            }`}
-          >
-            {grupo.itens.length}
-          </span>
-        </button>
-
-        {/* A abertura anima três coisas ao mesmo tempo: altura, opacidade e
-            um leve deslocamento vertical. Só a altura fica seco — o conteúdo
-            "aparece do nada" no fim. Com opacidade e deslize o conjunto tem
-            a sensação de material desdobrando, que é o que se espera de uma
-            gaveta. A curva é de saída suave, e a opacidade tem um atraso
-            pequeno na abertura para o conteúdo não surgir antes de haver
-            espaço para ele. */}
-        <div
-          className={`grid transition-[grid-template-rows] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            aberta ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-          }`}
-        >
-          <div className="overflow-hidden">
-            <div
-              className={`ml-2 space-y-0.5 border-l pl-2 pt-1 transition-all duration-300 ease-out ${
-                aberta
-                  ? 'translate-y-0 border-white/[0.09] opacity-100 delay-[80ms]'
-                  : '-translate-y-1 border-transparent opacity-0'
-              }`}
-            >
-              {grupo.itens.map((l) => (
-                <ItemLink key={l.href} link={l} aoClicar={aoClicar} />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const Rodape = ({ aoClicar }: { aoClicar?: () => void }) => (
-    <div className="flex items-center gap-2.5 px-1">
-      <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[11px] font-bold text-white ring-1 ${acento.anel}`}
-      >
-        {iniciais}
-      </span>
-      <span className="min-w-0 flex-1 leading-tight">
-        <span className="block truncate text-[12.5px] font-semibold text-white/90">{name}</span>
-        <span className="block truncate text-[10.5px] text-white/40">{selo}</span>
-      </span>
-      <span onClick={aoClicar}>
-        <LogoutButton
-          iconOnly
-          className="!p-1.5 !text-white/35 hover:!text-white hover:!bg-white/10 rounded-lg"
-        />
-      </span>
-    </div>
-  )
 
   return (
     <>
@@ -356,11 +399,11 @@ export default function PortalNav({
         >
           <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
             {grupos.map((g, i) => (
-              <Gaveta key={g.nome ?? `g${i}`} grupo={g} aoClicar={() => setMobileOpen(false)} />
+              <Gaveta key={g.nome ?? `g${i}`} grupo={g} aoClicar={() => setMobileOpen(false)} fechadas={fechadas} alternarGaveta={alternarGaveta} isActive={isActive} acento={acento} />
             ))}
           </div>
           <div className="border-t border-white/[0.07] p-3">
-            <Rodape aoClicar={() => setMobileOpen(false)} />
+            <Rodape aoClicar={() => setMobileOpen(false)} nome={name} selo={selo} iniciais={iniciais} acento={acento} />
           </div>
         </nav>
       </div>
@@ -433,11 +476,11 @@ export default function PortalNav({
                 <div key={g.nome ?? `g${i}`} className="space-y-1">
                   {i > 0 && <span className="mx-auto my-2 block h-px w-5 bg-white/10" />}
                   {g.itens.map((l) => (
-                    <ItemLink key={l.href} link={l} recolhido />
+                    <ItemLink key={l.href} link={l} recolhido isActive={isActive} acento={acento} />
                   ))}
                 </div>
               ))
-            : grupos.map((g, i) => <Gaveta key={g.nome ?? `g${i}`} grupo={g} />)}
+            : grupos.map((g, i) => <Gaveta key={g.nome ?? `g${i}`} grupo={g} fechadas={fechadas} alternarGaveta={alternarGaveta} isActive={isActive} acento={acento} />)}
         </nav>
 
         {/* --- Rodapé: quem está logado --- */}
@@ -461,7 +504,7 @@ export default function PortalNav({
               </button>
             </div>
           ) : (
-            <Rodape />
+            <Rodape nome={name} selo={selo} iniciais={iniciais} acento={acento} />
           )}
         </div>
       </aside>
