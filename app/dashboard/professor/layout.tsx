@@ -8,6 +8,8 @@ export default async function ProfessorLayout({ children }: { children: React.Re
   // O menu mostra só o que esta pessoa realmente pode acessar.
   const links: ItemNav[] = [
     { href: '/dashboard/professor', label: 'Minhas turmas', icone: 'LayoutDashboard', exact: true },
+    { href: '/dashboard/professor/conversas', label: 'Conversas', icone: 'MessagesSquare', grupo: 'Comunicação' },
+    { href: '/dashboard/professor/notificacoes', label: 'Notificações', icone: 'Bell', grupo: 'Comunicação' },
   ]
 
   // Admin visitando a área de professor tem um caminho de volta explícito.

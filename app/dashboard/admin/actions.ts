@@ -833,6 +833,14 @@ export async function aprovarInscricao(inscricaoId: string) {
     .eq('id', inscricaoId)
   if (erroStatus) throw new Error(erroStatus.message)
 
+  // Boas-vindas registradas: é a primeira notificação que a pessoa vê.
+  await admin.from('notificacoes').insert({
+    user_id: inscricao.user_id,
+    titulo: 'Sua inscrição foi aprovada. Seja bem-vindo(a)!',
+    corpo: 'Seu acesso à Escola de Líderes está liberado. Bons estudos!',
+    tipo: 'inscricao',
+  })
+
   revalidatePath('/dashboard/admin/inscricoes')
   revalidatePath('/dashboard/admin/usuarios')
 }
@@ -1005,6 +1013,24 @@ export async function criarNovidade(input: {
     publicada: true,
   })
   if (error) throw new Error(error.message)
+
+  // A novidade também entra na central de notificações de quem interessa,
+  // para ficar registrada além do cartão do dia da LUMI.
+  const consultaPublico = admin.from('users').select('id')
+  const { data: destinatarios } =
+    input.publico === 'todos' ? await consultaPublico : await consultaPublico.eq('role', input.publico)
+
+  if (destinatarios && destinatarios.length > 0) {
+    await admin.from('notificacoes').insert(
+      destinatarios.map((u) => ({
+        user_id: u.id,
+        titulo,
+        corpo: input.descricao?.trim() || null,
+        tipo: 'novidade',
+      }))
+    )
+  }
+
   revalidatePath('/dashboard/admin/lumi')
 }
 

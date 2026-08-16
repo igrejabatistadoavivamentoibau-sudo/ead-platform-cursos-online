@@ -6,6 +6,7 @@ const links: ItemNav[] = [
   { href: '/dashboard/aluno', label: 'Início', icone: 'LayoutDashboard', exact: true },
 
   { href: '/dashboard/aluno/cursos', label: 'Meus cursos', icone: 'BookOpenText', grupo: 'Estudos' },
+  { href: '/dashboard/aluno/conversas', label: 'Conversas', icone: 'MessagesSquare', grupo: 'Estudos' },
   { href: '/dashboard/aluno/atividades', label: 'Minhas atividades', icone: 'FileText', grupo: 'Estudos' },
 
   { href: '/dashboard/aluno/notas', label: 'Minhas notas', icone: 'GraduationCap', grupo: 'Desempenho' },
