@@ -11,12 +11,30 @@ export default async function UsuariosPage() {
     .select('id, name, email, role')
     .order('name')
 
+  // Em que turmas cada pessoa está — como aluno (matrícula) ou como
+  // professor responsável. Sem isso o painel só dizia nome e papel, e para
+  // saber onde alguém estava era preciso abrir turma por turma.
+  const [{ data: matriculas }, { data: turmasDoProfessor }] = await Promise.all([
+    supabase.from('turma_alunos').select('aluno_id, turmas(nome)'),
+    supabase.from('turmas').select('nome, professor_id'),
+  ])
+
+  const turmasPorPessoa = new Map<string, string[]>()
+  const juntar = (pessoaId: string | null, nome?: string) => {
+    if (!pessoaId || !nome) return
+    turmasPorPessoa.set(pessoaId, [...(turmasPorPessoa.get(pessoaId) ?? []), nome])
+  }
+  for (const m of matriculas ?? []) {
+    juntar(m.aluno_id, (m.turmas as unknown as { nome?: string } | null)?.nome)
+  }
+  for (const t of turmasDoProfessor ?? []) juntar(t.professor_id, t.nome)
+
   return (
     <div className="p-5 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Usuários</h1>
-          <p className="text-gray-500 mt-1">Crie contas e troque senhas sem precisar do Supabase.</p>
+          <p className="text-gray-500 mt-1">Crie contas, redefina senhas e veja em que turmas cada pessoa está.</p>
         </div>
       </div>
 
@@ -26,7 +44,14 @@ export default async function UsuariosPage() {
         {usuarios && usuarios.length > 0 ? (
           <ul className="divide-y divide-gray-100">
             {usuarios.map((u) => (
-              <UsuarioRow key={u.id} id={u.id} name={u.name} email={u.email} role={u.role} />
+              <UsuarioRow
+                key={u.id}
+                id={u.id}
+                name={u.name}
+                email={u.email}
+                role={u.role}
+                turmas={turmasPorPessoa.get(u.id) ?? []}
+              />
             ))}
           </ul>
         ) : (

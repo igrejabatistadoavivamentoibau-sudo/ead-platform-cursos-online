@@ -152,7 +152,7 @@ export default function VideoPlayer({
         <p className="text-gray-600 font-medium">Vídeo ainda não disponível</p>
         <p className="text-sm text-gray-500 max-w-sm">
           {videoUrl
-            ? 'O link cadastrado não foi reconhecido. Use YouTube, Google Drive, Vimeo ou link direto de vídeo.'
+            ? 'O link cadastrado não foi reconhecido. O caminho mais simples é o YouTube como "não listado".'
             : 'Assim que o professor adicionar o vídeo, ele aparece aqui.'}
         </p>
       </div>
@@ -207,7 +207,7 @@ export default function VideoPlayer({
             <p className="text-[14px] font-semibold text-white">Não consegui abrir este vídeo</p>
             <p className="max-w-sm text-[12.5px] leading-relaxed text-white/60">
               {info.tipo === 'onedrive'
-                ? 'Os links novos do OneDrive exigem sessão da Microsoft. Abra o vídeo no OneDrive, use "Incorporar" e cole aqui o código que aparecer — a plataforma aceita o código inteiro.'
+                ? 'O OneDrive exige login da Microsoft para exibir vídeo — nenhum link dele abre para os alunos. Peça ao professor para subir a gravação no YouTube como "não listado" e mandar o link.'
                 : 'O endereço do vídeo não respondeu. Confira se o link continua válido.'}
             </p>
           </div>

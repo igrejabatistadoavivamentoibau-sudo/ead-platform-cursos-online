@@ -215,6 +215,23 @@ export async function salvarChamada(
 
 // ============ USUÁRIOS ============
 
+/**
+ * Gera uma senha provisória legível.
+ *
+ * Evita de propósito caracteres que se confundem ao ditar ou copiar à mão
+ * (O/0, I/l/1). A senha é mostrada UMA vez a quem criou a conta e nunca mais
+ * pode ser recuperada — o banco guarda só um resumo criptográfico dela, que
+ * não tem volta. É por isso que o painel oferece "redefinir" e não "ver".
+ */
+function gerarSenhaProvisoria(): string {
+  const letras = 'ABCDEFGHJKMNPQRSTUVWXYZ'
+  const minusc = 'abcdefghijkmnpqrstuvwxyz'
+  const nums = '23456789'
+  const pega = (fonte: string, n: number) =>
+    Array.from({ length: n }, () => fonte[Math.floor(Math.random() * fonte.length)]).join('')
+  return `${pega(letras, 1)}${pega(minusc, 5)}${pega(nums, 3)}`
+}
+
 export async function criarUsuario(input: {
   email: string
   password: string
@@ -247,18 +264,22 @@ export async function criarUsuario(input: {
   }
 
   revalidatePath('/dashboard/admin/usuarios')
-  return created.user.id
+  return { id: created.user.id, senha: input.password }
 }
 
-export async function trocarSenha(userId: string, novaSenha: string) {
+export async function trocarSenha(userId: string, novaSenha?: string) {
   await requireAdmin()
   const admin = createAdminClient()
 
-  const { error } = await admin.auth.admin.updateUserById(userId, {
-    password: novaSenha,
-  })
+  // Sem senha informada, geramos uma provisória e devolvemos para a tela
+  // mostrar. Como a senha antiga não é recuperável, "redefinir" é a única
+  // ação possível quando alguém esquece.
+  const senha = novaSenha?.trim() || gerarSenhaProvisoria()
 
+  const { error } = await admin.auth.admin.updateUserById(userId, { password: senha })
   if (error) throw new Error(error.message)
+
+  return { senha }
 }
 
 export async function atualizarPapel(userId: string, role: 'aluno' | 'professor' | 'admin') {

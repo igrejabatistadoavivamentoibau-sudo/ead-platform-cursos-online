@@ -188,8 +188,10 @@ export default function AulasManager({
                     'YouTube reconhecido — o vídeo abre aqui dentro e a conclusão é automática.'}
                   {previewVideo.tipo === 'drive' &&
                     'Google Drive reconhecido — o vídeo abre aqui dentro. Deixe o arquivo como "qualquer pessoa com o link".'}
-                  {previewVideo.tipo === 'onedrive' &&
-                    'OneDrive reconhecido — o vídeo abre aqui dentro e a conclusão é automática. Deixe o arquivo compartilhado como "qualquer pessoa com o link".'}
+                  {previewVideo.tipo === 'onedrive' && !previewVideo.iframe &&
+                    'O OneDrive exige login da Microsoft para exibir vídeo, então um link dele não abre para os alunos. Peça ao professor para subir no YouTube como "não listado" — é grátis, não aparece em buscas e o link funciona direto.'}
+                  {previewVideo.tipo === 'onedrive' && previewVideo.iframe &&
+                    'Código de incorporação do OneDrive reconhecido — o vídeo abre aqui dentro.'}
                   {previewVideo.tipo === 'vimeo' && 'Vimeo reconhecido — o vídeo abre aqui dentro.'}
                   {previewVideo.tipo === 'arquivo' &&
                     'Arquivo de vídeo — abre aqui dentro e a conclusão é automática.'}
@@ -198,9 +200,11 @@ export default function AulasManager({
                 </p>
               ) : (
                 <p className="mt-1.5 text-[11.5px] leading-relaxed text-gray-500">
-                  Para vídeo grande, o link é o melhor caminho: não passa pelo limite de envio da
-                  plataforma. Em qualquer um dos casos o vídeo toca dentro da plataforma — o aluno
-                  nunca é mandado para fora.
+                  Para gravação de aula, o melhor caminho é o <strong>YouTube como &ldquo;não
+                  listado&rdquo;</strong>: é grátis, aceita qualquer tamanho, não aparece em buscas,
+                  e basta o professor mandar o link — sem pedir permissão nem entrar na conta de
+                  ninguém. O Google Drive também funciona. O vídeo sempre toca dentro da
+                  plataforma; o aluno nunca é mandado para fora.
                 </p>
               )}
             </div>

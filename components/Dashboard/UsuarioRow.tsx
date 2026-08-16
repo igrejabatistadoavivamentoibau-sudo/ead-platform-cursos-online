@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { KeyRound, Check, X } from 'lucide-react'
+import { KeyRound, Check, X, GraduationCap, Copy } from 'lucide-react'
 import { trocarSenha, atualizarPapel } from '@/app/dashboard/admin/actions'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -29,15 +29,18 @@ export default function UsuarioRow({
   name,
   email,
   role,
+  turmas = [],
 }: {
   id: string
   name: string
   email: string
   role: 'aluno' | 'professor' | 'admin'
+  turmas?: string[]
 }) {
   const [trocando, setTrocando] = useState(false)
   const [novaSenha, setNovaSenha] = useState(gerarSenha)
   const [resultado, setResultado] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
@@ -72,6 +75,24 @@ export default function UsuarioRow({
         <div className="min-w-0">
           <p className="text-sm font-medium text-gray-800">{name}</p>
           <p className="text-xs text-gray-500">{email}</p>
+
+          {/* Onde a pessoa está. Antes o painel dizia só nome e papel, e
+              descobrir isso exigia abrir turma por turma. */}
+          {turmas.length > 0 ? (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              {turmas.map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-700 ring-1 ring-brand-200"
+                >
+                  <GraduationCap className="h-3 w-3" strokeWidth={2} />
+                  {t}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1.5 text-[11px] text-amber-700">Sem turma ainda</p>
+          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -106,12 +127,33 @@ export default function UsuarioRow({
       {trocando && (
         <div className="mt-3 bg-gray-50 rounded-xl p-3.5">
           {resultado ? (
-            <div className="flex items-center gap-2 text-sm">
-              <Check className="h-4 w-4 text-brand-600 shrink-0" strokeWidth={2.5} />
-              <span className="text-gray-700">
-                Nova senha: <span className="font-mono font-semibold">{resultado}</span> — repasse
-                para {name.split(' ')[0]}.
-              </span>
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Check className="h-4 w-4 shrink-0 text-brand-600" strokeWidth={2.5} />
+                <span className="text-gray-700">Nova senha de {name.split(' ')[0]}:</span>
+                <span className="rounded-md bg-white px-2 py-1 font-mono text-[13px] font-bold text-gray-900 ring-1 ring-gray-200">
+                  {resultado}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(resultado)
+                    setCopiado(true)
+                    setTimeout(() => setCopiado(false), 2000)
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[12px] font-semibold text-gray-600 transition-colors hover:bg-white hover:text-brand-700"
+                >
+                  <Copy className="h-3.5 w-3.5" strokeWidth={2} />
+                  {copiado ? 'Copiado!' : 'Copiar'}
+                </button>
+              </div>
+              {/* Aviso necessário: depois que esta caixa fecha, a senha some
+                  para sempre. O banco guarda só um resumo irreversível dela —
+                  por isso o painel oferece redefinir, e nunca "ver a senha". */}
+              <p className="text-[11.5px] leading-relaxed text-amber-700">
+                Copie agora: esta senha não aparece de novo. Ninguém consegue consultá-la depois —
+                se perder, é só redefinir outra aqui.
+              </p>
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row gap-2">
