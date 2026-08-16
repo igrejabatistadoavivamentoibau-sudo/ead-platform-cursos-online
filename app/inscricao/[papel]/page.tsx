@@ -1,30 +1,18 @@
-import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { GraduationCap, Presentation, ArrowLeft } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { unstable_noStore as naoGuardarEmCache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import FormInscricao, { type TurmaAberta } from '@/components/Inscricao/FormInscricao'
+import {
+  AcolhidaTopo,
+  AcolhidaRodape,
+  LuzesDeFundo,
+  FUNDO_INSCRICAO,
+} from '@/components/Inscricao/Acolhida'
 import { camposDoPapel, type CampoInscricao } from '@/lib/campos'
 
 export const dynamic = 'force-dynamic'
-
-const PAPEIS = {
-  aluno: {
-    titulo: 'Inscrição de Aluno',
-    chamada: 'Estude na Escola de Líderes',
-    descricao:
-      'Preencha seus dados, escolha a turma e envie. A liderança analisa e libera seu acesso.',
-    icone: GraduationCap,
-  },
-  professor: {
-    titulo: 'Inscrição de Professor',
-    chamada: 'Ensine na Escola de Líderes',
-    descricao:
-      'Preencha seus dados e conte um pouco da sua experiência. A liderança analisa seu cadastro.',
-    icone: Presentation,
-  },
-} as const
 
 /**
  * Página pública de inscrição — uma para aluno, outra para professor.
@@ -33,12 +21,10 @@ const PAPEIS = {
  * A alternativa seria abrir uma permissão pública de leitura na tabela de
  * turmas, o que exporia turmas fechadas para qualquer um na internet.
  * Ler aqui no servidor mantém a porta fechada.
+ *
+ * Todo o texto de acolhida mora em components/Inscricao/Acolhida.tsx.
  */
-export default async function InscricaoPage({
-  params,
-}: {
-  params: Promise<{ papel: string }>
-}) {
+export default async function InscricaoPage({ params }: { params: Promise<{ papel: string }> }) {
   // Segunda trava contra cache, independente da primeira (o `no-store` no
   // cliente do banco). Uma ficha de inscrição não pode, em hipótese alguma,
   // servir uma versão guardada: as perguntas mudam quando a liderança quer,
@@ -47,9 +33,6 @@ export default async function InscricaoPage({
 
   const { papel } = await params
   if (papel !== 'aluno' && papel !== 'professor') notFound()
-
-  const info = PAPEIS[papel]
-  const Icone = info.icone
 
   const admin = createAdminClient()
   const [{ data }, { data: todosCampos, error: erroCampos }] = await Promise.all([
@@ -82,11 +65,13 @@ export default async function InscricaoPage({
   })
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-brand-950 via-brand-900 to-brand-950 px-4 py-10">
-      <div className="mx-auto max-w-lg">
+    <main className={FUNDO_INSCRICAO}>
+      <LuzesDeFundo />
+
+      <div className="relative mx-auto max-w-lg">
         <Link
           href="/"
-          className="group mb-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-white/60 transition-colors hover:text-white"
+          className="group mb-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-white/55 transition-colors hover:text-white"
         >
           <ArrowLeft
             className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5"
@@ -95,30 +80,15 @@ export default async function InscricaoPage({
           Voltar ao início
         </Link>
 
-        <div className="mb-6 text-center">
-          <Image
-            src="/ibau-marca-clara.png"
-            alt="Escola de Líderes IBAU"
-            width={150}
-            height={128}
-            priority
-            className="mx-auto mb-5 h-auto w-[128px]"
-          />
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 micro-rotulo text-[11px] font-bold uppercase tracking-[0.14em] text-white ring-1 ring-white/20">
-            <Icone className="h-3.5 w-3.5" strokeWidth={2.2} />
-            {info.titulo}
-          </span>
-          <h1 className="mt-4 font-display text-[26px] font-bold leading-tight text-white">
-            {info.chamada}
-          </h1>
-          <p className="mx-auto mt-2 max-w-md text-[14px] leading-relaxed text-brand-50/70">
-            {info.descricao}
-          </p>
+        <AcolhidaTopo papel={papel} />
+
+        <div className="mt-5">
+          <FormInscricao papel={papel} turmas={turmas} campos={campos} />
         </div>
 
-        <FormInscricao papel={papel} turmas={turmas} campos={campos} />
+        <AcolhidaRodape papel={papel} />
 
-        <p className="mt-6 text-center text-[12px] text-white/40">
+        <p className="mt-8 text-center text-[12px] text-white/40">
           Já tem acesso?{' '}
           <Link href="/auth/login" className="font-semibold text-white/70 hover:text-white">
             Entrar na plataforma

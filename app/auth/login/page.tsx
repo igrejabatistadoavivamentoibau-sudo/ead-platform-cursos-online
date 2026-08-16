@@ -55,7 +55,7 @@ export default function LoginPage() {
 
         <div className="relative animate-float-in">
           <Image
-            src="/ibau-capelo.png"
+            src="/ibau-capelo.webp"
             alt="Escola de Líderes IBAU"
             width={190}
             height={200}
@@ -117,7 +117,7 @@ export default function LoginPage() {
             </Link>
 
             <Image
-              src="/ibau-capelo.png"
+              src="/ibau-capelo.webp"
               alt="Escola de Líderes IBAU"
               width={82}
               height={86}
