@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { CheckCircle2, Eye, EyeOff } from 'lucide-react'
 import { enviarInscricao } from '@/app/inscricao/actions'
 import { Botao, Alerta, CAMPO, Campo } from '@/components/ui'
+import CamposPersonalizados from '@/components/Inscricao/CamposPersonalizados'
+import type { CampoInscricao } from '@/lib/campos'
 
 export interface TurmaAberta {
   id: string
@@ -17,9 +19,11 @@ export interface TurmaAberta {
 export default function FormInscricao({
   papel,
   turmas,
+  campos = [],
 }: {
   papel: 'aluno' | 'professor'
   turmas: TurmaAberta[]
+  campos?: CampoInscricao[]
 }) {
   const [enviada, setEnviada] = useState(false)
   const [verSenha, setVerSenha] = useState(false)
@@ -32,9 +36,18 @@ export default function FormInscricao({
     setError(null)
     const f = new FormData(e.currentTarget)
 
+    // As perguntas criadas pela liderança chegam como "campo:<id>".
+    const respostas: Record<string, string> = {}
+    for (const [chave, valor] of f.entries()) {
+      if (chave.startsWith('campo:') && typeof valor === 'string' && valor.trim()) {
+        respostas[chave.slice(6)] = valor.trim()
+      }
+    }
+
     startTransition(async () => {
       try {
         await enviarInscricao({
+          respostas,
           nome: f.get('nome') as string,
           email: f.get('email') as string,
           telefone: (f.get('telefone') as string) || undefined,
@@ -149,6 +162,8 @@ export default function FormInscricao({
             a liderança entra em contato quando abrir a próxima.
           </Alerta>
         )}
+
+        <CamposPersonalizados campos={campos} />
 
         <Campo label={papel === 'professor' ? 'Conte sobre sua experiência' : 'Quer dizer algo? (opcional)'}>
           <textarea

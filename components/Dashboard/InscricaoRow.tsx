@@ -14,6 +14,7 @@ export interface InscricaoItem {
   papel: 'aluno' | 'professor'
   turma: string | null
   mensagem: string | null
+  respostas?: Record<string, { pergunta: string; resposta: string }>
   status: 'pendente' | 'aprovada' | 'recusada'
   motivo: string | null
   created_at: string
@@ -90,6 +91,18 @@ export default function InscricaoRow({ inscricao }: { inscricao: InscricaoItem }
               <MessageSquare className="mt-px h-3.5 w-3.5 shrink-0 text-gray-400" strokeWidth={2} />
               {inscricao.mensagem}
             </p>
+          )}
+
+          {/* Respostas das perguntas que a liderança adicionou à ficha */}
+          {inscricao.respostas && Object.keys(inscricao.respostas).length > 0 && (
+            <dl className="mt-2 grid gap-x-5 gap-y-1 sm:grid-cols-2">
+              {Object.entries(inscricao.respostas).map(([id, r]) => (
+                <div key={id} className="text-[12.5px]">
+                  <dt className="inline font-semibold text-gray-600">{r.pergunta}: </dt>
+                  <dd className="inline text-gray-700">{r.resposta}</dd>
+                </div>
+              ))}
+            </dl>
           )}
 
           {inscricao.motivo && (

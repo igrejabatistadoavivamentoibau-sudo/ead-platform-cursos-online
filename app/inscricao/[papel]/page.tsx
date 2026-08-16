@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { GraduationCap, Presentation, ArrowLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import FormInscricao, { type TurmaAberta } from '@/components/Inscricao/FormInscricao'
+import { camposDoPapel, type CampoInscricao } from '@/lib/campos'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,12 +45,17 @@ export default async function InscricaoPage({
   const Icone = info.icone
 
   const admin = createAdminClient()
-  const { data } = await admin
-    .from('turmas')
-    .select('id, nome, valor_matricula, cursos(titulo, modalidade)')
-    .eq('inscricoes_abertas', true)
-    .neq('status', 'encerrada')
-    .order('nome')
+  const [{ data }, { data: todosCampos }] = await Promise.all([
+    admin
+      .from('turmas')
+      .select('id, nome, valor_matricula, cursos(titulo, modalidade)')
+      .eq('inscricoes_abertas', true)
+      .neq('status', 'encerrada')
+      .order('nome'),
+    admin.from('campos_inscricao').select('*').eq('ativo', true).order('ordem'),
+  ])
+
+  const campos = camposDoPapel((todosCampos ?? []) as CampoInscricao[], papel)
 
   const turmas: TurmaAberta[] = (data ?? []).map((t) => {
     const c = t.cursos as unknown as { titulo?: string; modalidade?: string } | null
@@ -97,7 +103,7 @@ export default async function InscricaoPage({
           </p>
         </div>
 
-        <FormInscricao papel={papel} turmas={turmas} />
+        <FormInscricao papel={papel} turmas={turmas} campos={campos} />
 
         <p className="mt-6 text-center text-[12px] text-white/40">
           Já tem acesso?{' '}

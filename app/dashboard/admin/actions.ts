@@ -885,3 +885,92 @@ export async function alternarInscricoesDaTurma(turmaId: string, abertas: boolea
   revalidatePath('/dashboard/admin/inscricoes')
   revalidatePath('/dashboard/admin/turmas')
 }
+
+// ============ CAMPOS DA FICHA DE INSCRIÇÃO ============
+
+/**
+ * Cria uma pergunta na ficha de inscrição.
+ *
+ * É isto que tira a liderança da dependência de um desenvolvedor: incluir
+ * "data de batismo" na ficha vira um cadastro, não uma alteração de sistema.
+ */
+export async function criarCampoInscricao(input: {
+  rotulo: string
+  ajuda?: string
+  tipo: string
+  opcoes?: string[]
+  obrigatorio: boolean
+  papel: 'aluno' | 'professor' | 'ambos'
+}) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const rotulo = input.rotulo?.trim()
+  if (!rotulo) throw new Error('Escreva a pergunta.')
+  if (input.tipo === 'selecao' && (!input.opcoes || input.opcoes.length < 2)) {
+    throw new Error('Uma pergunta de escolha precisa de pelo menos duas opções.')
+  }
+
+  const { data: ultima } = await admin
+    .from('campos_inscricao')
+    .select('ordem')
+    .order('ordem', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { error } = await admin.from('campos_inscricao').insert({
+    rotulo,
+    ajuda: input.ajuda?.trim() || null,
+    tipo: input.tipo,
+    opcoes: input.tipo === 'selecao' ? (input.opcoes ?? []) : [],
+    obrigatorio: input.obrigatorio,
+    papel: input.papel,
+    ordem: (ultima?.ordem ?? 0) + 1,
+    ativo: true,
+  })
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/inscricoes/ficha')
+}
+
+/** Liga ou desliga a pergunta sem apagá-la — o histórico fica preservado. */
+export async function alternarCampoInscricao(campoId: string, ativo: boolean) {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const { error } = await admin.from('campos_inscricao').update({ ativo }).eq('id', campoId)
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/inscricoes/ficha')
+}
+
+export async function moverCampoInscricao(campoId: string, direcao: 'cima' | 'baixo') {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: campos } = await admin
+    .from('campos_inscricao')
+    .select('id, ordem')
+    .order('ordem', { ascending: true })
+
+  const lista = campos ?? []
+  const i = lista.findIndex((c) => c.id === campoId)
+  const j = direcao === 'cima' ? i - 1 : i + 1
+  if (i < 0 || j < 0 || j >= lista.length) return
+
+  await admin.from('campos_inscricao').update({ ordem: lista[j].ordem }).eq('id', lista[i].id)
+  await admin.from('campos_inscricao').update({ ordem: lista[i].ordem }).eq('id', lista[j].id)
+  revalidatePath('/dashboard/admin/inscricoes/ficha')
+}
+
+/**
+ * Apaga a pergunta.
+ *
+ * As respostas já dadas NÃO somem: elas ficam guardadas na própria inscrição,
+ * então quem se inscreveu antes continua com a ficha completa no histórico.
+ */
+export async function removerCampoInscricao(campoId: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const { error } = await admin.from('campos_inscricao').delete().eq('id', campoId)
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/inscricoes/ficha')
+}

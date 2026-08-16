@@ -2,7 +2,7 @@ import { headers } from 'next/headers'
 import QRCode from 'qrcode'
 import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
-import { PageHeader, Indicador, EstadoVazio, Card, CardTitulo } from '@/components/ui'
+import { PageHeader, Indicador, EstadoVazio, Card, CardTitulo, BotaoLink } from '@/components/ui'
 import InscricaoRow, { type InscricaoItem } from '@/components/Dashboard/InscricaoRow'
 import ConviteCard from '@/components/Dashboard/ConviteCard'
 import TurmaInscricaoToggle from '@/components/Dashboard/TurmaInscricaoToggle'
@@ -33,7 +33,7 @@ export default async function InscricoesPage() {
   const [{ data: inscricoes }, { data: turmas }] = await Promise.all([
     supabase
       .from('inscricoes')
-      .select('id, nome, email, telefone, papel, turma_id, mensagem, status, motivo, created_at')
+      .select('id, nome, email, telefone, papel, turma_id, mensagem, respostas, status, motivo, created_at')
       .order('created_at', { ascending: false }),
     supabase
       .from('turmas')
@@ -52,6 +52,7 @@ export default async function InscricoesPage() {
     papel: i.papel,
     turma: i.turma_id ? (nomeDaTurma.get(i.turma_id) ?? 'Turma removida') : null,
     mensagem: i.mensagem,
+    respostas: i.respostas ?? {},
     status: i.status,
     motivo: i.motivo,
     created_at: i.created_at,
@@ -66,6 +67,11 @@ export default async function InscricoesPage() {
       <PageHeader
         titulo="Inscrições"
         descricao="Divulgue o link ou o QR Code, e aprove quem se inscrever. Ninguém entra na plataforma sem passar por aqui."
+        acoes={
+          <BotaoLink href="/dashboard/admin/inscricoes/ficha" variante="secundario" icone="ListPlus">
+            Editar a ficha
+          </BotaoLink>
+        }
       />
 
       <div className="mb-7 grid gap-4 sm:grid-cols-3">

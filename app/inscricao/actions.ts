@@ -27,6 +27,7 @@ export async function enviarInscricao(input: {
   papel: 'aluno' | 'professor'
   turmaId?: string
   mensagem?: string
+  respostas?: Record<string, string>
 }) {
   const admin = createAdminClient()
 
@@ -76,6 +77,26 @@ export async function enviarInscricao(input: {
     turmaId = turma.id
   }
 
+  // Guardamos apenas respostas de perguntas que existem e estão ativas —
+  // assim ninguém consegue injetar dados forjando o formulário.
+  const { data: campos } = await admin
+    .from('campos_inscricao')
+    .select('id, rotulo, obrigatorio, papel')
+    .eq('ativo', true)
+
+  const validos = (campos ?? []).filter(
+    (c) => c.papel === 'ambos' || c.papel === input.papel
+  )
+  const respostas: Record<string, { pergunta: string; resposta: string }> = {}
+  for (const c of validos) {
+    const valor = input.respostas?.[c.id]?.trim()
+    if (!valor) {
+      if (c.obrigatorio) throw new Error(`Preencha: ${c.rotulo}`)
+      continue
+    }
+    respostas[c.id] = { pergunta: c.rotulo, resposta: valor.slice(0, 500) }
+  }
+
   const { data: criado, error: erroConta } = await admin.auth.admin.createUser({
     email,
     password: senha,
@@ -98,6 +119,7 @@ export async function enviarInscricao(input: {
     papel: input.papel,
     turma_id: turmaId,
     mensagem: input.mensagem?.trim() || null,
+    respostas,
   })
 
   if (erroInscricao) {
