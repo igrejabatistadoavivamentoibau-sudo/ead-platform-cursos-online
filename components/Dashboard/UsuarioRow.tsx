@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { KeyRound, Check, X, GraduationCap, Copy } from 'lucide-react'
 import { trocarSenha, atualizarPapel } from '@/app/dashboard/admin/actions'
+import { Selecao } from '@/components/ui'
 
 const ROLE_LABEL: Record<string, string> = {
   aluno: 'Aluno',
@@ -96,18 +97,14 @@ export default function UsuarioRow({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <select
-            value={role}
-            onChange={(e) => handleMudarPapel(e.target.value)}
-            disabled={isPending}
-            className={`text-xs font-semibold px-2.5 py-1.5 rounded-full ring-1 bg-white cursor-pointer disabled:opacity-50 ${ROLE_STYLE[role]}`}
-          >
-            {Object.entries(ROLE_LABEL).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <div className="w-[150px]">
+            <Selecao
+              valorInicial={role}
+              aoMudar={handleMudarPapel}
+              disabled={isPending}
+              opcoes={Object.entries(ROLE_LABEL).map(([valor, rotulo]) => ({ valor, rotulo }))}
+            />
+          </div>
 
           <button
             type="button"

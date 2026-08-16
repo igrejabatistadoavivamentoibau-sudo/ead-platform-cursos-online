@@ -6,6 +6,8 @@ import Reveal from '@/components/Reveal'
 import HeroCarousel, { type CarouselSlide } from '@/components/Home/HeroCarousel'
 import { createClient } from '@/lib/supabase/server'
 import { urlDaFoto } from '@/lib/slides'
+import BlocoPublico from '@/components/Site/BlocoPublico'
+import type { BlocoSite } from '@/lib/blocos'
 
 // Revalida a cada 5 min: a home fica rápida (servida do cache) mas as
 // fotos novas cadastradas pelo admin aparecem sozinhas. As Server Actions
@@ -48,6 +50,15 @@ export default async function Home() {
     .select('id, titulo, image_path')
     .eq('ativo', true)
     .order('ordem', { ascending: true })
+
+  // Seções escritas pela liderança no painel (história da igreja, missão...).
+  const { data: blocosDB } = await supabase
+    .from('blocos_site')
+    .select('*')
+    .eq('publicado', true)
+    .order('ordem', { ascending: true })
+
+  const blocos = (blocosDB ?? []) as BlocoSite[]
 
   const slides: CarouselSlide[] = (slidesDB ?? []).map((s) => ({
     id: s.id,
@@ -167,6 +178,19 @@ export default async function Home() {
             </div>
           </div>
         </section>
+
+        {/* ===== Seções escritas pela liderança =====
+             Entram aqui, depois dos números e antes da chamada final: é o
+             ponto em que quem chegou pela primeira vez já entendeu o que é a
+             plataforma e quer saber quem está por trás dela. */}
+        {blocos.length > 0 && (
+          <div className="bg-white">
+            {blocos.map((b) => (
+              <BlocoPublico key={b.id} bloco={b} />
+            ))}
+          </div>
+        )}
+
 
         {/* ===== CTA final ===== */}
         <section className="relative overflow-hidden bg-gradient-to-br from-brand-900 via-brand-700 to-brand-500 py-20 sm:py-28">

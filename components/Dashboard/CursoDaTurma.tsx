@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { BookOpenText, Check, AlertCircle } from 'lucide-react'
 import { definirCursoDaTurma } from '@/app/dashboard/admin/actions'
+import { Selecao } from '@/components/ui'
 
 export default function CursoDaTurma({
   turmaId,
@@ -53,19 +54,16 @@ export default function CursoDaTurma({
         É o curso que define quais vídeo aulas os alunos desta turma vão assistir.
       </p>
 
-      <select
-        value={selecionado}
-        onChange={(e) => salvar(e.target.value)}
+      <Selecao
+        valorInicial={selecionado}
+        aoMudar={(valor) => salvar(valor)}
         disabled={isPending}
-        className="w-full px-3.5 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-[15px] transition-all focus:outline-none focus:bg-white focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 disabled:opacity-50"
-      >
-        <option value="">Nenhum curso definido</option>
-        {cursos.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.titulo}
-          </option>
-        ))}
-      </select>
+        placeholder="Sem curso definido"
+        opcoes={[
+          { valor: '', rotulo: 'Sem curso definido' },
+          ...cursos.map((c) => ({ valor: c.id, rotulo: c.titulo })),
+        ]}
+      />
 
       {cursos.length === 0 && (
         <p className="text-xs text-amber-700 bg-amber-50 ring-1 ring-amber-200 rounded-lg px-3 py-2 mt-3">

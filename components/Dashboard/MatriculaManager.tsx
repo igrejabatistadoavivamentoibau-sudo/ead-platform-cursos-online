@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { UserPlus, X } from 'lucide-react'
 import { matricularAluno, removerMatricula } from '@/app/dashboard/admin/actions'
+import { Selecao } from '@/components/ui'
 
 interface AlunoMatriculado {
   matriculaId: string
@@ -91,18 +92,14 @@ export default function MatriculaManager({
 
       {alunosNaoMatriculados.length > 0 ? (
         <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-gray-100">
-          <select
-            value={selecionado}
-            onChange={(e) => setSelecionado(e.target.value)}
-            className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 bg-white"
-          >
-            <option value="">Selecione um aluno...</option>
-            {alunosNaoMatriculados.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex-1">
+            <Selecao
+              valorInicial={selecionado}
+              aoMudar={setSelecionado}
+              placeholder="Escolha um aluno"
+              opcoes={disponiveis.map((a) => ({ valor: a.id, rotulo: a.name }))}
+            />
+          </div>
           <button
             type="button"
             disabled={!selecionado || isPending}

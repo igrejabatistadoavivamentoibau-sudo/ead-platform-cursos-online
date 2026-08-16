@@ -13,6 +13,7 @@ import {
   type CorCurso,
   type ModalidadeCurso,
 } from '@/lib/cursos'
+import { Selecao } from '@/components/ui'
 
 const CAMPO =
   'w-full px-3.5 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-[15px] transition-all focus:outline-none focus:bg-white focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500'
@@ -259,13 +260,11 @@ export default function CursoForm({ curso }: { curso?: Curso }) {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nível</label>
-            <select name="nivel" defaultValue={curso?.nivel ?? 'iniciante'} className={`${CAMPO} bg-white`}>
-              {Object.entries(NIVEL_LABEL).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
+            <Selecao
+              name="nivel"
+              valorInicial={curso?.nivel ?? 'iniciante'}
+              opcoes={Object.entries(NIVEL_LABEL).map(([v, l]) => ({ valor: v, rotulo: l }))}
+            />
           </div>
 
           <div>

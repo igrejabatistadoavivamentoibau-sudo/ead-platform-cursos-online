@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { UserPlus, X } from 'lucide-react'
 import { criarUsuario } from '@/app/dashboard/admin/actions'
+import { Selecao } from '@/components/ui'
 
 const ROLE_OPTIONS = [
   { value: 'aluno', label: 'Aluno' },
@@ -120,17 +121,15 @@ export default function CriarUsuarioForm() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Papel</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as typeof role)}
-                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 bg-white"
-              >
-                {ROLE_OPTIONS.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
+              <Selecao
+                valorInicial={role}
+                aoMudar={(v) => setRole(v as typeof role)}
+                opcoes={[
+                  { valor: 'aluno', rotulo: 'Aluno', descricao: 'Assiste às aulas e entrega trabalhos' },
+                  { valor: 'professor', rotulo: 'Professor', descricao: 'Dá aula, faz chamada e lança notas' },
+                  { valor: 'admin', rotulo: 'Administrador', descricao: 'Controla toda a plataforma' },
+                ]}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Senha inicial</label>

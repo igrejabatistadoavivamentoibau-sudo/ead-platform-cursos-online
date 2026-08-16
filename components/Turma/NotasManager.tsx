@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, X, Trash2 } from 'lucide-react'
 import { criarAvaliacao, removerAvaliacao, lancarNota } from '@/app/dashboard/professor/actions'
-import { Botao, Card, Alerta, Selo, EstadoVazio, CAMPO, Campo } from '@/components/ui'
+import { Botao, Card, Alerta, Selo, EstadoVazio, CAMPO, Campo, Selecao} from '@/components/ui'
 
 export interface Avaliacao {
   id: string
@@ -138,17 +138,16 @@ export default function NotasManager({
                 />
               </Campo>
               <Campo label="Tipo">
-                <select
-                  value={form.tipo}
-                  onChange={(e) => setForm({ ...form, tipo: e.target.value })}
-                  className={`${CAMPO} bg-white`}
-                >
-                  {Object.entries(TIPO_LABEL).map(([v, l]) => (
-                    <option key={v} value={v}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
+                <Selecao
+                  valorInicial={form.tipo}
+                  aoMudar={(valor) => setForm({ ...form, tipo: valor })}
+                  opcoes={[
+                    { valor: 'prova', rotulo: 'Prova' },
+                    { valor: 'trabalho', rotulo: 'Trabalho' },
+                    { valor: 'participacao', rotulo: 'Participação' },
+                    { valor: 'outro', rotulo: 'Outro' },
+                  ]}
+                />
               </Campo>
               <Campo label="Nota máxima">
                 <input

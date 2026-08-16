@@ -20,6 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/dashboard/admin/usuarios', label: 'Usuários', icone: 'Users2', grupo: 'Pessoas' },
     { href: '/dashboard/admin/permissoes', label: 'Permissões', icone: 'ShieldCheck', grupo: 'Pessoas' },
 
+    { href: '/dashboard/admin/site', label: 'Página inicial', icone: 'LayoutTemplate', grupo: 'Site' },
     { href: '/dashboard/admin/lumi', label: 'LUMI', icone: 'Sparkles', grupo: 'Site' },
     { href: '/dashboard/admin/carrossel', label: 'Fotos da capa', icone: 'Images', grupo: 'Site' },
     { href: '/dashboard/professor', label: 'Ver como professor', icone: 'Presentation', grupo: 'Site' },

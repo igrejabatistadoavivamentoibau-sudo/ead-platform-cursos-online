@@ -1041,3 +1041,121 @@ export async function reenviarSaudacaoDeHoje() {
   if (error) throw new Error(error.message)
   revalidatePath('/dashboard/admin/lumi')
 }
+
+// ============ BLOCOS DA PÁGINA INICIAL ============
+
+const TIPOS_IMAGEM_SITE = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
+
+/** Sobe a foto do bloco, quando houver. Devolve o caminho salvo. */
+async function subirImagemDoSite(formData: FormData): Promise<string | null> {
+  const arquivo = formData.get('imagem')
+  if (!(arquivo instanceof File) || arquivo.size === 0) return null
+  if (!TIPOS_IMAGEM_SITE.includes(arquivo.type)) {
+    throw new Error('Formato de imagem não suportado. Use JPG, PNG ou WEBP.')
+  }
+  if (arquivo.size > 4 * 1024 * 1024) {
+    throw new Error('A imagem passa de 4 MB. Reduza o tamanho e tente de novo.')
+  }
+
+  const admin = createAdminClient()
+  const ext = arquivo.name.split('.').pop()?.toLowerCase() || 'jpg'
+  const caminho = `blocos/${crypto.randomUUID()}.${ext}`
+  const { error } = await admin.storage
+    .from('site')
+    .upload(caminho, arquivo, { contentType: arquivo.type, upsert: false })
+  if (error) throw new Error(`Falha ao enviar a imagem: ${error.message}`)
+  return caminho
+}
+
+export async function salvarBlocoSite(formData: FormData) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const id = (formData.get('id') as string) || null
+  const titulo = (formData.get('titulo') as string)?.trim()
+  if (!titulo) throw new Error('Escreva o título da seção.')
+
+  const imagem = await subirImagemDoSite(formData)
+
+  const dados = {
+    titulo,
+    subtitulo: (formData.get('subtitulo') as string)?.trim() || null,
+    texto: (formData.get('texto') as string)?.trim() || null,
+    layout: (formData.get('layout') as string) || 'texto_imagem',
+    updated_at: new Date().toISOString(),
+    ...(imagem ? { imagem_path: imagem } : {}),
+  }
+
+  if (id) {
+    // Trocou a foto? A antiga sai do armazenamento para não virar lixo.
+    if (imagem) {
+      const { data: antigo } = await admin
+        .from('blocos_site')
+        .select('imagem_path')
+        .eq('id', id)
+        .single()
+      if (antigo?.imagem_path) await admin.storage.from('site').remove([antigo.imagem_path])
+    }
+    const { error } = await admin.from('blocos_site').update(dados).eq('id', id)
+    if (error) throw new Error(error.message)
+  } else {
+    const { data: ultimo } = await admin
+      .from('blocos_site')
+      .select('ordem')
+      .order('ordem', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const { error } = await admin
+      .from('blocos_site')
+      .insert({ ...dados, ordem: (ultimo?.ordem ?? 0) + 1, publicado: true })
+    if (error) throw new Error(error.message)
+  }
+
+  revalidatePath('/dashboard/admin/site')
+  revalidatePath('/')
+}
+
+export async function alternarBlocoSite(id: string, publicado: boolean) {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const { error } = await admin.from('blocos_site').update({ publicado }).eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/site')
+  revalidatePath('/')
+}
+
+export async function moverBlocoSite(id: string, direcao: 'cima' | 'baixo') {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const { data: blocos } = await admin
+    .from('blocos_site')
+    .select('id, ordem')
+    .order('ordem', { ascending: true })
+
+  const lista = blocos ?? []
+  const i = lista.findIndex((b) => b.id === id)
+  const j = direcao === 'cima' ? i - 1 : i + 1
+  if (i < 0 || j < 0 || j >= lista.length) return
+
+  await admin.from('blocos_site').update({ ordem: lista[j].ordem }).eq('id', lista[i].id)
+  await admin.from('blocos_site').update({ ordem: lista[i].ordem }).eq('id', lista[j].id)
+  revalidatePath('/dashboard/admin/site')
+  revalidatePath('/')
+}
+
+export async function removerBlocoSite(id: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const { data: bloco } = await admin
+    .from('blocos_site')
+    .select('imagem_path')
+    .eq('id', id)
+    .single()
+
+  const { error } = await admin.from('blocos_site').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+  if (bloco?.imagem_path) await admin.storage.from('site').remove([bloco.imagem_path])
+
+  revalidatePath('/dashboard/admin/site')
+  revalidatePath('/')
+}
