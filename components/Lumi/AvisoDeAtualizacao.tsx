@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Image from 'next/image'
 import { Sparkles, RefreshCw, X } from 'lucide-react'
 
 /**
@@ -86,8 +87,10 @@ export default function AvisoDeAtualizacao() {
     <div className="fixed inset-x-4 bottom-4 z-[60] mx-auto max-w-md animate-float-in sm:left-auto sm:right-6 sm:mx-0">
       <div className="overflow-hidden rounded-2xl bg-white shadow-deep ring-1 ring-brand-950/10">
         <div className="flex items-start gap-3 p-4">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white">
-            <Sparkles className="h-[18px] w-[18px]" strokeWidth={2} />
+          {/* A própria LUMI dá o recado. Rosto reconhecível comunica antes
+              da leitura: em meio segundo a pessoa sabe de quem é o aviso. */}
+          <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full ring-2 ring-brand-500/25">
+            <Image src="/lumi-avatar.png" alt="LUMI" fill sizes="44px" className="object-cover" />
           </span>
 
           <div className="min-w-0 flex-1">

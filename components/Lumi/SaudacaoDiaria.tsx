@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { Sparkles, X, BookOpen } from 'lucide-react'
 import { saudacaoDoDia, type NovidadeLumi } from '@/app/lumi-actions'
 
@@ -69,17 +70,30 @@ export default function SaudacaoDiaria() {
             <X className="h-4.5 w-4.5" />
           </button>
 
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-white ring-1 ring-white/20">
-            <Sparkles className="h-3 w-3" strokeWidth={2.4} />
-            LUMI
-          </span>
+          {/* A LUMI ocupa a direita do cabeçalho, em corpo inteiro. O texto
+              respeita esse espaço para os dois não se atropelarem no celular. */}
+          <div className="pr-[96px] sm:pr-[112px]">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-white ring-1 ring-white/20">
+              <Sparkles className="h-3 w-3" strokeWidth={2.4} />
+              LUMI
+            </span>
 
-          <p className="mt-3.5 font-display text-[22px] font-bold leading-tight text-white">
-            Graça e Paz, {primeiroNome}!
-          </p>
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-brand-50/80">
-            Que alegria ter você por aqui hoje. Passei para te contar as novidades da plataforma.
-          </p>
+            <p className="mt-3.5 font-display text-[22px] font-bold leading-tight text-white">
+              Graça e Paz, {primeiroNome}!
+            </p>
+            <p className="mt-1.5 text-[13.5px] leading-relaxed text-brand-50/80">
+              Que alegria ter você por aqui hoje. Passei para te contar as novidades da plataforma.
+            </p>
+          </div>
+
+          <Image
+            src="/lumi-avatar.png"
+            alt="LUMI"
+            width={320}
+            height={320}
+            priority
+            className="pointer-events-none absolute bottom-4 right-5 h-[92px] w-[92px] rounded-full opacity-95 ring-2 ring-white/25 sm:h-[104px] sm:w-[104px]"
+          />
         </div>
 
         <div className="px-6 py-5">
@@ -111,10 +125,20 @@ export default function SaudacaoDiaria() {
             <p className="text-[13px] italic leading-relaxed text-gray-600">
               Que Deus abençoe o seu dia e ilumine os seus estudos. Conte comigo!
             </p>
-            <p className="mt-2 flex items-center gap-1.5 font-display text-[13px] font-bold text-brand-700">
-              <Sparkles className="h-3.5 w-3.5" strokeWidth={2.4} />
-              LUMI · Escola de Líderes IBAU
-            </p>
+            <div className="mt-3 flex items-center gap-2.5">
+              <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full ring-2 ring-brand-500/25">
+                <Image src="/lumi-avatar.png" alt="" fill sizes="36px" className="object-cover" />
+              </span>
+              <span className="leading-tight">
+                <span className="flex items-center gap-1.5 font-display text-[13.5px] font-bold text-brand-700">
+                  LUMI
+                  <Sparkles className="h-3 w-3 text-accent-500" strokeWidth={2.4} />
+                </span>
+                <span className="text-[11.5px] text-gray-400">
+                  Sua assistente na Escola de Líderes IBAU
+                </span>
+              </span>
+            </div>
           </div>
 
           <button
