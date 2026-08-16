@@ -1,15 +1,27 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Sparkles, RefreshCw, X } from 'lucide-react'
 
 /**
  * A LUMI avisando que saiu versão nova.
  *
- * COMO ELA SABE
- * Ao abrir a página, guarda o identificador da versão que carregou. Depois
- * pergunta ao servidor de tempos em tempos qual é a versão atual. Se mudou,
- * é porque houve publicação enquanto a pessoa estava com a tela aberta.
+ * O ERRO DA PRIMEIRA VERSÃO
+ * Ela comparava a versão que a página tinha ACABADO DE CARREGAR com a do
+ * servidor. Isso só detecta mudança quando a aba fica aberta DURANTE a
+ * publicação — e esse não é o fluxo de ninguém. Quem publica e depois abre
+ * o site nunca via aviso: ao abrir, a versão nova virava o próprio ponto de
+ * comparação. A LUMI era cega justamente no caso para o qual foi pedida.
+ *
+ * COMO FUNCIONA AGORA
+ * A versão que a pessoa realmente VIU fica guardada no navegador, entre
+ * visitas. Ao abrir a plataforma, comparamos o que está no ar com o que ela
+ * viu por último — então o aviso aparece já no primeiro acesso depois da
+ * publicação, mesmo que o computador tenha sido desligado no meio.
+ *
+ * A marca só avança quando a pessoa clica em "Atualizar agora". Quem escolhe
+ * "Depois" volta a ser avisado no próximo acesso, porque continua rodando
+ * código antigo — e isso é exatamente o que ela precisa saber.
  *
  * POR QUE ISSO IMPORTA
  * Um site já aberto continua rodando o código antigo até alguém recarregar.
@@ -20,13 +32,14 @@ import { Sparkles, RefreshCw, X } from 'lucide-react'
  * Preferi o foco como gatilho principal porque é o momento em que a pessoa
  * volta para a tela — é quando o aviso ajuda em vez de interromper.
  */
+const CHAVE_VERSAO_VISTA = 'ibau:versao-vista'
 const INTERVALO_MS = 3 * 60 * 1000
 
 export default function AvisoDeAtualizacao() {
   const [temNova, setTemNova] = useState(false)
   const [dispensado, setDispensado] = useState(false)
   const [recarregando, setRecarregando] = useState(false)
-  const versaoInicial = useRef<string | null>(null)
+  const [versaoNova, setVersaoNova] = useState<string | null>(null)
 
   const verificar = useCallback(async () => {
     try {
@@ -35,11 +48,18 @@ export default function AvisoDeAtualizacao() {
       const { versao } = (await r.json()) as { versao: string }
       if (!versao || versao === 'desenvolvimento') return
 
-      if (versaoInicial.current === null) {
-        versaoInicial.current = versao
+      const vista = localStorage.getItem(CHAVE_VERSAO_VISTA)
+
+      // Primeira visita neste navegador: não há com o que comparar, só marca.
+      if (!vista) {
+        localStorage.setItem(CHAVE_VERSAO_VISTA, versao)
         return
       }
-      if (versao !== versaoInicial.current) setTemNova(true)
+
+      if (versao !== vista) {
+        setVersaoNova(versao)
+        setTemNova(true)
+      }
     } catch {
       // Sem internet no momento não é assunto da LUMI — ela tenta depois.
     }
@@ -72,10 +92,11 @@ export default function AvisoDeAtualizacao() {
 
           <div className="min-w-0 flex-1">
             <p className="font-display text-[14px] font-bold text-gray-900">
-              A plataforma foi atualizada!
+              Nova versão disponível!
             </p>
             <p className="mt-0.5 text-[12.5px] leading-relaxed text-gray-500">
-              Tem versão nova no ar. Clique para carregar as novidades — leva um instante.
+              A plataforma foi atualizada desde o seu último acesso. Clique para carregar as
+              novidades — leva um instante.
             </p>
 
             <div className="mt-3 flex items-center gap-2">
@@ -84,6 +105,9 @@ export default function AvisoDeAtualizacao() {
                 disabled={recarregando}
                 onClick={() => {
                   setRecarregando(true)
+                  // Marca ANTES de recarregar: se marcasse depois, a página
+                  // voltaria e o aviso reapareceria, num laço sem fim.
+                  if (versaoNova) localStorage.setItem(CHAVE_VERSAO_VISTA, versaoNova)
                   window.location.reload()
                 }}
                 className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-700 px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-60"
