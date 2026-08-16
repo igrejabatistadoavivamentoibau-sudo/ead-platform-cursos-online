@@ -10,7 +10,7 @@ import {
   removerCampoInscricao,
 } from '@/app/dashboard/admin/actions'
 import { TIPOS_CAMPO, type CampoInscricao, type TipoCampo } from '@/lib/campos'
-import { Botao, Card, CardTitulo, Alerta, Selo, CAMPO, Campo } from '@/components/ui'
+import { Botao, Card, CardTitulo, Alerta, Selo, CAMPO, Campo, Selecao } from '@/components/ui'
 
 const PAPEL_LABEL = { aluno: 'Só aluno', professor: 'Só professor', ambos: 'Aluno e professor' }
 
@@ -146,11 +146,15 @@ export default function EditorDaFicha({ campos }: { campos: CampoInscricao[] }) 
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Campo label="Aparece na ficha de">
-                  <select name="papel" defaultValue="aluno" className={`${CAMPO} bg-white`}>
-                    <option value="aluno">Só aluno</option>
-                    <option value="professor">Só professor</option>
-                    <option value="ambos">Aluno e professor</option>
-                  </select>
+                  <Selecao
+                    name="papel"
+                    valorInicial="aluno"
+                    opcoes={[
+                      { valor: 'aluno', rotulo: 'Só aluno' },
+                      { valor: 'professor', rotulo: 'Só professor' },
+                      { valor: 'ambos', rotulo: 'Aluno e professor' },
+                    ]}
+                  />
                 </Campo>
 
                 <label className="flex cursor-pointer items-center gap-2.5 self-end rounded-lg bg-gray-50/60 px-3.5 py-2.5 ring-1 ring-gray-200">

@@ -9,7 +9,7 @@ import {
   removerNovidade,
   reenviarSaudacaoDeHoje,
 } from '@/app/dashboard/admin/actions'
-import { Botao, Card, CardTitulo, Alerta, Selo, CAMPO, Campo } from '@/components/ui'
+import { Botao, Card, CardTitulo, Alerta, Selo, CAMPO, Campo, Selecao } from '@/components/ui'
 
 export interface NovidadeItem {
   id: string
@@ -131,22 +131,21 @@ export default function GerenciadorLumi({ novidades }: { novidades: NovidadeItem
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Campo label="Tipo">
-                  <select name="tipo" defaultValue="novidade" className={`${CAMPO} bg-white`}>
-                    {Object.entries(TIPO).map(([v, t]) => (
-                      <option key={v} value={v}>
-                        {t.icone} {t.label}
-                      </option>
-                    ))}
-                  </select>
+                  <Selecao
+                    name="tipo"
+                    valorInicial="novidade"
+                    opcoes={Object.entries(TIPO).map(([v, t]) => ({
+                      valor: v,
+                      rotulo: `${t.icone}  ${t.label}`,
+                    }))}
+                  />
                 </Campo>
                 <Campo label="Quem deve ver">
-                  <select name="publico" defaultValue="todos" className={`${CAMPO} bg-white`}>
-                    {Object.entries(PUBLICO).map(([v, l]) => (
-                      <option key={v} value={v}>
-                        {l}
-                      </option>
-                    ))}
-                  </select>
+                  <Selecao
+                    name="publico"
+                    valorInicial="todos"
+                    opcoes={Object.entries(PUBLICO).map(([v, l]) => ({ valor: v, rotulo: l }))}
+                  />
                 </Campo>
               </div>
 

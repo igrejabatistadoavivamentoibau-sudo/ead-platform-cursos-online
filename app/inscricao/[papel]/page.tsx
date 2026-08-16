@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { GraduationCap, Presentation, ArrowLeft } from 'lucide-react'
+import { unstable_noStore as naoGuardarEmCache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import FormInscricao, { type TurmaAberta } from '@/components/Inscricao/FormInscricao'
 import { camposDoPapel, type CampoInscricao } from '@/lib/campos'
@@ -38,6 +39,12 @@ export default async function InscricaoPage({
 }: {
   params: Promise<{ papel: string }>
 }) {
+  // Segunda trava contra cache, independente da primeira (o `no-store` no
+  // cliente do banco). Uma ficha de inscrição não pode, em hipótese alguma,
+  // servir uma versão guardada: as perguntas mudam quando a liderança quer,
+  // e uma resposta velha some com elas sem avisar ninguém.
+  naoGuardarEmCache()
+
   const { papel } = await params
   if (papel !== 'aluno' && papel !== 'professor') notFound()
 

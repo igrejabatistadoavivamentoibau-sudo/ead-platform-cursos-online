@@ -401,3 +401,6 @@ export function Progresso({
     </div>
   )
 }
+
+
+export { default as Selecao, type OpcaoSelecao } from './Selecao'

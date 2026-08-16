@@ -255,22 +255,42 @@ export default function PortalNav({
 
           <span className="truncate">{grupo.nome}</span>
 
+          {/* Ponto discreto quando a página aberta está dentro desta gaveta,
+              mesmo com ela fechada: a pessoa não perde a referência de onde
+              está só porque recolheu a seção. */}
+          {!aberta && temAtivo && (
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${acento.barra}`} />
+          )}
+
           <span
-            className={`ml-auto rounded px-1.5 py-px text-[10px] font-bold tabular-nums transition-colors ${
-              aberta ? 'text-white/30' : 'bg-white/10 text-white/60'
+            className={`ml-auto rounded px-1.5 py-px text-[10px] font-bold tabular-nums transition-all duration-300 ${
+              aberta ? 'text-white/25' : 'bg-white/10 text-white/60'
             }`}
           >
             {grupo.itens.length}
           </span>
         </button>
 
+        {/* A abertura anima três coisas ao mesmo tempo: altura, opacidade e
+            um leve deslocamento vertical. Só a altura fica seco — o conteúdo
+            "aparece do nada" no fim. Com opacidade e deslize o conjunto tem
+            a sensação de material desdobrando, que é o que se espera de uma
+            gaveta. A curva é de saída suave, e a opacidade tem um atraso
+            pequeno na abertura para o conteúdo não surgir antes de haver
+            espaço para ele. */}
         <div
-          className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+          className={`grid transition-[grid-template-rows] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
             aberta ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
           }`}
         >
           <div className="overflow-hidden">
-            <div className="ml-2 space-y-0.5 border-l border-white/[0.07] pl-2 pt-1">
+            <div
+              className={`ml-2 space-y-0.5 border-l pl-2 pt-1 transition-all duration-300 ease-out ${
+                aberta
+                  ? 'translate-y-0 border-white/[0.09] opacity-100 delay-[80ms]'
+                  : '-translate-y-1 border-transparent opacity-0'
+              }`}
+            >
               {grupo.itens.map((l) => (
                 <ItemLink key={l.href} link={l} aoClicar={aoClicar} />
               ))}

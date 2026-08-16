@@ -1,6 +1,6 @@
 'use client'
 
-import { CAMPO, Campo } from '@/components/ui'
+import { CAMPO, Campo, Selecao } from '@/components/ui'
 import type { CampoInscricao } from '@/lib/campos'
 
 /**
@@ -24,24 +24,21 @@ export default function CamposPersonalizados({ campos }: { campos: CampoInscrica
             {c.tipo === 'texto_longo' ? (
               <textarea name={nome} required={obrigatorio} rows={3} className={`${CAMPO} resize-y leading-relaxed`} />
             ) : c.tipo === 'selecao' ? (
-              <select name={nome} required={obrigatorio} defaultValue="" className={`${CAMPO} bg-white`}>
-                <option value="" disabled>
-                  Escolha uma opção
-                </option>
-                {c.opcoes.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
-              </select>
+              <Selecao
+                name={nome}
+                required={obrigatorio}
+                opcoes={c.opcoes.map((o) => ({ valor: o, rotulo: o }))}
+              />
             ) : c.tipo === 'sim_nao' ? (
-              <select name={nome} required={obrigatorio} defaultValue="" className={`${CAMPO} bg-white`}>
-                <option value="" disabled>
-                  Escolha
-                </option>
-                <option value="Sim">Sim</option>
-                <option value="Não">Não</option>
-              </select>
+              <Selecao
+                name={nome}
+                required={obrigatorio}
+                placeholder="Escolha"
+                opcoes={[
+                  { valor: 'Sim', rotulo: 'Sim' },
+                  { valor: 'Não', rotulo: 'Não' },
+                ]}
+              />
             ) : (
               <input
                 name={nome}
