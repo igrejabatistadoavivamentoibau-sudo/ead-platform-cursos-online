@@ -45,7 +45,7 @@ export default async function InscricaoPage({
   const Icone = info.icone
 
   const admin = createAdminClient()
-  const [{ data }, { data: todosCampos }] = await Promise.all([
+  const [{ data }, { data: todosCampos, error: erroCampos }] = await Promise.all([
     admin
       .from('turmas')
       .select('id, nome, valor_matricula, cursos(titulo, modalidade)')
@@ -54,6 +54,12 @@ export default async function InscricaoPage({
       .order('nome'),
     admin.from('campos_inscricao').select('*').eq('ativo', true).order('ordem'),
   ])
+
+  // Se a leitura dos campos falhar, a ficha apareceria sem as perguntas e
+  // ninguém saberia por quê. Melhor quebrar visivelmente do que enganar.
+  if (erroCampos) {
+    throw new Error(`Falha ao carregar as perguntas da ficha: ${erroCampos.message}`)
+  }
 
   const campos = camposDoPapel((todosCampos ?? []) as CampoInscricao[], papel)
 

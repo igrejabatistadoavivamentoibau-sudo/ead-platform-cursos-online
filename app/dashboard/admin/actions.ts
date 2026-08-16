@@ -931,6 +931,8 @@ export async function criarCampoInscricao(input: {
 
   if (error) throw new Error(error.message)
   revalidatePath('/dashboard/admin/inscricoes/ficha')
+  revalidatePath('/inscricao/aluno')
+  revalidatePath('/inscricao/professor')
 }
 
 /** Liga ou desliga a pergunta sem apagá-la — o histórico fica preservado. */
@@ -940,6 +942,8 @@ export async function alternarCampoInscricao(campoId: string, ativo: boolean) {
   const { error } = await admin.from('campos_inscricao').update({ ativo }).eq('id', campoId)
   if (error) throw new Error(error.message)
   revalidatePath('/dashboard/admin/inscricoes/ficha')
+  revalidatePath('/inscricao/aluno')
+  revalidatePath('/inscricao/professor')
 }
 
 export async function moverCampoInscricao(campoId: string, direcao: 'cima' | 'baixo') {
@@ -959,6 +963,8 @@ export async function moverCampoInscricao(campoId: string, direcao: 'cima' | 'ba
   await admin.from('campos_inscricao').update({ ordem: lista[j].ordem }).eq('id', lista[i].id)
   await admin.from('campos_inscricao').update({ ordem: lista[i].ordem }).eq('id', lista[j].id)
   revalidatePath('/dashboard/admin/inscricoes/ficha')
+  revalidatePath('/inscricao/aluno')
+  revalidatePath('/inscricao/professor')
 }
 
 /**
@@ -973,4 +979,6 @@ export async function removerCampoInscricao(campoId: string) {
   const { error } = await admin.from('campos_inscricao').delete().eq('id', campoId)
   if (error) throw new Error(error.message)
   revalidatePath('/dashboard/admin/inscricoes/ficha')
+  revalidatePath('/inscricao/aluno')
+  revalidatePath('/inscricao/professor')
 }
