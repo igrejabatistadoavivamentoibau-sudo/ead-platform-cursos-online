@@ -15,6 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/dashboard/admin/cursos', label: 'Cursos', icone: 'BookOpenText', grupo: 'Ensino' },
     { href: '/dashboard/admin/turmas', label: 'Turmas', icone: 'GraduationCap', grupo: 'Ensino' },
 
+    { href: '/dashboard/admin/inscricoes', label: 'Inscrições', icone: 'Inbox', grupo: 'Pessoas' },
     { href: '/dashboard/admin/usuarios', label: 'Usuários', icone: 'Users2', grupo: 'Pessoas' },
     { href: '/dashboard/admin/permissoes', label: 'Permissões', icone: 'ShieldCheck', grupo: 'Pessoas' },
 

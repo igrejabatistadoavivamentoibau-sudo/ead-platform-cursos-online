@@ -784,3 +784,104 @@ export async function definirCursoDaTurma(turmaId: string, cursoId: string | nul
   if (error) throw new Error(error.message)
   revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
 }
+
+// ============ INSCRIÇÕES PÚBLICAS ============
+
+/**
+ * Aprova uma inscrição.
+ *
+ * É aqui que a pessoa passa a existir de verdade na plataforma: criamos o
+ * perfil, e é o perfil que libera o login. A conta de acesso já existia
+ * desde a inscrição, mas sem perfil ela não entrava em lugar nenhum.
+ *
+ * Se a pessoa escolheu uma turma, a matrícula sai junto — assim aprovar é
+ * um clique só, e não "aprovar e depois lembrar de matricular".
+ */
+export async function aprovarInscricao(inscricaoId: string) {
+  const quem = await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: inscricao, error: erroBusca } = await admin
+    .from('inscricoes')
+    .select('id, user_id, nome, email, papel, turma_id, status')
+    .eq('id', inscricaoId)
+    .single()
+
+  if (erroBusca) throw new Error(erroBusca.message)
+  if (!inscricao) throw new Error('Inscrição não encontrada.')
+  if (inscricao.status !== 'pendente') throw new Error('Esta inscrição já foi decidida.')
+  if (!inscricao.user_id) throw new Error('Esta inscrição não tem conta de acesso ligada.')
+
+  const { error: erroPerfil } = await admin.from('users').insert({
+    id: inscricao.user_id,
+    email: inscricao.email,
+    name: inscricao.nome,
+    role: inscricao.papel,
+  })
+  if (erroPerfil) throw new Error(`Falha ao liberar o acesso: ${erroPerfil.message}`)
+
+  // Matrícula automática na turma escolhida (só faz sentido para aluno).
+  if (inscricao.turma_id && inscricao.papel === 'aluno') {
+    await admin
+      .from('turma_alunos')
+      .insert({ turma_id: inscricao.turma_id, aluno_id: inscricao.user_id })
+  }
+
+  const { error: erroStatus } = await admin
+    .from('inscricoes')
+    .update({ status: 'aprovada', decidida_por: quem.id, decidida_em: new Date().toISOString() })
+    .eq('id', inscricaoId)
+  if (erroStatus) throw new Error(erroStatus.message)
+
+  revalidatePath('/dashboard/admin/inscricoes')
+  revalidatePath('/dashboard/admin/usuarios')
+}
+
+/**
+ * Recusa uma inscrição e apaga a conta de acesso criada no cadastro.
+ * Sem isso o e-mail ficaria preso: a pessoa não entraria e também não
+ * conseguiria se inscrever de novo, porque o e-mail já estaria em uso.
+ */
+export async function recusarInscricao(inscricaoId: string, motivo?: string) {
+  const quem = await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: inscricao } = await admin
+    .from('inscricoes')
+    .select('id, user_id, status')
+    .eq('id', inscricaoId)
+    .single()
+
+  if (!inscricao) throw new Error('Inscrição não encontrada.')
+  if (inscricao.status !== 'pendente') throw new Error('Esta inscrição já foi decidida.')
+
+  const { error } = await admin
+    .from('inscricoes')
+    .update({
+      status: 'recusada',
+      motivo: motivo?.trim() || null,
+      decidida_por: quem.id,
+      decidida_em: new Date().toISOString(),
+    })
+    .eq('id', inscricaoId)
+  if (error) throw new Error(error.message)
+
+  if (inscricao.user_id) await admin.auth.admin.deleteUser(inscricao.user_id)
+
+  revalidatePath('/dashboard/admin/inscricoes')
+}
+
+/** Abre ou fecha a turma para inscrição pública. */
+export async function alternarInscricoesDaTurma(turmaId: string, abertas: boolean) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('turmas')
+    .update({ inscricoes_abertas: abertas })
+    .eq('id', turmaId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/dashboard/admin/inscricoes')
+  revalidatePath('/dashboard/admin/turmas')
+}
