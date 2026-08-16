@@ -102,6 +102,22 @@ export default function PortalNav({
       return !v
     })
 
+  // Navegou para uma página que está dentro de uma gaveta fechada? Abre.
+  // Acontece só na troca de página — depois disso, quem manda é o clique.
+  useEffect(() => {
+    const doGrupoAtual = grupos.find(
+      (g) => g.nome && g.itens.some((l) => isActive(l.href, l.exact))
+    )
+    if (!doGrupoAtual?.nome) return
+    setFechadas((atual) => {
+      if (!atual.includes(doGrupoAtual.nome as string)) return atual
+      const proximo = atual.filter((n) => n !== doGrupoAtual.nome)
+      localStorage.setItem(CHAVE_GAVETAS, JSON.stringify(proximo))
+      return proximo
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
+
   const alternarGaveta = (nome: string) =>
     setFechadas((atual) => {
       const proximo = atual.includes(nome) ? atual.filter((n) => n !== nome) : [...atual, nome]
@@ -198,28 +214,54 @@ export default function PortalNav({
     }
 
     const temAtivo = grupo.itens.some((l) => isActive(l.href, l.exact))
-    // Gaveta que contém a página aberta nunca fica fechada: senão o menu
-    // esconderia justamente onde a pessoa está.
-    const aberta = temAtivo || !fechadas.includes(grupo.nome)
+    // A gaveta SEMPRE obedece ao clique.
+    //
+    // A versão anterior forçava a gaveta da página atual a ficar aberta, com
+    // a intenção de nunca esconder onde a pessoa está. Na prática isso fazia
+    // o clique não surtir efeito: como sempre se está dentro de alguma seção,
+    // aquela seção simplesmente não fechava. Parecia menu quebrado.
+    // A abertura automática agora acontece na navegação (ver useEffect), que
+    // atende a mesma intenção sem tirar o controle de quem clica.
+    const aberta = !fechadas.includes(grupo.nome)
 
     return (
       <div>
+        {/* Cabeçalho da gaveta.
+            A versão anterior era um rótulo minúsculo e apagado, sem fundo:
+            ninguém percebia que dava para clicar. Agora tem altura de botão,
+            fundo próprio no repouso, seta em caixa visível e contador sempre
+            presente — o conjunto diz "isto abre e fecha" antes do primeiro
+            clique, que é o trabalho da affordance. */}
         <button
           type="button"
           onClick={() => alternarGaveta(grupo.nome as string)}
           aria-expanded={aberta}
-          className="flex w-full items-center gap-1.5 rounded-md py-1.5 pl-2 pr-2 text-[10px] font-bold uppercase tracking-[0.13em] text-white/35 transition-colors hover:text-white/65"
+          className={`group/g flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[10.5px] font-bold uppercase tracking-[0.12em] transition-colors ${
+            aberta
+              ? 'bg-white/[0.04] text-white/60 hover:bg-white/[0.07] hover:text-white/85'
+              : 'bg-white/[0.02] text-white/45 hover:bg-white/[0.06] hover:text-white/75'
+          }`}
         >
-          <ChevronRight
-            className={`h-3 w-3 shrink-0 transition-transform duration-300 ${aberta ? 'rotate-90' : ''}`}
-            strokeWidth={2.6}
-          />
+          <span
+            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded transition-colors ${
+              aberta ? 'bg-white/10' : 'bg-white/[0.06] group-hover/g:bg-white/12'
+            }`}
+          >
+            <ChevronRight
+              className={`h-3 w-3 transition-transform duration-300 ${aberta ? 'rotate-90' : ''}`}
+              strokeWidth={2.8}
+            />
+          </span>
+
           <span className="truncate">{grupo.nome}</span>
-          {!aberta && (
-            <span className="ml-auto text-[10px] font-semibold tabular-nums text-white/25">
-              {grupo.itens.length}
-            </span>
-          )}
+
+          <span
+            className={`ml-auto rounded px-1.5 py-px text-[10px] font-bold tabular-nums transition-colors ${
+              aberta ? 'text-white/30' : 'bg-white/10 text-white/60'
+            }`}
+          >
+            {grupo.itens.length}
+          </span>
         </button>
 
         <div
@@ -228,7 +270,7 @@ export default function PortalNav({
           }`}
         >
           <div className="overflow-hidden">
-            <div className="space-y-0.5 pt-0.5">
+            <div className="ml-2 space-y-0.5 border-l border-white/[0.07] pl-2 pt-1">
               {grupo.itens.map((l) => (
                 <ItemLink key={l.href} link={l} aoClicar={aoClicar} />
               ))}
