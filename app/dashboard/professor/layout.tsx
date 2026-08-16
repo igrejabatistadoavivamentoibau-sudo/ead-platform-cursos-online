@@ -1,6 +1,7 @@
 import { exigirSessao } from '@/lib/auth'
 import PortalNav, { type ItemNav } from '@/components/Dashboard/PortalNav'
 import Lumi from '@/components/Lumi'
+import TopbarLigada from '@/components/Topo'
 
 export default async function ProfessorLayout({ children }: { children: React.ReactNode }) {
   const sessao = await exigirSessao()
@@ -31,7 +32,17 @@ export default async function ProfessorLayout({ children }: { children: React.Re
         cor="roxo"
         links={links}
       />
-      <main className="flex-1 min-w-0">{children}</main>
+      <main className="flex-1 min-w-0">
+        <TopbarLigada
+          portal="Portal do Professor"
+          nome={sessao.name}
+          papel={sessao.role === 'admin' ? 'Administrador' : 'Professor'}
+          userId={sessao.id}
+          notifHref="/dashboard/professor/notificacoes"
+          chatHref="/dashboard/professor/conversas"
+        />
+        {children}
+      </main>
       <Lumi />
     </div>
   )

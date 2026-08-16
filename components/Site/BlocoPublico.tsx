@@ -17,7 +17,7 @@ export default function BlocoPublico({ bloco }: { bloco: BlocoSite }) {
   const Texto = () => (
     <div className="min-w-0">
       {bloco.subtitulo && (
-        <p className="mb-2.5 text-[12px] font-bold uppercase tracking-[0.18em] text-brand-600">
+        <p className="micro-rotulo mb-2.5 text-[12px] font-bold uppercase tracking-[0.18em] text-brand-600">
           {bloco.subtitulo}
         </p>
       )}
@@ -65,7 +65,7 @@ export default function BlocoPublico({ bloco }: { bloco: BlocoSite }) {
             </div>
             <div className="relative max-w-2xl px-6 py-16 sm:px-12 sm:py-20">
               {bloco.subtitulo && (
-                <p className="mb-2.5 text-[12px] font-bold uppercase tracking-[0.18em] text-accent-400">
+                <p className="micro-rotulo mb-2.5 text-[12px] font-bold uppercase tracking-[0.18em] text-accent-400">
                   {bloco.subtitulo}
                 </p>
               )}

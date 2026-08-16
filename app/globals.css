@@ -82,6 +82,16 @@ h1, h2, h3, h4 {
   letter-spacing: -0.021em;
 }
 
+/* RÓTULOS MICRO (aqueles títulos maiúsculos e espaçados das seções).
+   Detalhe que quase ninguém nomeia mas todo mundo sente: quando se abre
+   muito o espaço ENTRE LETRAS, o espaço entre PALAVRAS precisa crescer
+   junto — senão "CONTINUE DE ONDE PAROU" lê como uma palavra só. O
+   espaço em branco vira só mais um vão igual aos outros.
+   Aqui o vão entre palavras é ampliado na mesma proporção. */
+.micro-rotulo {
+  word-spacing: 0.28em;
+}
+
 /* Números de painel: largura fixa evita "dança" quando o valor muda */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
@@ -120,27 +130,33 @@ h1, h2, h3, h4 {
    Usadas nos cards para que nada fique "duro como pedra".
    ============================================================ */
 
-/* Card base.
-   O movimento foi deliberadamente reduzido em relação à primeira versão:
-   card que salta 3px e brilha inteiro chama atenção para si, não para o
-   conteúdo. Interface cara é discreta — a resposta ao hover precisa ser
-   perceptível e não performática. */
+/* O CARTÃO VIVO.
+   A versão anterior era um anel de 1px com uma sombra curta e cinza. O
+   resultado era uma peça *desenhada* sobre a tela em vez de *pousada*
+   nela — foi exatamente isso que a escola chamou de card "seco e duro".
+
+   Agora são duas sombras trabalhando juntas: uma de contato (1px, quase
+   invisível, que ancora a peça no fundo) e uma longa e muito difusa, que
+   é quem cria a sensação de altura. No hover a peça sobe 4px e a sombra
+   ganha o verde da marca: a luz muda de cor junto com a elevação, como
+   aconteceria de verdade sobre uma mesa. O movimento continua discreto —
+   quem precisa aparecer é o conteúdo, não o efeito. */
 .card-alive {
   position: relative;
   background: #fff;
-  border-radius: 0.875rem;
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-              border-color 0.28s ease;
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(5, 38, 29, 0.04), 0 10px 24px -20px rgba(5, 38, 29, 0.14);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.3s ease;
   border: 1px solid rgba(5, 38, 29, 0.07);
   will-change: transform;
 }
 
 .card-alive:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: rgba(5, 38, 29, 0.11);
+  transform: translateY(-4px);
+  box-shadow: 0 2px 4px rgba(5, 38, 29, 0.04), 0 26px 44px -22px rgba(9, 64, 47, 0.34);
+  border-color: rgba(9, 64, 47, 0.16);
 }
 
 /* Brilho que atravessa o card no hover — quase imperceptível de propósito:

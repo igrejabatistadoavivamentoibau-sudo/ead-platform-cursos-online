@@ -104,7 +104,7 @@ export default async function InscricaoPage({
             priority
             className="mx-auto mb-5 h-auto w-[128px]"
           />
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white ring-1 ring-white/20">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 micro-rotulo text-[11px] font-bold uppercase tracking-[0.14em] text-white ring-1 ring-white/20">
             <Icone className="h-3.5 w-3.5" strokeWidth={2.2} />
             {info.titulo}
           </span>

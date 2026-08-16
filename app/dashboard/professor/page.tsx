@@ -15,6 +15,7 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
 import { Selo } from '@/components/ui'
+import HeroPortal from '@/components/Dashboard/HeroPortal'
 import { MODALIDADE, type ModalidadeCurso } from '@/lib/cursos'
 
 /** O join do Supabase vem sem tipo forte; lemos a modalidade em um lugar só. */
@@ -123,33 +124,36 @@ export default async function ProfessorHome() {
 
   return (
     <div className="p-5 sm:p-8">
-      <div className="animate-float-in">
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-purple-700 bg-purple-50 ring-1 ring-purple-200 px-3 py-1.5 rounded-full uppercase tracking-wider mb-3">
-          <Presentation className="h-3.5 w-3.5" strokeWidth={2.5} />
-          Portal do Professor
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-          Bem-vindo, {sessao.name.split(' ')[0]}
-        </h1>
-        <p className="text-gray-500 mt-1.5">
-          {sessao.role === 'admin'
+      <HeroPortal
+        saudacao="Graça e Paz"
+        nome={sessao.name}
+        frase={
+          sessao.role === 'admin'
             ? 'Você está vendo todas as turmas da escola, como administrador.'
-            : 'Acompanhe as turmas sob sua responsabilidade.'}
-        </p>
-      </div>
+            : 'Acompanhe as turmas sob sua responsabilidade.'
+        }
+        numeros={[
+          { valor: emAndamento, label: 'EM ANDAMENTO', vivo: emAndamento > 0 },
+          { valor: turmas?.length ?? 0, label: 'TURMAS' },
+          { valor: totalAlunos, label: 'ALUNOS' },
+        ]}
+      />
 
-      <div className="grid sm:grid-cols-3 gap-4 mt-8">
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {stats.map((stat, i) => (
           <div
             key={stat.label}
-            className="card-alive card-sheen group p-5 overflow-hidden animate-float-in"
+            className="card-alive card-sheen group overflow-hidden p-5 animate-float-in"
             style={{ animationDelay: `${i * 80}ms` }}
           >
-            <div className="icon-pop flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 text-brand-700 mb-4 group-hover:from-brand-600 group-hover:to-brand-500 group-hover:text-white group-hover:shadow-glow">
+            <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-accent-500/50 via-accent-500/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+            <div className="icon-pop mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-brand-200 bg-brand-50 text-brand-700 group-hover:border-brand-700 group-hover:bg-brand-700 group-hover:text-white">
               <stat.icon className="h-5 w-5" strokeWidth={2} />
             </div>
-            <div className="text-3xl font-extrabold text-gray-900 tabular-nums">{stat.value}</div>
-            <div className="text-sm text-gray-500 mt-0.5">{stat.label}</div>
+            <div className="font-display text-3xl font-bold tracking-[-0.02em] text-gray-900 tabular-nums">
+              {stat.value}
+            </div>
+            <div className="mt-0.5 text-sm text-gray-500">{stat.label}</div>
             {stat.destaque && stat.value > 0 && (
               <span className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-brand-500 animate-soft-pulse" />
@@ -160,7 +164,11 @@ export default async function ProfessorHome() {
         ))}
       </div>
 
-      <h2 className="font-bold text-gray-900 mt-10 mb-4">Suas turmas</h2>
+      <div className="mb-3.5 mt-7 flex items-center gap-2.5">
+        <Presentation className="h-3.5 w-3.5 text-brand-700" strokeWidth={2} />
+        <h2 className="micro-rotulo text-[11px] font-extrabold tracking-[0.14em] text-[#41514a]">SUAS TURMAS</h2>
+        <span className="h-px flex-1 bg-gradient-to-r from-brand-950/[0.08] to-transparent" />
+      </div>
 
       {turmas && turmas.length > 0 ? (
         <div className="grid sm:grid-cols-2 gap-4">

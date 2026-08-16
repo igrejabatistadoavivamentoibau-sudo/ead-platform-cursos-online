@@ -1,6 +1,7 @@
 import { exigirSessao } from '@/lib/auth'
 import PortalNav, { type ItemNav } from '@/components/Dashboard/PortalNav'
 import Lumi from '@/components/Lumi'
+import TopbarLigada from '@/components/Topo'
 
 const links: ItemNav[] = [
   { href: '/dashboard/aluno', label: 'Início', icone: 'LayoutDashboard', exact: true },
@@ -25,7 +26,17 @@ export default async function AlunoLayout({ children }: { children: React.ReactN
         cor="azul"
         links={links}
       />
-      <main className="flex-1 min-w-0">{children}</main>
+      <main className="flex-1 min-w-0">
+        <TopbarLigada
+          portal="Portal do Aluno"
+          nome={sessao.name}
+          papel="Aluno"
+          userId={sessao.id}
+          notifHref="/dashboard/aluno/notificacoes"
+          chatHref="/dashboard/aluno/conversas"
+        />
+        {children}
+      </main>
       <Lumi />
     </div>
   )

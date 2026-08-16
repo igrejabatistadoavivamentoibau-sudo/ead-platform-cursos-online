@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { exigirSessao } from '@/lib/auth'
 import PortalNav, { type ItemNav } from '@/components/Dashboard/PortalNav'
 import Lumi from '@/components/Lumi'
+import TopbarLigada from '@/components/Topo'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const sessao = await exigirSessao()
@@ -37,7 +38,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         cor="brand"
         links={links}
       />
-      <main className="flex-1 min-w-0">{children}</main>
+      <main className="flex-1 min-w-0">
+        <TopbarLigada
+          portal="Painel Admin"
+          nome={sessao.name}
+          papel="Administrador"
+          userId={sessao.id}
+          notifHref="/dashboard/admin/notificacoes"
+          chatHref="/dashboard/professor/conversas"
+        />
+        {children}
+      </main>
       <Lumi />
     </div>
   )

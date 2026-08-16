@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import HeroPortal from '@/components/Dashboard/HeroPortal'
 
 export default async function AdminOverview() {
   const supabase = await createClient()
@@ -85,30 +86,35 @@ export default async function AdminOverview() {
 
   return (
     <div className="p-5 sm:p-8">
-      <div className="animate-float-in">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-          Bem-vindo, {profile?.name?.split(' ')[0] ?? 'Administrador'}
-        </h1>
-        <p className="text-gray-500 mt-1.5">
-          Painel soberano da Escola de Líderes IBAU — crie turmas, faça chamada e gerencie contas.
-        </p>
-      </div>
+      <HeroPortal
+        saudacao="Graça e Paz"
+        nome={profile?.name ?? 'Administrador'}
+        frase="Painel soberano da Escola de Líderes IBAU — crie turmas, faça chamada e gerencie contas."
+        numeros={[
+          { valor: turmasAtivas ?? 0, label: 'EM ANDAMENTO', vivo: (turmasAtivas ?? 0) > 0 },
+          { valor: totalAlunos ?? 0, label: 'ALUNOS' },
+          { valor: totalProfessores ?? 0, label: 'PROFESSORES' },
+        ]}
+      />
 
       {/* Estatísticas */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((stat, i) => (
           <div
             key={stat.label}
             className="card-alive card-sheen group overflow-hidden p-5 animate-float-in"
             style={{ animationDelay: `${i * 70}ms` }}
           >
+            <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-accent-500/50 via-accent-500/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
             <div
-              className={`icon-pop flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${stat.tone} text-white mb-4 shadow-glow`}
+              className={`icon-pop mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${stat.tone} text-white shadow-[0_4px_12px_-4px_rgba(9,64,47,0.45)]`}
             >
               <stat.icon className="h-5 w-5" strokeWidth={2} />
             </div>
-            <div className="text-3xl font-extrabold text-gray-900 tabular-nums">{stat.value}</div>
-            <div className="text-sm text-gray-500 mt-0.5 leading-snug">{stat.label}</div>
+            <div className="font-display text-3xl font-bold tracking-[-0.02em] text-gray-900 tabular-nums">
+              {stat.value}
+            </div>
+            <div className="mt-0.5 text-sm leading-snug text-gray-500">{stat.label}</div>
             {stat.destaque && (stat.value as number) > 0 && (
               <span className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-brand-500 animate-soft-pulse" />
@@ -120,7 +126,7 @@ export default async function AdminOverview() {
       </div>
 
       {/* Atalhos */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {atalhos.map((atalho, i) => (
           <Link
             key={atalho.href}
@@ -178,17 +184,21 @@ export default async function AdminOverview() {
 
       {/* Turmas recentes */}
       {turmasRecentes && turmasRecentes.length > 0 && (
-        <div className="mt-10">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-gray-900">Turmas recentes</h2>
+        <div className="mt-7">
+          <div className="mb-3.5 flex items-center gap-2.5">
+            <GraduationCap className="h-3.5 w-3.5 text-brand-700" strokeWidth={2} />
+            <h2 className="micro-rotulo text-[11px] font-extrabold tracking-[0.14em] text-[#41514a]">
+              TURMAS RECENTES
+            </h2>
+            <span className="h-px flex-1 bg-gradient-to-r from-brand-950/[0.08] to-transparent" />
             <Link
               href="/dashboard/admin/turmas"
-              className="group inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800"
+              className="group inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-brand-700 hover:text-brand-800"
             >
               Ver todas
               <ArrowRight
-                className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
-                strokeWidth={2.25}
+                className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-1"
+                strokeWidth={2.2}
               />
             </Link>
           </div>

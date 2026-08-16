@@ -180,7 +180,7 @@ function Gaveta({
         type="button"
         onClick={() => alternarGaveta(grupo.nome as string)}
         aria-expanded={aberta}
-        className={`group/g flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[10.5px] font-bold uppercase tracking-[0.12em] transition-colors ${
+        className={`group/g flex w-full items-center gap-2 rounded-lg px-2 py-2 micro-rotulo text-[10.5px] font-bold uppercase tracking-[0.12em] transition-colors ${
           aberta
             ? 'bg-white/[0.04] text-white/60 hover:bg-white/[0.07] hover:text-white/85'
             : 'bg-white/[0.02] text-white/45 hover:bg-white/[0.06] hover:text-white/75'

@@ -66,18 +66,41 @@ export function PageHeader({
 
 /* ---------------------------- Cartão ---------------------------- */
 
+/**
+ * A SUPERFÍCIE VIVA
+ *
+ * O que fazia os cartões parecerem "secos e duros" não era a cor: era a
+ * ausência de profundidade. Um anel de 1px e nada mais deixa a peça
+ * *desenhada* sobre a tela em vez de *pousada* nela.
+ *
+ * A receita usada em toda a área logada, e repetida aqui num lugar só:
+ *   1. borda hairline escura, não cinza — assenta na paleta da marca;
+ *   2. duas sombras — uma de contato, curtinha, e uma longa e difusa que
+ *      dá a altura;
+ *   3. canto 2xl, que combina com o herói e com os cards de curso.
+ */
+export const SUPERFICIE =
+  'rounded-2xl bg-white border border-brand-950/[0.07] shadow-[0_1px_2px_rgba(5,38,29,0.04),0_10px_24px_-20px_rgba(5,38,29,0.14)]'
+
+/** Levantar no hover: só para cartões clicáveis. */
+export const SUPERFICIE_HOVER =
+  'transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1 hover:border-brand-700/[0.16] hover:shadow-[0_2px_4px_rgba(5,38,29,0.04),0_26px_44px_-22px_rgba(9,64,47,0.34)]'
+
 export function Card({
   children,
   className = '',
   padding = true,
+  elevar = false,
 }: {
   children: ReactNode
   className?: string
   padding?: boolean
+  /** Levanta no hover — use quando o cartão inteiro for clicável. */
+  elevar?: boolean
 }) {
   return (
     <div
-      className={`rounded-xl bg-white ring-1 ring-brand-950/[0.07] ${padding ? 'p-5' : ''} ${className}`}
+      className={`${SUPERFICIE} ${elevar ? SUPERFICIE_HOVER : ''} ${padding ? 'p-5' : ''} ${className}`}
     >
       {children}
     </div>
@@ -94,15 +117,17 @@ export function CardTitulo({
   acao?: ReactNode
 }) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-3">
+    <div className="mb-4 flex items-center gap-3">
       <h2 className="flex items-center gap-2 font-display text-[15px] font-bold tracking-[-0.01em] text-gray-900">
         {icone && (
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 text-brand-700">
             <Icone nome={icone} className="h-3.5 w-3.5" />
           </span>
         )}
         {children}
       </h2>
+      {/* Fio que morre no vazio: fecha o título sem virar uma régua dura */}
+      <span className="h-px flex-1 bg-gradient-to-r from-brand-950/[0.08] to-transparent" />
       {acao}
     </div>
   )
@@ -233,8 +258,8 @@ export function EstadoVazio({
   acao?: ReactNode
 }) {
   return (
-    <div className="rounded-xl bg-white ring-1 ring-brand-950/[0.07] px-6 py-14 text-center">
-      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100/70 text-brand-600">
+    <div className={`${SUPERFICIE} px-6 py-14 text-center`}>
+      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50 to-brand-100/70 text-brand-700">
         <Icone nome={icone} className="h-6 w-6" />
       </div>
       <p className="font-display text-[15px] font-bold text-gray-900">{titulo}</p>
@@ -262,8 +287,10 @@ export function Indicador({
   destaque?: boolean
 }) {
   return (
-    <div className="rounded-xl bg-white p-4 ring-1 ring-brand-950/[0.07] transition-shadow duration-300 hover:shadow-card">
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+    <div className={`${SUPERFICIE} group relative overflow-hidden p-4 ${SUPERFICIE_HOVER}`}>
+      {/* Fio dourado no topo, mesma assinatura dos cards de curso */}
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-accent-500/50 via-accent-500/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 text-brand-700 transition-colors duration-300 group-hover:border-brand-700 group-hover:bg-brand-700 group-hover:text-white">
         <Icone nome={icone} className="h-[17px] w-[17px]" />
       </div>
       <div className="font-display text-[22px] font-bold tracking-[-0.02em] text-gray-900 tabular-nums">
