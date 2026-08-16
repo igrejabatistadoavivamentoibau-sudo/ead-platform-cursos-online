@@ -17,6 +17,13 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Mesma armadilha do cliente administrativo: sem `no-store`, o Next
+      // guarda a resposta do banco e a tela passa a mostrar dados velhos.
+      // Ver a explicação completa em lib/supabase/admin.ts.
+      global: {
+        fetch: (url: RequestInfo | URL, options?: RequestInit) =>
+          fetch(url, { ...options, cache: 'no-store' }),
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll()

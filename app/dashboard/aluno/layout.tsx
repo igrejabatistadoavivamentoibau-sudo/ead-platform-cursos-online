@@ -1,5 +1,6 @@
 import { exigirSessao } from '@/lib/auth'
 import PortalNav, { type ItemNav } from '@/components/Dashboard/PortalNav'
+import Lumi from '@/components/Lumi'
 
 const links: ItemNav[] = [
   { href: '/dashboard/aluno', label: 'Início', icone: 'LayoutDashboard', exact: true },
@@ -24,6 +25,7 @@ export default async function AlunoLayout({ children }: { children: React.ReactN
         links={links}
       />
       <main className="flex-1 min-w-0">{children}</main>
+      <Lumi />
     </div>
   )
 }

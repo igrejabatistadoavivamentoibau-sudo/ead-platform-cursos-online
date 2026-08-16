@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { exigirSessao } from '@/lib/auth'
 import PortalNav, { type ItemNav } from '@/components/Dashboard/PortalNav'
+import Lumi from '@/components/Lumi'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const sessao = await exigirSessao()
@@ -19,6 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/dashboard/admin/usuarios', label: 'Usuários', icone: 'Users2', grupo: 'Pessoas' },
     { href: '/dashboard/admin/permissoes', label: 'Permissões', icone: 'ShieldCheck', grupo: 'Pessoas' },
 
+    { href: '/dashboard/admin/lumi', label: 'LUMI', icone: 'Sparkles', grupo: 'Site' },
     { href: '/dashboard/admin/carrossel', label: 'Fotos da capa', icone: 'Images', grupo: 'Site' },
     { href: '/dashboard/professor', label: 'Ver como professor', icone: 'Presentation', grupo: 'Site' },
   ]
@@ -33,6 +35,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         links={links}
       />
       <main className="flex-1 min-w-0">{children}</main>
+      <Lumi />
     </div>
   )
 }

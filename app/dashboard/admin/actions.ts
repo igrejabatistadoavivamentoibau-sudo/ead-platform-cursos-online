@@ -982,3 +982,62 @@ export async function removerCampoInscricao(campoId: string) {
   revalidatePath('/inscricao/aluno')
   revalidatePath('/inscricao/professor')
 }
+
+// ============ LUMI — NOVIDADES ============
+
+export async function criarNovidade(input: {
+  titulo: string
+  descricao?: string
+  tipo: 'novidade' | 'melhoria' | 'correcao' | 'aviso'
+  publico: 'todos' | 'aluno' | 'professor' | 'admin'
+}) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const titulo = input.titulo?.trim()
+  if (!titulo) throw new Error('Escreva o título da novidade.')
+
+  const { error } = await admin.from('novidades').insert({
+    titulo,
+    descricao: input.descricao?.trim() || null,
+    tipo: input.tipo,
+    publico: input.publico,
+    publicada: true,
+  })
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/lumi')
+}
+
+export async function alternarNovidade(id: string, publicada: boolean) {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const { error } = await admin.from('novidades').update({ publicada }).eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/lumi')
+}
+
+export async function removerNovidade(id: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const { error } = await admin.from('novidades').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/lumi')
+}
+
+/**
+ * Reapresenta a saudação de hoje para todo mundo.
+ *
+ * Serve para quando a novidade é escrita DEPOIS que as pessoas já entraram:
+ * sem isso, elas só veriam o aviso amanhã. Limpar o marcador do dia faz a
+ * LUMI saudar de novo no próximo carregamento.
+ */
+export async function reenviarSaudacaoDeHoje() {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('lumi_leitura')
+    .update({ ultima_saudacao: null })
+    .not('user_id', 'is', null)
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/lumi')
+}

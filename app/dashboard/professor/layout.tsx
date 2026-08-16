@@ -1,5 +1,6 @@
 import { exigirSessao } from '@/lib/auth'
 import PortalNav, { type ItemNav } from '@/components/Dashboard/PortalNav'
+import Lumi from '@/components/Lumi'
 
 export default async function ProfessorLayout({ children }: { children: React.ReactNode }) {
   const sessao = await exigirSessao()
@@ -29,6 +30,7 @@ export default async function ProfessorLayout({ children }: { children: React.Re
         links={links}
       />
       <main className="flex-1 min-w-0">{children}</main>
+      <Lumi />
     </div>
   )
 }
