@@ -2,17 +2,46 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient as createSessionClient } from '@/lib/supabase/server'
-import { PERCENTUAL_CONCLUSAO } from '@/lib/video'
+import { PERCENTUAL_CONCLUSAO, COBERTURA_MINIMA } from '@/lib/video'
+
+/** O que o player mediu de verdade nesta aula. */
+export interface MedicaoDoVideo {
+  /** Segundos distintos do vídeo que passaram pela tela. Pular não conta. */
+  segundosAssistidos: number
+  /** Duração total do vídeo, lida pelo player. */
+  duracao: number
+}
 
 /**
  * Registra quanto o aluno já assistiu de uma aula e marca como concluída
  * ao passar do limite.
  *
+ * A REGRA QUE MUDOU
+ * Antes bastava o percentual, e o percentual vinha de "onde está a agulha
+ * ÷ duração". Arrastar a barrinha até o fim dava aula concluída e presença
+ * sem a pessoa ter assistido nada. Agora quem manda é o TEMPO ASSISTIDO:
+ * os segundos do vídeo que realmente passaram pela tela.
+ *
+ * E há duas conferências aqui no servidor, para o caso de alguém tentar
+ * falar direto com ele em vez de usar o player:
+ *
+ *   1. tempo assistido precisa cobrir 90% da duração;
+ *   2. precisa ter passado tempo de relógio suficiente desde a primeira
+ *      vez que a aula foi aberta — pelo menos metade da duração do vídeo.
+ *      Ninguém assiste 40 minutos em 30 segundos.
+ *
+ * A duração fica gravada na primeira medição e nunca diminui depois, então
+ * também não adianta declarar um vídeo curtinho para baixar a régua.
+ *
  * Usa o cliente de sessão (não o de administrador) de propósito: assim as
  * regras do banco garantem que ninguém consiga gravar progresso no nome de
  * outra pessoa, nem em aula de turma na qual não está matriculado.
  */
-export async function registrarProgresso(aulaId: string, percentual: number) {
+export async function registrarProgresso(
+  aulaId: string,
+  percentual: number,
+  medicao?: MedicaoDoVideo
+) {
   const supabase = await createSessionClient()
 
   const {
@@ -22,7 +51,6 @@ export async function registrarProgresso(aulaId: string, percentual: number) {
   if (!user) throw new Error('Não autenticado.')
 
   const limitado = Math.max(0, Math.min(100, Math.round(percentual)))
-  const concluida = limitado >= PERCENTUAL_CONCLUSAO
 
   // Confere se a aula é mesmo de uma turma onde a pessoa está matriculada.
   // A política do banco já bloquearia, mas errar cedo dá mensagem melhor.
@@ -33,14 +61,27 @@ export async function registrarProgresso(aulaId: string, percentual: number) {
   // (se a pessoa reabrir o vídeo do início, não perde o que já assistiu).
   const { data: atual } = await supabase
     .from('aula_progresso')
-    .select('percentual, concluida, concluida_em')
+    .select('percentual, concluida, concluida_em, segundos_assistidos, duracao_segundos, iniciado_em')
     .eq('aula_id', aulaId)
     .eq('aluno_id', user.id)
     .maybeSingle()
 
   const percentualFinal = Math.max(limitado, Number(atual?.percentual ?? 0))
   const jaConcluida = atual?.concluida === true
-  const concluidaFinal = jaConcluida || concluida
+
+  const segundosFinal = Math.max(
+    Math.round(medicao?.segundosAssistidos ?? 0),
+    Number(atual?.segundos_assistidos ?? 0)
+  )
+  // A duração vale a maior já vista: assim uma medição menor (falsa ou de
+  // um carregamento incompleto) não afrouxa a régua de conclusão.
+  const duracaoFinal = Math.max(
+    Math.round(medicao?.duracao ?? 0),
+    Number(atual?.duracao_segundos ?? 0)
+  )
+  const iniciadoEm = atual?.iniciado_em ?? new Date().toISOString()
+
+  const concluidaFinal = jaConcluida || podeConcluir(percentualFinal, segundosFinal, duracaoFinal, iniciadoEm)
 
   const { error } = await supabase.from('aula_progresso').upsert(
     {
@@ -48,6 +89,9 @@ export async function registrarProgresso(aulaId: string, percentual: number) {
       aluno_id: user.id,
       percentual: percentualFinal,
       concluida: concluidaFinal,
+      segundos_assistidos: segundosFinal,
+      duracao_segundos: duracaoFinal > 0 ? duracaoFinal : null,
+      iniciado_em: iniciadoEm,
       concluida_em: concluidaFinal
         ? (atual?.concluida_em ?? new Date().toISOString())
         : null,
@@ -66,6 +110,37 @@ export async function registrarProgresso(aulaId: string, percentual: number) {
   }
 
   return { concluida: concluidaFinal, percentual: percentualFinal }
+}
+
+/**
+ * A decisão de dar (ou não) a aula por concluída.
+ *
+ * Separada em função própria porque é a regra mais delicada da plataforma:
+ * dela sai a presença do aluno, e presença é documento.
+ *
+ * Vídeos que a plataforma não consegue medir (Google Drive, Vimeo) chegam
+ * aqui sem duração. Nesses casos a conclusão continua sendo declarada pelo
+ * próprio aluno, pelo botão — não há como conferir, e fingir que há seria
+ * pior do que assumir.
+ */
+function podeConcluir(
+  percentual: number,
+  segundosAssistidos: number,
+  duracao: number,
+  iniciadoEm: string
+): boolean {
+  if (duracao <= 0) {
+    // Sem medição possível: vale a declaração do aluno.
+    return percentual >= PERCENTUAL_CONCLUSAO
+  }
+
+  const cobriuOVideo = segundosAssistidos >= duracao * (COBERTURA_MINIMA / 100)
+  if (!cobriuOVideo) return false
+
+  // Tempo de relógio: assistir 40 minutos leva, no mínimo, uns 20 (dá para
+  // acelerar o vídeo, não dá para dobrar o tempo).
+  const decorrido = (Date.now() - new Date(iniciadoEm).getTime()) / 1000
+  return decorrido >= duracao * 0.5
 }
 
 // ==================== RESUMO DA AULA ====================

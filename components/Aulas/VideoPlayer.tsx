@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CheckCircle2, VideoOff, Loader2, Eye } from 'lucide-react'
-import { analisarVideo, marcaProgressoSozinho, PERCENTUAL_CONCLUSAO } from '@/lib/video'
+import { CheckCircle2, VideoOff, Eye, ShieldCheck } from 'lucide-react'
+import { analisarVideo, marcaProgressoSozinho, COBERTURA_MINIMA } from '@/lib/video'
+import { CadernoDoVideo } from '@/lib/assistido'
 import { registrarProgresso } from '@/app/dashboard/aluno/actions'
+import PlayerYouTube from '@/components/Aulas/PlayerYouTube'
 
 interface Props {
   aulaId: string
@@ -13,34 +15,11 @@ interface Props {
   /**
    * Modo pré-visualização (admin/professor testando a experiência do aluno).
    * O vídeo toca normalmente, mas nada é gravado: nem progresso, nem selo
-   * de conclusão. Assim o teste não suja os dados de ninguém.
+   * de conclusão. Assim o teste não suja os dados de ninguém — e a trava de
+   * avanço fica desligada, porque o professor precisa poder pular para
+   * conferir um trecho específico.
    */
   somenteLeitura?: boolean
-}
-
-/* A API de iframe do YouTube é carregada sob demanda e uma única vez. */
-let promessaYT: Promise<void> | null = null
-function carregarApiYouTube(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if ((window as any).YT?.Player) return Promise.resolve()
-
-  if (!promessaYT) {
-    promessaYT = new Promise<void>((resolve) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const anterior = (window as any).onYouTubeIframeAPIReady
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(window as any).onYouTubeIframeAPIReady = () => {
-        if (typeof anterior === 'function') anterior()
-        resolve()
-      }
-      const script = document.createElement('script')
-      script.src = 'https://www.youtube.com/iframe_api'
-      script.async = true
-      document.head.appendChild(script)
-    })
-  }
-  return promessaYT
 }
 
 export default function VideoPlayer({
@@ -55,33 +34,47 @@ export default function VideoPlayer({
   const [percentual, setPercentual] = useState(percentualInicial)
   const [salvando, setSalvando] = useState(false)
   const [falhouVideo, setFalhouVideo] = useState(false)
-  const [carregandoPlayer, setCarregandoPlayer] = useState(info.tipo === 'youtube')
 
-  const containerRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
   const ultimoEnviadoRef = useRef(percentualInicial)
   const concluidaRef = useRef(concluidaInicial)
+  const restauradoRef = useRef(false)
+
+  /**
+   * O caderno de presença do vídeo.
+   *
+   * É ele que responde "quanto foi assistido de verdade". Vive numa ref
+   * porque atravessa renderizações inteiras: se fosse estado, cada troca de
+   * tela zeraria a contagem no meio da aula.
+   */
+  const [caderno] = useState(() => new CadernoDoVideo())
+
+  const duracaoRef = useRef(0)
 
   /* Envia progresso, mas sem inundar o servidor: só a cada 10 pontos
      percentuais, ou imediatamente quando a aula é concluída. */
   const enviarProgresso = useCallback(
     async (pct: number, forcar = false) => {
-      // Em pré-visualização apenas acompanhamos na tela, sem gravar nada.
+        // Em pré-visualização apenas acompanhamos na tela, sem gravar nada.
       if (somenteLeitura) {
         setPercentual((atual) => Math.max(atual, Math.round(pct)))
         return
       }
 
       const arredondado = Math.round(pct)
-      const virouConcluida = arredondado >= PERCENTUAL_CONCLUSAO && !concluidaRef.current
+      const virouConcluida = arredondado >= COBERTURA_MINIMA && !concluidaRef.current
 
       if (!forcar && !virouConcluida && arredondado - ultimoEnviadoRef.current < 10) return
-      if (arredondado <= ultimoEnviadoRef.current && !virouConcluida) return
+      if (arredondado <= ultimoEnviadoRef.current && !virouConcluida && !forcar) return
 
-      ultimoEnviadoRef.current = arredondado
+      ultimoEnviadoRef.current = Math.max(ultimoEnviadoRef.current, arredondado)
       if (virouConcluida) setSalvando(true)
 
       try {
-        const r = await registrarProgresso(aulaId, arredondado)
+        const r = await registrarProgresso(aulaId, arredondado, {
+          segundosAssistidos: caderno.segundos,
+          duracao: duracaoRef.current,
+        })
         if (r.concluida) {
           concluidaRef.current = true
           setConcluida(true)
@@ -94,63 +87,76 @@ export default function VideoPlayer({
         setSalvando(false)
       }
     },
-    [aulaId, somenteLeitura]
+    [aulaId, somenteLeitura, caderno]
   )
 
-  /* ---------- YouTube ---------- */
-  useEffect(() => {
-    if (info.tipo !== 'youtube' || !info.id || !containerRef.current) return
-
-    let player: { destroy?: () => void; getCurrentTime?: () => number; getDuration?: () => number } | null = null
-    let timer: ReturnType<typeof setInterval> | null = null
-    let cancelado = false
-
-    carregarApiYouTube().then(() => {
-      if (cancelado || !containerRef.current) return
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const YT = (window as any).YT
-
-      player = new YT.Player(containerRef.current, {
-        videoId: info.id,
-        playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
-        events: {
-          onReady: () => setCarregandoPlayer(false),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onStateChange: (e: any) => {
-            // 1 = tocando, 0 = terminou
-            if (e.data === 1 && !timer) {
-              timer = setInterval(() => {
-                const atual = player?.getCurrentTime?.() ?? 0
-                const total = player?.getDuration?.() ?? 0
-                if (total > 0) enviarProgresso((atual / total) * 100)
-              }, 3000)
-            }
-            if (e.data !== 1 && timer) {
-              clearInterval(timer)
-              timer = null
-            }
-            if (e.data === 0) enviarProgresso(100, true)
-          },
-        },
-      })
-    })
-
-    return () => {
-      cancelado = true
-      if (timer) clearInterval(timer)
-      player?.destroy?.()
+  /**
+   * Cada segundo de vídeo que passa pela tela é anotado no caderno.
+   *
+   * Repare que o percentual NÃO sai daqui da posição da agulha: sai da
+   * contagem do caderno. É essa troca que faz o pulo deixar de valer
+   * presença.
+   */
+  /**
+   * Devolve ao caderno o trecho que a pessoa já tinha assistido antes.
+   *
+   * Sem isto ela começaria do zero toda vez que reabrisse a aula — e, com a
+   * trava de avanço ligada, ficaria presa no início de um vídeo que já
+   * assistiu pela metade.
+   *
+   * O banco guarda só QUANTO foi assistido, não QUAIS trechos. Então o
+   * caderno reconstrói o mais provável e o mais generoso: um bloco contínuo
+   * desde o começo. Na prática é o que acontece — as pessoas assistem em
+   * ordem.
+   */
+  const restaurar = useCallback((duracao: number) => {
+    if (restauradoRef.current || duracao <= 0) return
+    restauradoRef.current = true
+    duracaoRef.current = duracao
+    if (percentualInicial > 0) {
+      caderno.restaurar((percentualInicial / 100) * duracao)
     }
-  }, [info.tipo, info.id, enviarProgresso])
+  }, [percentualInicial, caderno])
+
+  const aoRodar = useCallback((posicao: number, duracao: number) => {
+    duracaoRef.current = duracao
+    restaurar(duracao)
+
+    caderno.marcar(posicao)
+    const pct = caderno.percentual(duracao)
+    setPercentual((atual) => Math.max(atual, Math.round(pct)))
+    enviarProgresso(pct)
+  }, [enviarProgresso, restaurar, caderno])
+
+  const aoParar = useCallback(() => caderno.pausar(), [caderno])
+
+  const limiteDeAvanco = useCallback(() => caderno.limiteDeAvanco, [caderno])
+
+  /* Ao sair da aula, salva o que foi assistido — mesmo que não tenha
+     batido o próximo marco de 10%. Sem isto, quem assiste 8 minutos e
+     fecha a aba perde os 8 minutos. */
+  useEffect(() => {
+    return () => {
+      if (somenteLeitura || duracaoRef.current <= 0) return
+      const pct = caderno.percentual(duracaoRef.current)
+      if (Math.round(pct) > ultimoEnviadoRef.current) {
+        registrarProgresso(aulaId, Math.round(pct), {
+          segundosAssistidos: caderno.segundos,
+          duracao: duracaoRef.current,
+        }).catch(() => {})
+      }
+    }
+  }, [aulaId, somenteLeitura, caderno])
 
   /* ---------- Sem vídeo cadastrado ---------- */
   if (!videoUrl || info.tipo === 'desconhecido') {
     return (
-      <div className="aspect-video w-full rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 ring-1 ring-gray-200 flex flex-col items-center justify-center gap-3 text-center px-6">
+      <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 px-6 text-center ring-1 ring-gray-200">
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-gray-400 shadow-soft">
           <VideoOff className="h-7 w-7" strokeWidth={1.75} />
         </span>
-        <p className="text-gray-600 font-medium">Vídeo ainda não disponível</p>
-        <p className="text-sm text-gray-500 max-w-sm">
+        <p className="font-medium text-gray-600">Vídeo ainda não disponível</p>
+        <p className="max-w-sm text-sm text-gray-500">
           {videoUrl
             ? 'O link cadastrado não foi reconhecido. O caminho mais simples é o YouTube como "não listado".'
             : 'Assim que o professor adicionar o vídeo, ele aparece aqui.'}
@@ -161,72 +167,84 @@ export default function VideoPlayer({
 
   return (
     <div className="space-y-3">
-      <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-brand-950 shadow-float">
-        {info.tipo === 'youtube' && (
-          <>
-            {carregandoPlayer && (
-              <div className="absolute inset-0 flex items-center justify-center text-white/70">
-                <Loader2 className="h-7 w-7 animate-spin" strokeWidth={2} />
-              </div>
-            )}
-            <div ref={containerRef} className="h-full w-full" />
-          </>
-        )}
+      {/* ---------- YouTube: player da casa, sem o YouTube em volta ---------- */}
+      {info.tipo === 'youtube' && info.id && (
+        <PlayerYouTube
+          videoId={info.id}
+          limiteDeAvanco={limiteDeAvanco}
+          aoRodar={aoRodar}
+          aoPronto={restaurar}
+          aoParar={aoParar}
+          livre={somenteLeitura || concluidaInicial}
+        />
+      )}
 
-        {(info.tipo === 'vimeo' || info.tipo === 'drive' || info.iframe) && (
-          <iframe
-            src={info.embed}
-            className="h-full w-full"
-            allow="autoplay; fullscreen; picture-in-picture"
-            allowFullScreen
-            title="Vídeo da aula"
-          />
-        )}
+      {info.tipo !== 'youtube' && (
+        <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-brand-950 shadow-float">
+          {(info.tipo === 'vimeo' || info.tipo === 'drive' || info.iframe) && (
+            <iframe
+              src={info.embed}
+              className="h-full w-full"
+              allow="autoplay; fullscreen; picture-in-picture"
+              allowFullScreen
+              title="Vídeo da aula"
+            />
+          )}
 
-        {(info.tipo === 'arquivo' || info.tipo === 'onedrive') && !info.iframe && !falhouVideo && (
-          <video
-            src={info.embed ?? info.url}
-            controls
-            controlsList="nodownload"
-            className="h-full w-full"
-            onTimeUpdate={(e) => {
-              const v = e.currentTarget
-              if (v.duration > 0) enviarProgresso((v.currentTime / v.duration) * 100)
-            }}
-            onEnded={() => enviarProgresso(100, true)}
-            onError={() => setFalhouVideo(true)}
-          />
-        )}
+          {(info.tipo === 'arquivo' || info.tipo === 'onedrive') && !info.iframe && !falhouVideo && (
+            <video
+              ref={videoRef}
+              src={info.embed ?? info.url}
+              controls
+              controlsList="nodownload noplaybackrate"
+              disablePictureInPicture
+              className="h-full w-full"
+              onTimeUpdate={(e) => {
+                const v = e.currentTarget
+                if (v.paused || v.duration <= 0) return
+                aoRodar(v.currentTime, v.duration)
+              }}
+              onPause={aoParar}
+              onSeeking={(e) => {
+                // Mesma regra do player do YouTube: voltar é livre, adiantar
+                // só até onde já foi assistido.
+                if (somenteLeitura || concluidaInicial) return
+                const v = e.currentTarget
+                const limite = caderno.limiteDeAvanco
+                if (v.currentTime > limite + 2) v.currentTime = Math.max(0, limite)
+              }}
+              onError={() => setFalhouVideo(true)}
+            />
+          )}
 
-        {/* O link do OneDrive só toca se o arquivo estiver compartilhado
-            publicamente. Quando não está, o navegador não diz o motivo —
-            então explicamos aqui, em vez de deixar uma tela preta. */}
-        {falhouVideo && (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center">
-            <VideoOff className="h-7 w-7 text-white/50" strokeWidth={1.75} />
-            <p className="text-[14px] font-semibold text-white">Não consegui abrir este vídeo</p>
-            <p className="max-w-sm text-[12.5px] leading-relaxed text-white/60">
-              {info.tipo === 'onedrive'
-                ? 'O OneDrive exige login da Microsoft para exibir vídeo — nenhum link dele abre para os alunos. Peça ao professor para subir a gravação no YouTube como "não listado" e mandar o link.'
-                : 'O endereço do vídeo não respondeu. Confira se o link continua válido.'}
-            </p>
-          </div>
-        )}
-      </div>
+          {/* O link do OneDrive só toca se o arquivo estiver compartilhado
+              publicamente. Quando não está, o navegador não diz o motivo —
+              então explicamos aqui, em vez de deixar uma tela preta. */}
+          {falhouVideo && (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center">
+              <VideoOff className="h-7 w-7 text-white/50" strokeWidth={1.75} />
+              <p className="text-[14px] font-semibold text-white">Não consegui abrir este vídeo</p>
+              <p className="max-w-sm text-[12.5px] leading-relaxed text-white/60">
+                {info.tipo === 'onedrive'
+                  ? 'O OneDrive exige login da Microsoft para exibir vídeo — nenhum link dele abre para os alunos. Peça ao professor para subir a gravação no YouTube como "não listado" e mandar o link.'
+                  : 'O endereço do vídeo não respondeu. Confira se o link continua válido.'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Selo de conclusão + barra de progresso */}
       {somenteLeitura ? (
-        <div className="rounded-xl bg-amber-50 ring-1 ring-amber-200 px-4 py-3">
-          <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="font-semibold text-amber-800 inline-flex items-center gap-1.5">
+        <div className="rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
+          <div className="mb-1.5 flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-amber-800">
               <Eye className="h-3.5 w-3.5" strokeWidth={2.25} />
               Pré-visualização — seu progresso não é salvo
             </span>
-            <span className="font-bold text-amber-800 tabular-nums">
-              {Math.round(percentual)}%
-            </span>
+            <span className="font-bold tabular-nums text-amber-800">{Math.round(percentual)}%</span>
           </div>
-          <div className="h-1.5 rounded-full bg-amber-200/60 overflow-hidden">
+          <div className="h-1.5 overflow-hidden rounded-full bg-amber-200/60">
             <div
               className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-[width] duration-700"
               style={{ width: `${percentual}%` }}
@@ -234,7 +252,7 @@ export default function VideoPlayer({
           </div>
         </div>
       ) : concluida ? (
-        <div className="flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-brand-50 to-brand-100/60 ring-1 ring-brand-200 px-4 py-3 animate-float-in">
+        <div className="flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-brand-50 to-brand-100/60 px-4 py-3 ring-1 ring-brand-200 animate-float-in">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white shadow-glow">
             <CheckCircle2 className="h-5 w-5" strokeWidth={2.25} />
           </span>
@@ -246,29 +264,35 @@ export default function VideoPlayer({
           </div>
         </div>
       ) : (
-        <div className="rounded-xl bg-gray-50 ring-1 ring-gray-200 px-4 py-3">
-          <div className="flex items-center justify-between text-xs mb-1.5">
+        <div className="rounded-xl bg-gray-50 px-4 py-3 ring-1 ring-gray-200">
+          <div className="mb-1.5 flex items-center justify-between text-xs">
             <span className="font-medium text-gray-600">
-              {salvando ? 'Registrando...' : 'Seu progresso nesta aula'}
+              {salvando ? 'Registrando...' : 'Tempo de aula assistido'}
             </span>
-            <span className="font-bold text-gray-700 tabular-nums">{Math.round(percentual)}%</span>
+            <span className="font-bold tabular-nums text-gray-700">{Math.round(percentual)}%</span>
           </div>
-          <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
+          <div className="h-1.5 overflow-hidden rounded-full bg-gray-200">
             <div
               className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-600 transition-[width] duration-700"
               style={{ width: `${percentual}%` }}
             />
           </div>
 
-          {/* Google Drive e Vimeo tocam dentro da plataforma, mas não deixam
-              ler o tempo do vídeo — então a conclusão fica na mão do aluno.
-              Sem este botão, uma aula hospedada no Drive nunca geraria
-              presença automática no EAD, e o aluno ficaria sem o selo. */}
-          {!marcaProgressoSozinho(info) && (
+          {marcaProgressoSozinho(info) ? (
+            <p className="mt-2.5 flex items-start gap-1.5 text-[11.5px] leading-snug text-gray-500">
+              <ShieldCheck className="mt-px h-3.5 w-3.5 shrink-0 text-brand-600" strokeWidth={2} />
+              A presença conta o tempo assistido de verdade. Adiantar o vídeo não avança esta
+              barra.
+            </p>
+          ) : (
+            /* Google Drive e Vimeo tocam dentro da plataforma, mas não deixam
+               ler o tempo do vídeo — então a conclusão fica na mão do aluno.
+               Sem este botão, uma aula hospedada no Drive nunca geraria
+               presença automática no EAD, e o aluno ficaria sem o selo. */
             <div className="mt-3 border-t border-gray-200 pt-3">
               <p className="mb-2 text-[11.5px] leading-snug text-gray-500">
-                Este vídeo não consegue registrar seu avanço sozinho. Quando terminar de
-                assistir, confirme aqui para receber o selo e a presença.
+                Este vídeo não consegue registrar seu avanço sozinho. Quando terminar de assistir,
+                confirme aqui para receber o selo e a presença.
               </p>
               <button
                 type="button"

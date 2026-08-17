@@ -149,6 +149,19 @@ export function miniaturaDoVideo(url: string | null | undefined): string | null 
 /** Percentual a partir do qual consideramos a aula assistida por completo. */
 export const PERCENTUAL_CONCLUSAO = 95
 
+/**
+ * Quanto do vídeo precisa ter passado pela tela, de verdade, para valer
+ * presença — nos casos em que a plataforma consegue medir o tempo.
+ *
+ * É um pouco mais folgado que o percentual acima, de propósito. A contagem
+ * é feita segundo a segundo pelo navegador, e um engasgo de rede ou uma
+ * troca de aba podem deixar dois ou três segundos sem marcar. Exigir 95%
+ * cravados puniria quem assistiu a aula inteira por uma falha que não é
+ * dela. Noventa por cento é impossível de alcançar pulando, e tranquilo de
+ * alcançar assistindo.
+ */
+export const COBERTURA_MINIMA = 90
+
 /** URL pública de um vídeo enviado direto para a plataforma. */
 export function urlDoVideo(videoPath: string | null | undefined): string | null {
   if (!videoPath) return null
