@@ -117,6 +117,7 @@ export default function VisaoDoCurso({
             key={aulaAtual.id}
             aulaId={aulaAtual.id}
             videoUrl={urlDoVideo(aulaAtual.video_path) ?? aulaAtual.video_url}
+            titulo={aulaAtual.titulo}
             concluidaInicial={progressoAtual?.concluida ?? false}
             percentualInicial={progressoAtual?.percentual ?? 0}
             somenteLeitura={preview}

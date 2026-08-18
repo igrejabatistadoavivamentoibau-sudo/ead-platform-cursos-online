@@ -12,6 +12,8 @@ interface Props {
   videoUrl: string | null
   concluidaInicial: boolean
   percentualInicial: number
+  /** Título da aula — aparece na capa do player, no lugar do do YouTube. */
+  titulo?: string
   /**
    * Modo pré-visualização (admin/professor testando a experiência do aluno).
    * O vídeo toca normalmente, mas nada é gravado: nem progresso, nem selo
@@ -27,6 +29,7 @@ export default function VideoPlayer({
   videoUrl,
   concluidaInicial,
   percentualInicial,
+  titulo,
   somenteLeitura = false,
 }: Props) {
   const info = analisarVideo(videoUrl)
@@ -55,7 +58,7 @@ export default function VideoPlayer({
      percentuais, ou imediatamente quando a aula é concluída. */
   const enviarProgresso = useCallback(
     async (pct: number, forcar = false) => {
-        // Em pré-visualização apenas acompanhamos na tela, sem gravar nada.
+      // Em pré-visualização apenas acompanhamos na tela, sem gravar nada.
       if (somenteLeitura) {
         setPercentual((atual) => Math.max(atual, Math.round(pct)))
         return
@@ -91,13 +94,6 @@ export default function VideoPlayer({
   )
 
   /**
-   * Cada segundo de vídeo que passa pela tela é anotado no caderno.
-   *
-   * Repare que o percentual NÃO sai daqui da posição da agulha: sai da
-   * contagem do caderno. É essa troca que faz o pulo deixar de valer
-   * presença.
-   */
-  /**
    * Devolve ao caderno o trecho que a pessoa já tinha assistido antes.
    *
    * Sem isto ela começaria do zero toda vez que reabrisse a aula — e, com a
@@ -118,6 +114,12 @@ export default function VideoPlayer({
     }
   }, [percentualInicial, caderno])
 
+  /**
+   * Cada segundo de vídeo que passa pela tela é anotado no caderno.
+   *
+   * Repare que o percentual NÃO sai da posição da agulha: sai da contagem
+   * do caderno. É essa troca que faz o pulo deixar de valer presença.
+   */
   const aoRodar = useCallback((posicao: number, duracao: number) => {
     duracaoRef.current = duracao
     restaurar(duracao)
@@ -127,6 +129,19 @@ export default function VideoPlayer({
     setPercentual((atual) => Math.max(atual, Math.round(pct)))
     enviarProgresso(pct)
   }, [enviarProgresso, restaurar, caderno])
+
+  /**
+   * A reprodução começou (ou recomeçou depois de uma pausa). Avisar o ponto
+   * exato de partida é o que fecha o buraco do primeiro segundo — sem isso o
+   * limite de avanço não saía do zero e o vídeo voltava sozinho.
+   */
+  const aoIniciar = useCallback(
+    (posicao: number) => {
+      restaurar(duracaoRef.current)
+      caderno.iniciar(posicao)
+    },
+    [caderno, restaurar]
+  )
 
   const aoParar = useCallback(() => caderno.pausar(), [caderno])
 
@@ -174,7 +189,9 @@ export default function VideoPlayer({
           limiteDeAvanco={limiteDeAvanco}
           aoRodar={aoRodar}
           aoPronto={restaurar}
+          aoIniciar={aoIniciar}
           aoParar={aoParar}
+          titulo={titulo}
           livre={somenteLeitura || concluidaInicial}
         />
       )}
@@ -204,6 +221,7 @@ export default function VideoPlayer({
                 if (v.paused || v.duration <= 0) return
                 aoRodar(v.currentTime, v.duration)
               }}
+              onPlay={(e) => aoIniciar(e.currentTarget.currentTime)}
               onPause={aoParar}
               onSeeking={(e) => {
                 // Mesma regra do player do YouTube: voltar é livre, adiantar

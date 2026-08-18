@@ -13,18 +13,28 @@ import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Lock, Loader2 } from
    aula, e mistura a formação com o que quer que o YouTube resolva sugerir
    depois.
 
-   COMO SE RESOLVE
+   COMO SE RESOLVE — quatro camadas, e as quatro são necessárias
    1. O vídeo sobe com os controles do YouTube DESLIGADOS (`controls: 0`).
-      Sem controles, ele não desenha barra, nem título, nem botão nenhum.
-   2. Uma camada transparente cobre o quadro inteiro. Nada que esteja por
-      baixo pode ser clicado — nem um logo que apareça em algum estado que
-      não previmos. Essa camada é o nosso play/pause.
-   3. A barra de controle abaixo é nossa, com a cara da plataforma.
+      Isso tira a barra dele, e faz com que nada apareça enquanto o vídeo
+      está rodando.
+   2. Uma CAPA OPACA cobre o quadro sempre que o vídeo NÃO está rodando.
+      Foi o que faltou na primeira tentativa: `controls: 0` não impede o
+      YouTube de desenhar, no estado parado, a foto e o nome do canal, o
+      título, o botão de copiar link e o "Assistir no YouTube". Não existe
+      parâmetro que desligue isso — a única saída é não deixar esse estado
+      ser visto. Opaca, e não semitransparente: cortina fina só deixaria a
+      marca do YouTube mais fraquinha.
+   3. Uma camada transparente sobre o vídeo intercepta todo clique e todo
+      movimento do mouse. Serve para duas coisas: nada por baixo pode ser
+      clicado, e o player nunca "sente" o mouse — o que impede a chrome de
+      passar o mouse por cima de aparecer durante a reprodução.
    4. O vídeo é pausado uma fração de segundo ANTES do fim. O YouTube só
       monta a grade de sugestões quando chega ao estado "terminou" — e ele
       nunca chega.
-   5. O endereço usado é o youtube-nocookie.com, que não instala rastreio
-      no navegador do aluno enquanto ele assiste.
+
+   Ainda: as legendas são descarregadas na mão (ver `desligarLegendas`), e o
+   endereço usado é o youtube-nocookie.com, que não instala rastreio no
+   navegador do aluno enquanto ele assiste.
 
    A TRAVA DE AVANÇO
    A barra só deixa clicar até onde o aluno já assistiu. Voltar é livre.
@@ -58,6 +68,27 @@ function carregarApiYouTube(): Promise<void> {
   return promessaYT
 }
 
+const ESTADO = { TERMINOU: 0, TOCANDO: 1, PAUSADO: 2, BUFFERANDO: 3 }
+
+/**
+ * Desliga as legendas.
+ *
+ * `cc_load_policy: 0` só diz "não force a legenda"; ele não desliga a que
+ * já veio ligada — seja porque o vídeo tem legenda padrão, seja porque a
+ * conta do YouTube da pessoa pede legenda sempre. O jeito de desligar de
+ * verdade é descarregar o módulo de legendas do player. São dois nomes
+ * porque o player usa um ou outro conforme a versão que carregou.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function desligarLegendas(player: any) {
+  try {
+    player?.unloadModule?.('captions')
+    player?.unloadModule?.('cc')
+  } catch {
+    // Player ainda engatinhando: tentamos de novo quando o vídeo começar.
+  }
+}
+
 function relogio(segundos: number) {
   if (!Number.isFinite(segundos) || segundos < 0) return '0:00'
   const h = Math.floor(segundos / 3600)
@@ -78,12 +109,16 @@ export interface PlayerYouTubeProps {
   aoRodar: (posicao: number, duracao: number) => void
   /** Chamado assim que a duração do vídeo é conhecida, antes de tocar. */
   aoPronto?: (duracao: number) => void
+  /** Chamado quando a reprodução começa, com o ponto exato de partida. */
+  aoIniciar?: (posicao: number) => void
   /** Chamado quando a reprodução para (pausa, buffer ou fim). */
   aoParar?: () => void
   /** Chamado quando o vídeo chega ao fim. */
   aoTerminar?: () => void
   /** Sem trava de avanço (pré-visualização do professor). */
   livre?: boolean
+  /** Título da aula, mostrado na capa. É o nosso, não o do YouTube. */
+  titulo?: string
 }
 
 export default function PlayerYouTube({
@@ -91,9 +126,11 @@ export default function PlayerYouTube({
   limiteDeAvanco,
   aoRodar,
   aoPronto,
+  aoIniciar,
   aoParar,
   aoTerminar,
   livre = false,
+  titulo,
 }: PlayerYouTubeProps) {
   const caixaRef = useRef<HTMLDivElement>(null)
   const alvoRef = useRef<HTMLDivElement>(null)
@@ -102,6 +139,8 @@ export default function PlayerYouTube({
 
   const [pronto, setPronto] = useState(false)
   const [tocando, setTocando] = useState(false)
+  const [bufferando, setBufferando] = useState(false)
+  const [comecou, setComecou] = useState(false)
   const [mudo, setMudo] = useState(false)
   const [posicao, setPosicao] = useState(0)
   const [duracao, setDuracao] = useState(0)
@@ -113,6 +152,7 @@ export default function PlayerYouTube({
   // é criado UMA vez. Recriá-lo a cada renderização faria o vídeo recomeçar.
   const aoRodarRef = useRef(aoRodar)
   const aoProntoRef = useRef(aoPronto)
+  const aoIniciarRef = useRef(aoIniciar)
   const aoPararRef = useRef(aoParar)
   const aoTerminarRef = useRef(aoTerminar)
   const limiteRef = useRef(limiteDeAvanco)
@@ -124,6 +164,7 @@ export default function PlayerYouTube({
   useEffect(() => {
     aoRodarRef.current = aoRodar
     aoProntoRef.current = aoPronto
+    aoIniciarRef.current = aoIniciar
     aoPararRef.current = aoParar
     aoTerminarRef.current = aoTerminar
     limiteRef.current = limiteDeAvanco
@@ -164,6 +205,7 @@ export default function PlayerYouTube({
           onReady: () => {
             if (cancelado) return
             setPronto(true)
+            desligarLegendas(playerRef.current)
             const total = playerRef.current?.getDuration?.() ?? 0
             setDuracao(total)
             // Avisa a duração antes de tocar: é com ela que o caderno
@@ -173,19 +215,28 @@ export default function PlayerYouTube({
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onStateChange: (e: any) => {
-            const ESTADO = { TERMINOU: 0, TOCANDO: 1, PAUSADO: 2 }
+            const p = playerRef.current
 
             if (e.data === ESTADO.TOCANDO) {
               setTocando(true)
+              setBufferando(false)
+              setComecou(true)
               setTerminou(false)
-              setDuracao(playerRef.current?.getDuration?.() ?? 0)
+              setDuracao(p?.getDuration?.() ?? 0)
+              // Algumas legendas só entram depois que o vídeo começa.
+              desligarLegendas(p)
+
+              // Avisa em que ponto a reprodução COMEÇOU. Sem isso o segundo
+              // inicial ficava sem marcação e o limite de avanço não saía do
+              // lugar — era o que fazia o vídeo voltar sozinho.
+              aoIniciarRef.current?.(p?.getCurrentTime?.() ?? 0)
 
               parar()
               timer = setInterval(() => {
-                const p = playerRef.current
-                if (!p?.getCurrentTime) return
-                const atual = p.getCurrentTime()
-                const total = p.getDuration?.() ?? 0
+                const player = playerRef.current
+                if (!player?.getCurrentTime) return
+                const atual = player.getCurrentTime()
+                const total = player.getDuration?.() ?? 0
                 setPosicao(atual)
                 if (total > 0) setDuracao(total)
 
@@ -194,8 +245,8 @@ export default function PlayerYouTube({
                 // ela volta. (A barra já impede, mas isto cobre o resto.)
                 if (!livreRef.current) {
                   const limite = limiteRef.current()
-                  if (atual > limite + 5) {
-                    p.seekTo?.(Math.max(0, limite), true)
+                  if (atual > limite + 8) {
+                    player.seekTo?.(Math.max(0, limite - 1), true)
                     setAvisoTrava(true)
                     return
                   }
@@ -206,20 +257,31 @@ export default function PlayerYouTube({
                 // Pausa antes do fim: o YouTube só monta a grade de
                 // sugestões quando o vídeo "termina" de verdade.
                 if (total > 0 && atual >= total - 0.4) {
-                  p.pauseVideo?.()
+                  player.pauseVideo?.()
                   setTerminou(true)
                   setPosicao(total)
                   aoTerminarRef.current?.()
                 }
               }, 1000)
-            } else {
-              setTocando(false)
-              parar()
+              return
+            }
+
+            // Buffer NÃO é pausa: o vídeo continua no ar, só engasgou. Tratar
+            // como pausa fazia a capa piscar por cima do vídeo a cada
+            // travadinha de rede.
+            if (e.data === ESTADO.BUFFERANDO) {
+              setBufferando(true)
               aoPararRef.current?.()
-              if (e.data === ESTADO.TERMINOU) {
-                setTerminou(true)
-                aoTerminarRef.current?.()
-              }
+              return
+            }
+
+            setTocando(false)
+            setBufferando(false)
+            parar()
+            aoPararRef.current?.()
+            if (e.data === ESTADO.TERMINOU) {
+              setTerminou(true)
+              aoTerminarRef.current?.()
             }
           },
         },
@@ -320,30 +382,65 @@ export default function PlayerYouTube({
           className="absolute inset-0 z-10 h-full w-full cursor-pointer bg-transparent"
         />
 
-        {!pronto && (
-          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-black">
-            <Loader2 className="h-7 w-7 animate-spin text-white/60" strokeWidth={2} />
+        {/* ===================================================
+            A CAPA
+
+            Aqui está a correção que faltava. Desligar os controles do
+            YouTube (`controls: 0`) tira a barra dele, mas NÃO tira o que
+            ele desenha quando o vídeo está parado: a foto e o nome do
+            canal, o título, o botão de copiar link e o "Assistir no
+            YouTube". Isso aparece antes de começar e toda vez que a
+            pessoa pausa — e nenhum parâmetro de configuração desliga.
+
+            A saída é simples e definitiva: enquanto o vídeo não está
+            rodando, ele não é visto. Uma capa OPACA — não uma cortina
+            semitransparente, que só deixaria a marca do YouTube mais
+            fraquinha — cobre o quadro inteiro. Some no instante em que a
+            reprodução começa, e volta quando pausa.
+
+            Enquanto ROLA, o YouTube não desenha nada por conta própria:
+            a chrome dele só aparece quando o player recebe o mouse, e a
+            camada transparente acima intercepta todos os eventos antes.
+            =================================================== */}
+        {(!pronto || !tocando) && (
+          <div
+            data-capa=""
+            className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-[linear-gradient(150deg,#08130f,#0b1f18_55%,#0a2a20)] px-6 text-center"
+          >
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(520px_260px_at_50%_-20%,rgba(212,162,76,0.10),transparent_62%)]" />
+
+            {!pronto ? (
+              <Loader2 className="relative h-7 w-7 animate-spin text-white/50" strokeWidth={2} />
+            ) : (
+              <div className="relative">
+                <span className="mx-auto grid h-[72px] w-[72px] place-items-center rounded-full border border-white/20 bg-white/[0.07] text-white backdrop-blur-md">
+                  <Play className="ml-1 h-7 w-7 fill-current" strokeWidth={0} />
+                </span>
+
+                {titulo && (
+                  <p className="mx-auto mt-4 max-w-md font-display text-[15px] font-bold leading-snug tracking-[-0.01em] text-white/90">
+                    {titulo}
+                  </p>
+                )}
+
+                <p className="micro-rotulo mt-2 text-[10px] font-bold tracking-[0.16em] text-accent-300/70">
+                  {terminou
+                    ? 'FIM DA AULA — CLIQUE PARA REVER'
+                    : comecou
+                      ? 'AULA PAUSADA — CLIQUE PARA CONTINUAR'
+                      : 'ESCOLA DE LÍDERES IBAU'}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Botão central: aparece parado e some tocando. */}
-        {pronto && !tocando && (
-          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center">
-            <span className="grid h-[68px] w-[68px] place-items-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-md">
-              <Play className="ml-1 h-7 w-7 fill-current" strokeWidth={0} />
-            </span>
-          </div>
-        )}
-
-        {/* Fim da aula — a nossa tela final, no lugar da grade de sugestões. */}
-        {terminou && (
-          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-gradient-to-b from-black/70 to-black/85 px-6 text-center">
-            <div>
-              <p className="font-display text-[17px] font-bold text-white">Fim da aula</p>
-              <p className="mt-1 text-[12.5px] text-white/60">
-                Clique no vídeo para assistir de novo.
-              </p>
-            </div>
+        {/* Engasgo de rede: o vídeo continua no ar, então a capa não entra —
+            só um giro discreto no canto, para a pessoa saber que é a
+            conexão e não a plataforma. */}
+        {bufferando && tocando && (
+          <div className="pointer-events-none absolute right-3 top-3 z-20">
+            <Loader2 className="h-5 w-5 animate-spin text-white/70" strokeWidth={2.2} />
           </div>
         )}
 

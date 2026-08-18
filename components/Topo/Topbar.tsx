@@ -74,7 +74,15 @@ export default function Topbar({
     ) : null
 
   return (
-    <div className="sticky top-0 z-40 hidden items-center gap-2.5 border-b border-brand-950/[0.07] bg-white/70 px-7 py-2.5 backdrop-blur-xl md:flex">
+    /* A barra é OPACA de propósito.
+       A primeira versão usava vidro (branco translúcido + desfoque). Ficava
+       bonita parada, mas o desfoque de fundo em elemento fixo tem um defeito
+       conhecido nos navegadores: ao trocar de página, ele às vezes continua
+       exibindo um pedaço do que estava desenhado ali antes. Na prática
+       aparecia uma mancha verde escura atravessando o topo — o resto do
+       herói da tela anterior. Fundo sólido não tem o que borrar, e o
+       problema simplesmente não existe. */
+    <div className="sticky top-0 z-40 hidden items-center gap-2.5 border-b border-brand-950/[0.07] bg-white px-7 py-2.5 shadow-[0_1px_2px_rgba(5,38,29,0.04)] md:flex">
       <div className="min-w-0">
         <p className="text-[10.5px] font-medium tracking-wide text-gray-400">{portal}</p>
         <p className="truncate font-display text-[14.5px] font-bold tracking-[-0.015em] text-gray-900">

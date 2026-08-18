@@ -35,6 +35,23 @@ export class CadernoDoVideo {
     this.TOLERANCIA = toleranciaSegundos
   }
 
+  /**
+   * A reprodução COMEÇOU nesta posição.
+   *
+   * Precisa existir, e a falta dela causou um defeito feio: a primeira
+   * leitura só acontece um segundo depois do play, então o segundo zero
+   * nunca era marcado. O caderno ficava com um buraco no começo que jamais
+   * fechava — e, como o limite de avanço era "o fim do trecho contínuo", ele
+   * ficava travado em zero. A rede de segurança então via a agulha longe do
+   * limite e puxava o vídeo de volta, sem parar: era o vídeo repetindo
+   * sozinho o mesmo trecho.
+   */
+  iniciar(posicao: number) {
+    const atual = Math.floor(Math.max(0, posicao))
+    this.vistos.add(atual)
+    this.ultimaPosicao = atual
+  }
+
   /** Avisa que a agulha está em `posicao` e o vídeo está rodando. */
   marcar(posicao: number) {
     const atual = Math.floor(Math.max(0, posicao))
@@ -71,16 +88,23 @@ export class CadernoDoVideo {
   }
 
   /**
-   * Até onde a pessoa pode adiantar o vídeo.
+   * Até onde a pessoa pode adiantar o vídeo: o ponto mais adiantado que ela
+   * já alcançou assistindo.
    *
-   * É o fim do primeiro trecho contínuo já assistido. Voltar é livre;
-   * pular para frente só até onde ela já chegou. Sem isso, a trava de
-   * contagem existiria mas a barra continuaria convidando ao pulo.
+   * A primeira versão usava "o fim do primeiro trecho SEM buracos", e isso
+   * era frágil demais: bastava um único segundo perdido — uma trocada de
+   * aba, um engasgo de rede — para o limite congelar ali e a pessoa ficar
+   * presa no minuto 3 de um vídeo que já tinha assistido até o 20.
+   *
+   * O ponto mais adiantado é seguro justamente porque só se marca segundo
+   * assistindo: para o limite avançar, o vídeo precisou rodar até lá. E os
+   * buracos continuam custando caro onde importa — no percentual, que é
+   * quem decide a presença.
    */
   get limiteDeAvanco() {
-    let s = 0
-    while (this.vistos.has(s)) s++
-    return s
+    let maior = -1
+    for (const s of this.vistos) if (s > maior) maior = s
+    return maior + 1
   }
 
   /** Recupera o que já havia sido assistido em sessões anteriores. */
