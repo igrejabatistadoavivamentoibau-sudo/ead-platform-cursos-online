@@ -32,9 +32,18 @@ import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Lock, Loader2 } from
       monta a grade de sugestões quando chega ao estado "terminou" — e ele
       nunca chega.
 
-   Ainda: as legendas são descarregadas na mão (ver `desligarLegendas`), e o
-   endereço usado é o youtube-nocookie.com, que não instala rastreio no
-   navegador do aluno enquanto ele assiste.
+   Ainda: as legendas são descarregadas na mão (ver `desligarLegendas`).
+
+   O PLAY QUE NÃO PEGAVA
+   O navegador não deixa um vídeo começar sozinho COM SOM. E o nosso clique
+   acontece na página, não dentro do quadro do vídeo — o comando chega lá
+   como mensagem, não como toque, e às vezes é recusado. O resultado era o
+   pior possível: clicar no play e não acontecer nada.
+   A saída é a que todo player sério usa: começar sem som (isso o navegador
+   sempre permite) e devolver o som no instante em que a reprodução pega.
+   Se ainda assim nada acontecer em três segundos, a gente sai da frente e
+   entrega o controle do YouTube ao aluno, com um aviso claro — nunca um
+   beco sem saída.
 
    A TRAVA DE AVANÇO
    A barra só deixa clicar até onde o aluno já assistiu. Voltar é livre.
@@ -156,6 +165,15 @@ export default function PlayerYouTube({
   const [telaCheia, setTelaCheia] = useState(false)
   const [terminou, setTerminou] = useState(false)
   const [avisoTrava, setAvisoTrava] = useState(false)
+  /* Quando o navegador recusa o comando de tocar, saímos da frente: a
+     camada que isola o YouTube é retirada para o aluno poder usar o play
+     do próprio YouTube. É feio, e é infinitamente melhor que um vídeo que
+     não toca. */
+  const [socorro, setSocorro] = useState(false)
+  const [semSom, setSemSom] = useState(false)
+  const vigiaRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Tiramos o som só para conseguir começar? Então temos de devolvê-lo. */
+  const mudoParaComecarRef = useRef(false)
 
   // Guardadas em ref para o efeito de montagem não depender delas: o player
   // é criado UMA vez. Recriá-lo a cada renderização faria o vídeo recomeçar.
@@ -199,7 +217,14 @@ export default function PlayerYouTube({
 
       playerRef.current = new YT.Player(alvoRef.current, {
         videoId,
-        host: 'https://www.youtube-nocookie.com',
+        /* O endereço "sem cookie" foi RETIRADO daqui.
+           Ele parecia um ganho de privacidade barato, mas o comando de
+           tocar viaja por mensagem entre a nossa página e o quadro do
+           vídeo — e essa mensagem carrega a origem de quem envia. Com o
+           quadro num endereço e a biblioteca em outro, a checagem de
+           origem passa a recusar comandos em parte dos navegadores: o
+           vídeo aparece e o play não faz nada. Foi exatamente o defeito
+           relatado. Player que funciona vale mais que o cookie a menos. */
         playerVars: {
           controls: 0, // sem a barra do YouTube
           modestbranding: 1,
@@ -209,6 +234,8 @@ export default function PlayerYouTube({
           fs: 0, // a tela cheia é a nossa
           playsinline: 1,
           cc_load_policy: 0,
+          enablejsapi: 1,
+          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
         },
         events: {
           onReady: () => {
@@ -231,6 +258,21 @@ export default function PlayerYouTube({
               setBufferando(false)
               setComecou(true)
               setTerminou(false)
+              setSocorro(false)
+
+              // Pegou. Cancela o vigia e devolve o som que tiramos para
+              // conseguir começar.
+              if (vigiaRef.current) {
+                clearTimeout(vigiaRef.current)
+                vigiaRef.current = null
+              }
+              if (mudoParaComecarRef.current) {
+                mudoParaComecarRef.current = false
+                p?.unMute?.()
+                // Se o navegador insistir em manter no mudo, avisamos em
+                // vez de deixar o aluno assistindo sem áudio sem entender.
+                setTimeout(() => setSemSom(Boolean(playerRef.current?.isMuted?.())), 400)
+              }
               setDuracao(p?.getDuration?.() ?? 0)
               // Algumas legendas só entram depois que o vídeo começa.
               desligarLegendas(p)
@@ -300,10 +342,39 @@ export default function PlayerYouTube({
     return () => {
       cancelado = true
       parar()
+      if (vigiaRef.current) clearTimeout(vigiaRef.current)
       playerRef.current?.destroy?.()
       playerRef.current = null
     }
   }, [videoId])
+
+  /**
+   * Manda tocar — e fica de olho se pegou.
+   *
+   * Começar SEM SOM é o que garante a partida: essa é a única forma que o
+   * navegador nunca recusa. O som volta assim que a reprodução começa (ver
+   * o tratamento do estado TOCANDO). O vigia é o seguro do seguro: se em
+   * três segundos nada aconteceu, saímos da frente e deixamos o aluno usar
+   * o play do próprio YouTube, com um aviso explicando.
+   */
+  const mandarTocar = useCallback(() => {
+    const p = playerRef.current
+    if (!p) return
+
+    if (!p.isMuted?.()) {
+      mudoParaComecarRef.current = true
+      p.mute?.()
+    }
+    p.playVideo?.()
+
+    if (vigiaRef.current) clearTimeout(vigiaRef.current)
+    vigiaRef.current = setTimeout(() => {
+      const estado = playerRef.current?.getPlayerState?.()
+      // 1 = tocando, 3 = carregando. Qualquer outra coisa aqui significa
+      // que o comando não pegou.
+      if (estado !== 1 && estado !== 3) setSocorro(true)
+    }, 3000)
+  }, [])
 
   /* ---------------- Controle para quem está de fora ---------------- */
   useEffect(() => {
@@ -315,10 +386,10 @@ export default function PlayerYouTube({
         p.seekTo(Math.max(0, segundos), true)
         setPosicao(segundos)
         setTerminou(false)
-        p.playVideo?.()
+        mandarTocar()
       },
     })
-  }, [aoMontar])
+  }, [aoMontar, mandarTocar])
 
   /* ---------------- Tela cheia ---------------- */
   useEffect(() => {
@@ -334,18 +405,19 @@ export default function PlayerYouTube({
   }, [avisoTrava])
 
   /* ---------------- Comandos ---------------- */
+
   const alternarPlay = useCallback(() => {
     const p = playerRef.current
     if (!p) return
     if (terminou) {
       p.seekTo?.(0, true)
       setTerminou(false)
-      p.playVideo?.()
+      mandarTocar()
       return
     }
     if (tocando) p.pauseVideo?.()
-    else p.playVideo?.()
-  }, [tocando, terminou])
+    else mandarTocar()
+  }, [tocando, terminou, mandarTocar])
 
   const alternarMudo = () => {
     const p = playerRef.current
@@ -399,12 +471,14 @@ export default function PlayerYouTube({
         {/* A camada que isola o vídeo do YouTube em volta dele.
             Tudo o que está por baixo fica inclicável — e um clique aqui é
             simplesmente dar play ou pausa, como em qualquer player. */}
-        <button
-          type="button"
-          onClick={alternarPlay}
-          aria-label={tocando ? 'Pausar' : 'Reproduzir'}
-          className="absolute inset-0 z-10 h-full w-full cursor-pointer bg-transparent"
-        />
+        {!socorro && (
+          <button
+            type="button"
+            onClick={alternarPlay}
+            aria-label={tocando ? 'Pausar' : 'Reproduzir'}
+            className="absolute inset-0 z-10 h-full w-full cursor-pointer bg-transparent"
+          />
+        )}
 
         {/* ===================================================
             A CAPA
@@ -426,7 +500,7 @@ export default function PlayerYouTube({
             a chrome dele só aparece quando o player recebe o mouse, e a
             camada transparente acima intercepta todos os eventos antes.
             =================================================== */}
-        {(!pronto || !tocando) && (
+        {(!pronto || !tocando) && !socorro && (
           <div
             data-capa=""
             className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-[linear-gradient(150deg,#08130f,#0b1f18_55%,#0a2a20)] px-6 text-center"
@@ -465,6 +539,41 @@ export default function PlayerYouTube({
         {bufferando && tocando && (
           <div className="pointer-events-none absolute right-3 top-3 z-20">
             <Loader2 className="h-5 w-5 animate-spin text-white/70" strokeWidth={2.2} />
+          </div>
+        )}
+
+        {/* SOCORRO: o navegador recusou o comando de tocar.
+            Em vez de deixar o aluno diante de um vídeo que não anda, saímos
+            da frente — a camada de isolamento é retirada e ele usa o play
+            do próprio YouTube. Perdemos o capricho naquele momento e
+            salvamos a aula, que é o que importa. */}
+        {socorro && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-3">
+            <span className="flex items-center gap-2 rounded-full border border-white/15 bg-black/80 px-3.5 py-2 text-center text-[11.5px] font-semibold text-white backdrop-blur-md">
+              <Play className="h-3 w-3 fill-current" strokeWidth={0} />
+              Seu navegador pediu para você tocar o vídeo — clique no play do
+              quadro acima.
+            </span>
+          </div>
+        )}
+
+        {/* O som ficou mudo por decisão do navegador e não conseguimos
+            devolver sozinhos. Avisar é obrigatório: aluno assistindo aula
+            sem áudio sem saber por quê é pior que qualquer erro. */}
+        {semSom && tocando && (
+          <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-3">
+            <button
+              type="button"
+              onClick={() => {
+                playerRef.current?.unMute?.()
+                setMudo(false)
+                setSemSom(false)
+              }}
+              className="flex items-center gap-2 rounded-full border border-accent-400/40 bg-black/80 px-3.5 py-2 text-[11.5px] font-bold text-white backdrop-blur-md transition-colors hover:bg-black"
+            >
+              <VolumeX className="h-3.5 w-3.5 text-accent-300" strokeWidth={2.2} />
+              O vídeo começou sem som — clique para ativar
+            </button>
           </div>
         )}
 
