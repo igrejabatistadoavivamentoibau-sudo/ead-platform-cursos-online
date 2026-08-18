@@ -4,7 +4,15 @@ import Lumi from '@/components/Lumi'
 import TopbarLigada from '@/components/Topo'
 import { portalDoPapel } from '@/lib/navegacao'
 
-export default async function AlunoLayout({ children }: { children: React.ReactNode }) {
+/**
+ * A Bíblia é a única tela da plataforma que pertence aos três portais.
+ *
+ * Em vez de existir uma cópia dela dentro de cada um — três telas para
+ * manter, três chances de divergirem —, ela mora aqui fora e monta o menu
+ * de quem entrou. O aluno vê a barra do aluno, o professor a dele, o admin
+ * a dele. A Palavra é a mesma; a moldura é a da casa de cada um.
+ */
+export default async function BibliaLayout({ children }: { children: React.ReactNode }) {
   const sessao = await exigirSessao()
   const portal = portalDoPapel(sessao.role)
 

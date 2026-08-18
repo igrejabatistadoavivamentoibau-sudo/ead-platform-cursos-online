@@ -1,45 +1,45 @@
 import { exigirSessao } from '@/lib/auth'
-import PortalNav, { type ItemNav } from '@/components/Dashboard/PortalNav'
+import PortalNav from '@/components/Dashboard/PortalNav'
 import Lumi from '@/components/Lumi'
 import TopbarLigada from '@/components/Topo'
+import { portalDoPapel } from '@/lib/navegacao'
 
 export default async function ProfessorLayout({ children }: { children: React.ReactNode }) {
   const sessao = await exigirSessao()
+  const portal = portalDoPapel('professor')
 
-  // O menu mostra só o que esta pessoa realmente pode acessar.
-  const links: ItemNav[] = [
-    { href: '/dashboard/professor', label: 'Minhas turmas', icone: 'LayoutDashboard', exact: true },
-    { href: '/dashboard/professor/conversas', label: 'Conversas', icone: 'MessagesSquare', grupo: 'Comunicação' },
-    { href: '/dashboard/professor/notificacoes', label: 'Notificações', icone: 'Bell', grupo: 'Comunicação' },
-  ]
-
-  // Admin visitando a área de professor tem um caminho de volta explícito.
-  if (sessao.role === 'admin') {
-    links.push({
-      href: '/dashboard/admin',
-      label: 'Painel admin',
-      icone: 'ShieldCheck',
-      grupo: 'Administração',
-    })
-  }
+  // Admin visitando a área de professor tem um caminho de volta explícito —
+  // sem isso ele entra aqui e fica sem saída visível para o painel dele.
+  const ehAdmin = sessao.role === 'admin'
+  const links = ehAdmin
+    ? [
+        ...portal.links,
+        {
+          href: '/dashboard/admin',
+          label: 'Painel admin',
+          icone: 'ShieldCheck',
+          grupo: 'Administração',
+        },
+      ]
+    : portal.links
 
   return (
     <div className="min-h-screen bg-gray-50 md:flex">
       <PortalNav
         name={sessao.name}
-        titulo="Portal do Professor"
-        selo={sessao.role === 'admin' ? 'Admin · Professor' : 'Professor'}
-        cor="roxo"
+        titulo={portal.titulo}
+        selo={ehAdmin ? 'Admin · Professor' : portal.selo}
+        cor={portal.cor}
         links={links}
       />
       <main className="flex-1 min-w-0">
         <TopbarLigada
-          portal="Portal do Professor"
+          portal={portal.portal}
           nome={sessao.name}
-          papel={sessao.role === 'admin' ? 'Administrador' : 'Professor'}
+          papel={ehAdmin ? 'Administrador' : 'Professor'}
           userId={sessao.id}
-          notifHref="/dashboard/professor/notificacoes"
-          chatHref="/dashboard/professor/conversas"
+          notifHref={portal.notifHref}
+          chatHref={portal.chatHref}
         />
         {children}
       </main>

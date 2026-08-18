@@ -12,6 +12,10 @@ const PAPEIS_PERMITIDOS: { prefixo: string; papeis: string[] }[] = [
   { prefixo: '/dashboard/admin', papeis: ['admin'] },
   { prefixo: '/dashboard/professor', papeis: ['professor', 'admin'] },
   { prefixo: '/dashboard/aluno', papeis: ['aluno'] },
+  // A Bíblia é da casa inteira: aluno, professor e liderança leem a mesma,
+  // e cada um guarda os próprios grifos. Por isso ela mora fora dos portais,
+  // em vez de existir uma cópia em cada um deles.
+  { prefixo: '/dashboard/biblia', papeis: ['aluno', 'professor', 'admin'] },
 ]
 
 export async function middleware(request: NextRequest) {
