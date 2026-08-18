@@ -6,6 +6,7 @@ import { analisarVideo, marcaProgressoSozinho, COBERTURA_MINIMA } from '@/lib/vi
 import { CadernoDoVideo } from '@/lib/assistido'
 import { registrarProgresso } from '@/app/dashboard/aluno/actions'
 import PlayerYouTube from '@/components/Aulas/PlayerYouTube'
+import { abrirCanalDaAula, type CanalDaAula } from '@/lib/duasTelas'
 
 interface Props {
   aulaId: string
@@ -53,6 +54,42 @@ export default function VideoPlayer({
   const [caderno] = useState(() => new CadernoDoVideo())
 
   const duracaoRef = useRef(0)
+
+  /* ---------------- Conversa com o caderno ----------------
+     O caderno pode estar nesta mesma tela, embaixo do vídeo, ou numa janela
+     à parte no segundo monitor. Nos dois casos ele precisa de duas coisas:
+     saber em que minuto a aula está (para o botão "marcar o minuto"), e
+     poder pedir que o vídeo volte a um minuto anotado. */
+  const canalRef = useRef<CanalDaAula | null>(null)
+  const controleRef = useRef<{ irPara: (s: number) => void } | null>(null)
+
+  useEffect(() => {
+    const canal = abrirCanalDaAula(aulaId, (recado) => {
+      if (recado.tipo !== 'ir') return
+
+      // O pedido do caderno passa pela MESMA regra da barra: voltar é
+      // livre, adiantar só até onde a aula já foi assistida. Senão o
+      // caderno viraria a porta dos fundos da trava de presença.
+      const limite = caderno.limiteDeAvanco
+      const destino = recado.segundos
+      if (!somenteLeitura && !concluidaInicial && destino > limite + 1) {
+        canal.publicar({ tipo: 'travado', ate: limite })
+        return
+      }
+
+      controleRef.current?.irPara(destino)
+      const video = videoRef.current
+      if (video) {
+        video.currentTime = destino
+        video.play().catch(() => {})
+      }
+    })
+    canalRef.current = canal
+    return () => {
+      canal.fechar()
+      canalRef.current = null
+    }
+  }, [aulaId, caderno, somenteLeitura, concluidaInicial])
 
   /* Envia progresso, mas sem inundar o servidor: só a cada 10 pontos
      percentuais, ou imediatamente quando a aula é concluída. */
@@ -125,6 +162,8 @@ export default function VideoPlayer({
     restaurar(duracao)
 
     caderno.marcar(posicao)
+    // O caderno (aqui embaixo ou na outra janela) acompanha o minuto.
+    canalRef.current?.publicar({ tipo: 'tempo', segundos: Math.floor(posicao) })
     const pct = caderno.percentual(duracao)
     setPercentual((atual) => Math.max(atual, Math.round(pct)))
     enviarProgresso(pct)
@@ -191,6 +230,9 @@ export default function VideoPlayer({
           aoPronto={restaurar}
           aoIniciar={aoIniciar}
           aoParar={aoParar}
+          aoMontar={(controle) => {
+            controleRef.current = controle
+          }}
           titulo={titulo}
           livre={somenteLeitura || concluidaInicial}
         />

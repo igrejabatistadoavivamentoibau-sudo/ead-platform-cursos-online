@@ -226,3 +226,103 @@ h1, h2, h3, h4 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================
+   A FOLHA DO CADERNO
+
+   O texto que o aluno escreve durante a aula precisa parecer papel, não
+   formulário. Entrelinha generosa (quem relê anotação lê rápido, batendo o
+   olho), títulos que se destacam sem gritar, e citação com o fio dourado da
+   marca — que é como o versículo colado se apresenta.
+
+   A altura mínima existe por um motivo prático: folha curta demais faz o
+   editor "pular" enquanto se escreve as primeiras linhas.
+   ============================================================ */
+/* A folha não recebe o contorno de foco geral da plataforma: ali dentro
+   quem mostra onde a pessoa está é o cursor piscando, e uma moldura verde
+   em volta do texto inteiro enquanto se escreve fica horrível. */
+.caderno-folha:focus,
+.caderno-folha:focus-visible {
+  outline: none;
+}
+
+.caderno-folha {
+  min-height: 320px;
+  font-size: 15.5px;
+  line-height: 1.85;
+  color: #2b3634;
+}
+
+.caderno-folha > * + * { margin-top: 0.75rem; }
+
+.caderno-folha h2 {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #0f2d24;
+  margin-top: 1.6rem;
+}
+
+.caderno-folha h3 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: #2f4a41;
+  margin-top: 1.2rem;
+}
+
+.caderno-folha ul,
+.caderno-folha ol { padding-left: 1.35rem; }
+.caderno-folha ul { list-style: disc; }
+.caderno-folha ol { list-style: decimal; }
+.caderno-folha li { margin-top: 0.25rem; }
+.caderno-folha li::marker { color: #1fa06f; }
+
+.caderno-folha blockquote {
+  border-left: 3px solid rgba(212, 162, 76, 0.55);
+  background: #fdfaf2;
+  padding: 0.7rem 1rem;
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: #5b4a22;
+}
+
+.caderno-folha mark {
+  padding: 0.1em 0.15em;
+  border-radius: 0.2em;
+  background-color: #fdf3d0;
+}
+
+/* Texto de apoio da folha em branco. Some assim que a pessoa digita. */
+.caderno-folha p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: #b3bfbb;
+}
+
+/* A marca de minuto dentro do caderno. Ela tem cara de coisa clicável de
+   propósito: quem lê a anotação semanas depois precisa entender, sem
+   explicação, que aquele "▸ 12:34" leva o vídeo de volta àquele ponto. */
+.minuto-marcado {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  padding: 0.05em 0.45em;
+  border-radius: 0.4em;
+  border: 1px solid rgba(5, 38, 29, 0.1);
+  background: #f1f6f3;
+  color: #0f664a;
+  font-size: 0.82em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.minuto-marcado:hover {
+  background: #d6f5e3;
+  border-color: rgba(18, 128, 90, 0.35);
+}

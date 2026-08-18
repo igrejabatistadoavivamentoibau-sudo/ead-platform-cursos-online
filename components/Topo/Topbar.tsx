@@ -19,6 +19,9 @@ import { Bell, MessagesSquare } from 'lucide-react'
  *   duas barras empilhadas comeriam a tela.
  */
 const TITULOS: [RegExp, string][] = [
+  [/\/caderno\/janela/, 'Caderno'],
+  [/\/caderno\/.+/, 'Página do caderno'],
+  [/\/caderno/, 'Meu caderno'],
   [/\/biblia\/marcacoes/, 'Minhas marcações'],
   [/\/biblia\/busca/, 'Buscar na Bíblia'],
   [/\/biblia/, 'Bíblia de Estudos'],

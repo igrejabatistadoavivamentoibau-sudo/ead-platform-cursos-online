@@ -16,6 +16,9 @@ const PAPEIS_PERMITIDOS: { prefixo: string; papeis: string[] }[] = [
   // e cada um guarda os próprios grifos. Por isso ela mora fora dos portais,
   // em vez de existir uma cópia em cada um deles.
   { prefixo: '/dashboard/biblia', papeis: ['aluno', 'professor', 'admin'] },
+  // O caderno segue a mesma lógica da Bíblia: é de quem estuda, e todo
+  // mundo estuda.
+  { prefixo: '/dashboard/caderno', papeis: ['aluno', 'professor', 'admin'] },
 ]
 
 export async function middleware(request: NextRequest) {

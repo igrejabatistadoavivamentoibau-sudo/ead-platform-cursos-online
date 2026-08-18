@@ -115,6 +115,14 @@ export interface PlayerYouTubeProps {
   aoParar?: () => void
   /** Chamado quando o vídeo chega ao fim. */
   aoTerminar?: () => void
+  /**
+   * Entrega um controle do player para quem o montou.
+   *
+   * Existe por causa do caderno na segunda janela: quando o aluno clica num
+   * minuto que anotou, o pedido chega de fora e alguém precisa mandar o
+   * vídeo pular para lá.
+   */
+  aoMontar?: (controle: { irPara: (segundos: number) => void }) => void
   /** Sem trava de avanço (pré-visualização do professor). */
   livre?: boolean
   /** Título da aula, mostrado na capa. É o nosso, não o do YouTube. */
@@ -129,6 +137,7 @@ export default function PlayerYouTube({
   aoIniciar,
   aoParar,
   aoTerminar,
+  aoMontar,
   livre = false,
   titulo,
 }: PlayerYouTubeProps) {
@@ -295,6 +304,21 @@ export default function PlayerYouTube({
       playerRef.current = null
     }
   }, [videoId])
+
+  /* ---------------- Controle para quem está de fora ---------------- */
+  useEffect(() => {
+    if (!aoMontar) return
+    aoMontar({
+      irPara: (segundos: number) => {
+        const p = playerRef.current
+        if (!p?.seekTo) return
+        p.seekTo(Math.max(0, segundos), true)
+        setPosicao(segundos)
+        setTerminou(false)
+        p.playVideo?.()
+      },
+    })
+  }, [aoMontar])
 
   /* ---------------- Tela cheia ---------------- */
   useEffect(() => {

@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { CheckCircle2, Clock, Trophy, Lock, Video, EyeOff } from 'lucide-react'
 import VideoPlayer from '@/components/Aulas/VideoPlayer'
 import ResumoAula from '@/components/Aulas/ResumoAula'
+import CadernoDaAula from '@/components/Caderno/CadernoDaAula'
 import { corDoCurso, urlDaCapa, NIVEL_LABEL, type Curso } from '@/lib/cursos'
 import { urlDoVideo } from '@/lib/video'
 
@@ -140,6 +141,18 @@ export default function VisaoDoCurso({
               <p className="text-gray-500 mt-2 leading-relaxed">{aulaAtual.descricao}</p>
             )}
           </div>
+
+          {/* O caderno vem ANTES do resumo de propósito. São coisas
+              diferentes e a ordem ensina isso: primeiro a pessoa anota para
+              si mesma, enquanto assiste; depois, se quiser, escreve o
+              resumo que o professor vai ler. */}
+          <CadernoDaAula
+            key={`caderno-${aulaAtual.id}`}
+            aulaId={aulaAtual.id}
+            cursoId={curso.id}
+            tituloAula={aulaAtual.titulo}
+            desligado={preview}
+          />
 
           <ResumoAula
             key={aulaAtual.id}

@@ -35,6 +35,7 @@ const ALUNO: PerfilDePortal = {
 
     { href: '/dashboard/aluno/cursos', label: 'Meus cursos', icone: 'BookOpenText', grupo: 'Estudos' },
     { href: '/dashboard/biblia', label: 'Bíblia', icone: 'BookMarked', grupo: 'Estudos' },
+    { href: '/dashboard/caderno', label: 'Meu caderno', icone: 'NotebookPen', grupo: 'Estudos' },
     { href: '/dashboard/aluno/conversas', label: 'Conversas', icone: 'MessagesSquare', grupo: 'Estudos' },
     { href: '/dashboard/aluno/atividades', label: 'Minhas atividades', icone: 'FileText', grupo: 'Estudos' },
 
@@ -53,6 +54,7 @@ const PROFESSOR: PerfilDePortal = {
   links: [
     { href: '/dashboard/professor', label: 'Minhas turmas', icone: 'LayoutDashboard', exact: true },
     { href: '/dashboard/biblia', label: 'Bíblia', icone: 'BookMarked', grupo: 'Ensino' },
+    { href: '/dashboard/caderno', label: 'Meu caderno', icone: 'NotebookPen', grupo: 'Ensino' },
     { href: '/dashboard/professor/conversas', label: 'Conversas', icone: 'MessagesSquare', grupo: 'Comunicação' },
     { href: '/dashboard/professor/notificacoes', label: 'Notificações', icone: 'Bell', grupo: 'Comunicação' },
   ],
@@ -71,6 +73,7 @@ const ADMIN: PerfilDePortal = {
     { href: '/dashboard/admin/cursos', label: 'Cursos', icone: 'BookOpenText', grupo: 'Ensino' },
     { href: '/dashboard/admin/turmas', label: 'Turmas', icone: 'GraduationCap', grupo: 'Ensino' },
     { href: '/dashboard/biblia', label: 'Bíblia', icone: 'BookMarked', grupo: 'Ensino' },
+    { href: '/dashboard/caderno', label: 'Meu caderno', icone: 'NotebookPen', grupo: 'Ensino' },
 
     { href: '/dashboard/professor/conversas', label: 'Conversas', icone: 'MessagesSquare', grupo: 'Pessoas' },
     { href: '/dashboard/admin/notificacoes', label: 'Notificações', icone: 'Bell', grupo: 'Pessoas' },
