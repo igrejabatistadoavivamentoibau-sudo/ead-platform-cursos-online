@@ -326,3 +326,20 @@ h1, h2, h3, h4 {
   background: #d6f5e3;
   border-color: rgba(18, 128, 90, 0.35);
 }
+
+
+/* A LARGURA DA BARRA LATERAL ANTES DA HIDRATAÇÃO
+
+   O código no cabeçalho da página marca `data-nav-recolhida` no documento
+   quando o aluno deixou a barra recolhida. Esta regra aplica a largura
+   correta já no primeiro traço, sem esperar o React.
+
+   O seletor é mais específico que a classe do Tailwind de propósito: é ele
+   que tem de vencer até a hidratação acontecer. Depois disso o React assume
+   e os dois passam a dizer a mesma coisa.
+
+   Isto substituiu o remédio antigo — esconder a barra até o React acordar —
+   que deixava um vão branco na lateral em todo carregamento. */
+html[data-nav-recolhida='1'] aside[data-nav-lateral] {
+  width: 62px;
+}

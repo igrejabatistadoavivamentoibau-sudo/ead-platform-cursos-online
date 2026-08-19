@@ -21,7 +21,16 @@ import { Sparkles, RefreshCw, X } from 'lucide-react'
  * A versão desta página vem do servidor no momento em que ela é montada
  * (ver o layout), então é o retrato fiel do que o navegador carregou.
  */
-const INTERVALO_MS = 45 * 1000
+/**
+ * De quanto em quanto tempo a LUMI pergunta se saiu versão nova.
+ *
+ * Eram 45 segundos, e na prática isso significava a escola publicando uma
+ * atualização e ficando apertando F5 para ver se já entrou — que é
+ * exatamente o trabalho que a LUMI existe para poupar. Doze segundos é
+ * barato (a resposta é uma linha de texto) e faz o aviso chegar enquanto a
+ * pessoa ainda está olhando para a tela.
+ */
+const INTERVALO_MS = 12 * 1000
 
 /** Última versão que a LUMI já anunciou como "você chegou nela". */
 const CHAVE_ANUNCIADA = 'ibau:versao-anunciada'

@@ -59,6 +59,17 @@ export const GUARDIAO_DA_TELA = `
       window.location.replace(url.toString());
     }
 
+    // ---- 0. A largura da barra lateral, ANTES do primeiro traço ----
+    // A preferência de barra recolhida mora no navegador. Se ela só fosse
+    // lida depois que o React acorda, a barra nasceria larga e saltaria
+    // para estreita na frente do aluno. Marcando aqui, o estilo já desenha
+    // com a largura certa — e ninguém vê pulo nenhum.
+    try {
+      if (localStorage.getItem('ibau:sidebar-collapsed') === '1') {
+        document.documentElement.setAttribute('data-nav-recolhida', '1');
+      }
+    } catch (e) { /* sem armazenamento: nasce larga, que é o padrão */ }
+
     // ---- 1. Escuta as falhas de carregamento, desde o primeiro arquivo ----
     window.addEventListener('error', function (e) {
       var alvo = e && e.target;

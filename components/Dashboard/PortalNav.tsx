@@ -298,7 +298,6 @@ export default function PortalNav({
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [fechadas, setFechadas] = useState<string[]>([])
-  const [hydrated, setHydrated] = useState(false)
 
   const acento = ACENTO[cor]
 
@@ -324,7 +323,6 @@ export default function PortalNav({
     } catch {
       setFechadas([])
     }
-    setHydrated(true)
   }, [])
 
   const alternarRecolhida = () =>
@@ -409,10 +407,26 @@ export default function PortalNav({
       </div>
 
       {/* ===================== DESKTOP ===================== */}
+      {/* A BARRA NÃO SE ESCONDE MAIS ENQUANTO A PÁGINA CARREGA.
+
+          Antes ela nascia invisível (`opacity-0`) e só aparecia quando o
+          React acordava. A intenção era esconder o "pulo" de largura de
+          quem deixa a barra recolhida — mas o preço foi alto demais: em
+          TODO carregamento a lateral ficava um vão branco por um instante,
+          e depois de uma publicação, quando o código ainda não está no
+          navegador, esse instante estica e vira a tela quebrada que a
+          escola vê.
+
+          Agora quem resolve a largura antes do primeiro traço é o próprio
+          navegador: um pedacinho de código no cabeçalho da página lê a
+          preferência e marca no documento, e o estilo aplica a largura
+          certa de saída (ver lib/guardiaoDaTela.ts e a regra
+          `html[data-nav-recolhida]` no globals.css). Nada pisca, nada some. */}
       <aside
+        data-nav-lateral=""
         className={`sticky top-0 hidden h-screen shrink-0 flex-col bg-gradient-to-b from-brand-900 via-brand-950 to-brand-950 transition-[width] duration-300 ease-out md:flex ${
           collapsed ? 'w-[62px]' : 'w-[236px]'
-        } ${hydrated ? '' : 'md:opacity-0'}`}
+        }`}
       >
         {/* Fio de luz na borda direita: separa do conteúdo sem virar uma
             linha dura de 1px cinza atravessando a tela inteira. */}
