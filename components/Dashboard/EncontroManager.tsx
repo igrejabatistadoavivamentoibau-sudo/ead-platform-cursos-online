@@ -48,25 +48,38 @@ export default function EncontroManager({
     <div className="card-alive p-5 sm:p-6">
       <h2 className="font-semibold text-gray-900 mb-4">Encontros e lista de chamada</h2>
 
-      <form onSubmit={handleCriar} className="flex flex-col sm:flex-row gap-2 mb-5">
+      {/* POR QUE ESTE FORMULÁRIO ESCAPAVA DO CARTÃO
+
+          Numa linha flexível, cada campo se recusa a encolher abaixo do
+          próprio conteúdo — é o comportamento padrão. Somando o campo de
+          tema, o de data e o botão, a linha ficava mais larga que o cartão,
+          e o excesso simplesmente vazava para fora da borda. Não era o
+          botão "solto": era a linha inteira transbordando.
+
+          Duas correções, e as duas são necessárias:
+          - `min-w-0` no campo de tema: autoriza ele a encolher, que é o que
+            deve ceder espaço;
+          - `flex-wrap` na linha: se ainda assim não couber, o botão desce
+            para a linha de baixo DENTRO do cartão, em vez de sair por fora. */}
+      <form onSubmit={handleCriar} className="mb-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <input
           type="text"
           value={titulo}
           onChange={(e) => setTitulo(e.target.value)}
           placeholder="Tema do encontro (opcional)"
-          className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
+          className="min-w-0 flex-1 rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 sm:basis-[180px]"
         />
         <input
           type="date"
           required
           value={data}
           onChange={(e) => setData(e.target.value)}
-          className="px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
+          className="min-w-0 shrink-0 rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
         />
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex items-center justify-center gap-2 bg-brand-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-800 transition-colors disabled:opacity-50 whitespace-nowrap"
+          className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-50"
         >
           <CalendarPlus className="h-4 w-4" strokeWidth={2.25} />
           {isPending ? 'Criando...' : 'Novo encontro'}

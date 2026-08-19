@@ -20,9 +20,13 @@ import {
   BookMarked,
   Check,
   Loader2,
+  Save,
+  CloudOff,
+  RotateCcw,
 } from 'lucide-react'
 import { salvarPagina } from '@/app/dashboard/caderno/actions'
 import { abrirCanalDaAula, minutoLegivel, type CanalDaAula } from '@/lib/duasTelas'
+import { rascunhoLocal, tamanhoDoTexto } from '@/lib/rascunhoLocal'
 import SeletorVersiculo from '@/components/Caderno/SeletorVersiculo'
 import { MarcaDeMinuto } from '@/components/Caderno/MarcaDeMinuto'
 
@@ -105,14 +109,29 @@ export default function EditorCaderno({
   aulaId,
   compacto = false,
 }: EditorCadernoProps) {
-  const [estado, setEstado] = useState<'parado' | 'salvando' | 'salvo'>('parado')
+  const [estado, setEstado] = useState<'limpo' | 'escrevendo' | 'salvando' | 'salvo' | 'falhou'>(
+    'limpo'
+  )
+  const [salvoAs, setSalvoAs] = useState<string | null>(null)
   const [abrirVersiculo, setAbrirVersiculo] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const editorRef = useRef<any>(null)
   const [minutoDoVideo, setMinutoDoVideo] = useState<number | null>(null)
   const [avisoTrava, setAvisoTrava] = useState<string | null>(null)
+  const [recuperado, setRecuperado] = useState(false)
 
   const tituloRef = useRef(tituloInicial)
   const canalRef = useRef<CanalDaAula | null>(null)
   const relogioRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pendenteRef = useRef<any>(null)
+
+  /* O título pode ser trocado no campo de cima enquanto se escreve aqui.
+     Sem acompanhar essa troca, o caderno salvaria sempre o título ANTIGO e
+     desfaria a renomeação que a pessoa acabou de fazer. */
+  useEffect(() => {
+    tituloRef.current = tituloInicial
+  }, [tituloInicial])
 
   /* ---------------- Conversa com o player ---------------- */
   useEffect(() => {
@@ -147,6 +166,28 @@ export default function EditorCaderno({
       }),
     ],
     content: conteudoInicial,
+    /**
+     * A cópia que ficou no aparelho é mais nova que a do servidor?
+     *
+     * Acontece quando a internet caiu no meio da anotação. Em vez de abrir
+     * a folha do servidor (mais velha) e a pessoa achar que perdeu tudo, o
+     * caderno devolve o que ela escreveu e avisa que recuperou.
+     *
+     * Isto vive aqui, no nascimento do editor, e não num efeito: efeito que
+     * reescreve a folha depois de já ter desenhado faz o texto piscar.
+     */
+    onCreate: ({ editor }) => {
+      const guardado = rascunhoLocal.ler(paginaId)
+      if (!guardado) return
+      if (tamanhoDoTexto(guardado.doc) <= tamanhoDoTexto(conteudoInicial)) {
+        rascunhoLocal.limpar(paginaId)
+        return
+      }
+      editor.commands.setContent(guardado.doc, { emitUpdate: false })
+      pendenteRef.current = guardado.doc
+      setRecuperado(true)
+      void guardarAgora()
+    },
     editorProps: {
       attributes: {
         class: 'caderno-folha focus:outline-none',
@@ -165,32 +206,90 @@ export default function EditorCaderno({
       },
     },
     onUpdate: ({ editor }) => {
-      setEstado('salvando')
+      const doc = editor.getJSON()
+      pendenteRef.current = doc
+      rascunhoLocal.guardar(paginaId, doc)
+      setEstado('escrevendo')
+
       if (relogioRef.current) clearTimeout(relogioRef.current)
       // Dois segundos parado = fim da frase. Salvar a cada tecla encheria a
       // rede à toa; salvar só ao sair perderia a aula inteira num tombo.
-      relogioRef.current = setTimeout(async () => {
-        try {
-          await salvarPagina(paginaId, editor.getJSON(), tituloRef.current)
-          setEstado('salvo')
-        } catch {
-          setEstado('parado')
-        }
+      relogioRef.current = setTimeout(() => {
+        void guardarAgora()
       }, 2000)
     },
   })
 
-  /* Sair da página com algo por salvar não pode custar a anotação. */
+  /**
+   * Guarda o que está escrito. É o ÚNICO caminho de salvamento — o
+   * automático, o botão e o Ctrl+S passam todos por aqui, para não existir
+   * um jeito que funciona e outro que não.
+   */
+  const guardarAgora = useCallback(async () => {
+    const doc = pendenteRef.current ?? editorRef.current?.getJSON()
+    if (!doc) return
+    if (relogioRef.current) {
+      clearTimeout(relogioRef.current)
+      relogioRef.current = null
+    }
+    setEstado('salvando')
+    try {
+      await salvarPagina(paginaId, doc, tituloRef.current)
+      pendenteRef.current = null
+      // Só apagamos a cópia local DEPOIS que o servidor confirmou. Se a
+      // internet cair no meio, o rascunho continua no aparelho e volta na
+      // próxima vez que a pessoa abrir a página.
+      rascunhoLocal.limpar(paginaId)
+      setSalvoAs(
+        new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      )
+      setEstado('salvo')
+    } catch {
+      setEstado('falhou')
+    }
+  }, [paginaId])
+
   useEffect(() => {
-    const relogio = relogioRef
-    const titulo = tituloRef
+    editorRef.current = editor
+  }, [editor])
+
+  /* Sair da página, trocar de aba ou fechar o navegador com algo por salvar
+     não pode custar a anotação. `visibilitychange` é o único momento que o
+     navegador garante antes de descartar a página — inclusive no celular,
+     onde `beforeunload` muitas vezes nem chega a acontecer. */
+  useEffect(() => {
+    const aoEsconder = () => {
+      if (document.visibilityState === 'hidden' && pendenteRef.current) void guardarAgora()
+    }
+    document.addEventListener('visibilitychange', aoEsconder)
+    window.addEventListener('pagehide', aoEsconder)
     return () => {
-      if (relogio.current) clearTimeout(relogio.current)
-      if (editor && !editor.isDestroyed) {
-        salvarPagina(paginaId, editor.getJSON(), titulo.current).catch(() => {})
+      document.removeEventListener('visibilitychange', aoEsconder)
+      window.removeEventListener('pagehide', aoEsconder)
+    }
+  }, [guardarAgora])
+
+  /* Ctrl+S / Cmd+S — o reflexo de quem já usou qualquer editor na vida. */
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        void guardarAgora()
       }
     }
-  }, [editor, paginaId])
+    document.addEventListener('keydown', aoTeclar)
+    return () => document.removeEventListener('keydown', aoTeclar)
+  }, [guardarAgora])
+
+  useEffect(() => {
+    const relogio = relogioRef
+    return () => {
+      if (relogio.current) clearTimeout(relogio.current)
+      if (pendenteRef.current) {
+        salvarPagina(paginaId, pendenteRef.current, tituloRef.current).catch(() => {})
+      }
+    }
+  }, [paginaId])
 
   const marcarMinuto = useCallback(() => {
     if (!editor || minutoDoVideo === null) return
@@ -365,25 +464,63 @@ export default function EditorCaderno({
             Versículo
           </button>
 
-          {/* O aviso de salvamento é de propósito quase invisível: ele
-              tranquiliza quem procura, sem chamar a atenção de quem está
-              escrevendo. */}
-          <span className="ml-1 flex min-w-[58px] items-center gap-1 text-[10.5px] font-semibold">
-            {estado === 'salvando' && (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin text-gray-300" strokeWidth={2.4} />
-                <span className="text-gray-300">salvando</span>
-              </>
+          {/* O BOTÃO DE SALVAR
+
+              O caderno guarda sozinho — e mesmo assim o botão existe.
+              A primeira versão não tinha, por elegância: "não precisa
+              salvar, ele salva". Só que a primeira pergunta que a escola
+              fez foi "como eu salvo?". Quando a pessoa precisa perguntar,
+              a elegância virou dúvida — e dúvida sobre anotação de aula é
+              angústia. O botão custa um canto da barra e devolve a certeza.
+              Quem confia no automático simplesmente nunca clica nele. */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => void guardarAgora()}
+            disabled={estado === 'salvando'}
+            title="Salvar agora (Ctrl+S)"
+            className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-semibold transition-colors disabled:opacity-60 ${
+              estado === 'escrevendo' || estado === 'falhou'
+                ? 'bg-brand-700 text-white hover:bg-brand-800'
+                : 'border border-brand-950/[0.08] text-gray-600 hover:border-brand-500/40 hover:text-brand-800'
+            }`}
+          >
+            {estado === 'salvando' ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.2} />
+            ) : estado === 'falhou' ? (
+              <CloudOff className="h-3.5 w-3.5" strokeWidth={2.1} />
+            ) : (
+              <Save className="h-3.5 w-3.5" strokeWidth={2.1} />
             )}
+            {estado === 'salvando' ? 'Salvando' : estado === 'falhou' ? 'Tentar de novo' : 'Salvar'}
+          </button>
+
+          {/* O recado de estado, ao lado do botão. Discreto quando está
+              tudo bem, e impossível de ignorar quando não está. */}
+          <span className="hidden items-center gap-1 text-[10.5px] font-semibold sm:flex">
             {estado === 'salvo' && (
-              <>
-                <Check className="h-3 w-3 text-brand-500" strokeWidth={3} />
-                <span className="text-brand-600/70">salvo</span>
-              </>
+              <span className="flex items-center gap-1 text-brand-600/80">
+                <Check className="h-3 w-3" strokeWidth={3} />
+                salvo{salvoAs ? ` às ${salvoAs}` : ''}
+              </span>
+            )}
+            {estado === 'escrevendo' && <span className="text-gray-300">alterações por salvar</span>}
+            {estado === 'falhou' && (
+              <span className="text-red-600">sem conexão — o texto está guardado no aparelho</span>
             )}
           </span>
         </span>
       </div>
+
+      {/* A pessoa perdeu a internet, escreveu assim mesmo, e o caderno
+          devolveu o texto. Ela precisa SABER disso — senão vai achar que a
+          plataforma inventou conteúdo, ou pior, não vai confiar mais nela. */}
+      {recuperado && (
+        <p className="flex items-center gap-2 border-b border-brand-200 bg-brand-50 px-4 py-2 text-[12px] font-semibold text-brand-800">
+          <RotateCcw className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+          Recuperei o que você tinha escrito por último — a internet caiu antes de guardar.
+        </p>
+      )}
 
       {avisoTrava && (
         <p className="border-b border-[#f0e2bd] bg-[#fdf8ec] px-4 py-2 text-[12px] font-semibold text-[#8a6116]">

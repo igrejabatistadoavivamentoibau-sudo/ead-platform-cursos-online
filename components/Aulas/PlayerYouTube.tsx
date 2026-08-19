@@ -170,10 +170,11 @@ export default function PlayerYouTube({
      do próprio YouTube. É feio, e é infinitamente melhor que um vídeo que
      não toca. */
   const [socorro, setSocorro] = useState(false)
-  const [semSom, setSemSom] = useState(false)
+  /* Do clique até o vídeo pegar. Existe só para o clique nunca parecer
+     ignorado — foi o que fez a escola clicar duas, três vezes. */
+  const [iniciando, setIniciando] = useState(false)
+  const [somRecusado, setSomRecusado] = useState(false)
   const vigiaRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** Tiramos o som só para conseguir começar? Então temos de devolvê-lo. */
-  const mudoParaComecarRef = useRef(false)
 
   // Guardadas em ref para o efeito de montagem não depender delas: o player
   // é criado UMA vez. Recriá-lo a cada renderização faria o vídeo recomeçar.
@@ -259,19 +260,19 @@ export default function PlayerYouTube({
               setComecou(true)
               setTerminou(false)
               setSocorro(false)
+              setIniciando(false)
 
-              // Pegou. Cancela o vigia e devolve o som que tiramos para
-              // conseguir começar.
+              /* Pegou. Cancela o vigia.
+
+                 E NÃO tiramos o mudo aqui. Foi essa linha, na versão
+                 anterior, que fez o vídeo "piscar e parar": o navegador só
+                 tinha liberado a reprodução PORQUE ela estava sem som;
+                 tirar o mudo no instante seguinte derruba essa permissão e
+                 ele pausa o vídeo na hora. Começava e morria.
+                 Quem liga o som agora é o aluno, num botão bem visível. */
               if (vigiaRef.current) {
                 clearTimeout(vigiaRef.current)
                 vigiaRef.current = null
-              }
-              if (mudoParaComecarRef.current) {
-                mudoParaComecarRef.current = false
-                p?.unMute?.()
-                // Se o navegador insistir em manter no mudo, avisamos em
-                // vez de deixar o aluno assistindo sem áudio sem entender.
-                setTimeout(() => setSemSom(Boolean(playerRef.current?.isMuted?.())), 400)
               }
               setDuracao(p?.getDuration?.() ?? 0)
               // Algumas legendas só entram depois que o vídeo começa.
@@ -328,6 +329,7 @@ export default function PlayerYouTube({
 
             setTocando(false)
             setBufferando(false)
+            setIniciando(false)
             parar()
             aoPararRef.current?.()
             if (e.data === ESTADO.TERMINOU) {
@@ -349,31 +351,60 @@ export default function PlayerYouTube({
   }, [videoId])
 
   /**
-   * Manda tocar — e fica de olho se pegou.
+   * Manda tocar — e não desiste até conseguir.
    *
-   * Começar SEM SOM é o que garante a partida: essa é a única forma que o
-   * navegador nunca recusa. O som volta assim que a reprodução começa (ver
-   * o tratamento do estado TOCANDO). O vigia é o seguro do seguro: se em
-   * três segundos nada aconteceu, saímos da frente e deixamos o aluno usar
-   * o play do próprio YouTube, com um aviso explicando.
+   * O QUE DEU ERRADO ANTES, E O QUE MUDOU
+   * O navegador não deixa vídeo começar com som sem um toque dentro do
+   * próprio quadro. Na tentativa anterior eu comecei sem som e devolvi o
+   * som assim que o vídeo pegava — e foi pior: tirar o mudo derruba a
+   * permissão que tinha acabado de ser dada, e o navegador pausa. O vídeo
+   * piscava e morria.
+   *
+   * A regra agora é simples e honesta:
+   *   1. tenta COM som (é o que a maioria dos casos permite, e é o certo);
+   *   2. se em SETE DÉCIMOS de segundo não pegou, tenta de novo sem som — e
+   *      aí fica sem som, com um botão grande de "ativar o som" na tela;
+   *   3. se nem assim, sai da frente e devolve o play do YouTube ao aluno.
+   * Em nenhum desses caminhos o vídeo começa e para sozinho.
+   *
+   * O PRAZO CURTO É DE PROPÓSITO
+   * Com dois segundos, a escola relatou "às vezes precisa de mais de um
+   * clique": ninguém espera dois segundos olhando para um play que não
+   * responde — clica de novo. Sete décimos passam despercebidos. E, desde o
+   * primeiro instante, o botão vira um giro de "iniciando", para o clique
+   * nunca parecer que se perdeu.
    */
   const mandarTocar = useCallback(() => {
     const p = playerRef.current
     if (!p) return
+    setIniciando(true)
 
-    if (!p.isMuted?.()) {
-      mudoParaComecarRef.current = true
-      p.mute?.()
+    const tentarSemSom = () => {
+      const player = playerRef.current
+      if (!player) return
+      player.mute?.()
+      setMudo(true)
+      player.playVideo?.()
+
+      vigiaRef.current = setTimeout(() => {
+        const estado = playerRef.current?.getPlayerState?.()
+        // 1 = tocando, 3 = carregando. Fora isso, o navegador recusou até
+        // sem som — não há mais o que tentar por conta própria.
+        if (estado !== 1 && estado !== 3) {
+          setSocorro(true)
+          setIniciando(false)
+        }
+      }, 2500)
     }
+
     p.playVideo?.()
 
     if (vigiaRef.current) clearTimeout(vigiaRef.current)
     vigiaRef.current = setTimeout(() => {
       const estado = playerRef.current?.getPlayerState?.()
-      // 1 = tocando, 3 = carregando. Qualquer outra coisa aqui significa
-      // que o comando não pegou.
-      if (estado !== 1 && estado !== 3) setSocorro(true)
-    }, 3000)
+      if (estado === 1 || estado === 3) return
+      tentarSemSom()
+    }, 700)
   }, [])
 
   /* ---------------- Controle para quem está de fora ---------------- */
@@ -419,12 +450,49 @@ export default function PlayerYouTube({
     else mandarTocar()
   }, [tocando, terminou, mandarTocar])
 
+  /**
+   * Liga o som — e conserta o efeito colateral se ele aparecer.
+   *
+   * Em alguns navegadores, tirar o mudo de um vídeo que só pôde começar
+   * porque estava mudo faz ele pausar. Em vez de deixar o aluno com um
+   * vídeo parado na mão, a gente confere meio segundo depois e manda tocar
+   * de novo. No pior caso ele engasga uma vez — com som.
+   */
+  const ligarOSom = useCallback(() => {
+    const p = playerRef.current
+    if (!p) return
+    p.unMute?.()
+    setMudo(false)
+
+    // Primeira tentativa de retomar, caso o navegador tenha pausado.
+    setTimeout(() => {
+      const player = playerRef.current
+      if (!player) return
+      if (player.getPlayerState?.() !== 1) player.playVideo?.()
+
+      // Segunda conferida. Se o navegador realmente não vai deixar tocar
+      // com som, a AULA não pode ficar parada por causa disso: voltamos ao
+      // mudo e seguimos, avisando. Melhor uma aula sem som do que uma aula
+      // interrompida por um botão que o aluno apertou de boa fé.
+      setTimeout(() => {
+        const pl = playerRef.current
+        if (!pl) return
+        if (pl.getPlayerState?.() !== 1) {
+          pl.mute?.()
+          setMudo(true)
+          pl.playVideo?.()
+          setSomRecusado(true)
+          setTimeout(() => setSomRecusado(false), 6000)
+        }
+      }, 800)
+    }, 500)
+  }, [])
+
   const alternarMudo = () => {
     const p = playerRef.current
     if (!p) return
     if (p.isMuted?.()) {
-      p.unMute?.()
-      setMudo(false)
+      ligarOSom()
     } else {
       p.mute?.()
       setMudo(true)
@@ -512,7 +580,11 @@ export default function PlayerYouTube({
             ) : (
               <div className="relative">
                 <span className="mx-auto grid h-[72px] w-[72px] place-items-center rounded-full border border-white/20 bg-white/[0.07] text-white backdrop-blur-md">
-                  <Play className="ml-1 h-7 w-7 fill-current" strokeWidth={0} />
+                  {iniciando ? (
+                    <Loader2 className="h-7 w-7 animate-spin" strokeWidth={2} />
+                  ) : (
+                    <Play className="ml-1 h-7 w-7 fill-current" strokeWidth={0} />
+                  )}
                 </span>
 
                 {titulo && (
@@ -522,11 +594,13 @@ export default function PlayerYouTube({
                 )}
 
                 <p className="micro-rotulo mt-2 text-[10px] font-bold tracking-[0.16em] text-accent-300/70">
-                  {terminou
-                    ? 'FIM DA AULA — CLIQUE PARA REVER'
-                    : comecou
-                      ? 'AULA PAUSADA — CLIQUE PARA CONTINUAR'
-                      : 'ESCOLA DE LÍDERES IBAU'}
+                  {iniciando
+                    ? 'INICIANDO...'
+                    : terminou
+                      ? 'FIM DA AULA — CLIQUE PARA REVER'
+                      : comecou
+                        ? 'AULA PAUSADA — CLIQUE PARA CONTINUAR'
+                        : 'ESCOLA DE LÍDERES IBAU'}
                 </p>
               </div>
             )}
@@ -557,22 +631,26 @@ export default function PlayerYouTube({
           </div>
         )}
 
-        {/* O som ficou mudo por decisão do navegador e não conseguimos
-            devolver sozinhos. Avisar é obrigatório: aluno assistindo aula
-            sem áudio sem saber por quê é pior que qualquer erro. */}
-        {semSom && tocando && (
-          <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-3">
+        {/* O VÍDEO ESTÁ SEM SOM
+            Não é erro: foi a única forma de conseguir começar neste
+            navegador. O botão é grande e no meio do caminho do olho de
+            propósito — aluno assistindo aula muda sem entender por quê é
+            pior do que qualquer aviso feio. */}
+        {mudo && tocando && (
+          <div className="absolute inset-x-0 bottom-0 z-30 flex flex-col items-center gap-2 px-4 pb-4">
+            {somRecusado && (
+              <span className="rounded-full border border-white/15 bg-black/80 px-3.5 py-1.5 text-[11px] font-semibold text-white/80 backdrop-blur-md">
+                Seu navegador não liberou o som agora. A aula continua sem som — tente de novo
+                em tela cheia.
+              </span>
+            )}
             <button
               type="button"
-              onClick={() => {
-                playerRef.current?.unMute?.()
-                setMudo(false)
-                setSemSom(false)
-              }}
-              className="flex items-center gap-2 rounded-full border border-accent-400/40 bg-black/80 px-3.5 py-2 text-[11.5px] font-bold text-white backdrop-blur-md transition-colors hover:bg-black"
+              onClick={ligarOSom}
+              className="flex items-center gap-2 rounded-full border border-accent-400/50 bg-black/85 px-4 py-2.5 text-[12.5px] font-bold text-white backdrop-blur-md transition-colors hover:border-accent-400 hover:bg-black"
             >
-              <VolumeX className="h-3.5 w-3.5 text-accent-300" strokeWidth={2.2} />
-              O vídeo começou sem som — clique para ativar
+              <VolumeX className="h-4 w-4 text-accent-300" strokeWidth={2.2} />
+              O vídeo está sem som — clique para ativar
             </button>
           </div>
         )}
