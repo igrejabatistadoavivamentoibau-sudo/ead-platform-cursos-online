@@ -3,6 +3,14 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+/* Roda na borda, e não numa função comum.
+   A resposta é uma linha de texto que já está pronta em memória — não toca
+   no banco nem em arquivo nenhum. Numa função comum, a primeira chamada
+   depois de um tempo parado paga a "partida a frio": o servidor precisa
+   subir o ambiente inteiro antes de responder isso. Na borda a partida é
+   praticamente instantânea, e esta é a rota mais chamada da plataforma. */
+export const runtime = 'edge'
+
 /**
  * Identidade da versão que está no ar.
  *

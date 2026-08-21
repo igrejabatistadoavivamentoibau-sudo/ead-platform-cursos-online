@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -15,29 +16,69 @@ export interface SessaoAtual {
   permissoes: Permissoes
 }
 
-/**
- * Carrega a pessoa logada com papel e permissões já resolvidos.
- *
- * O papel vem do token (sem consulta), mas nome e permissões vêm do banco —
- * permissões precisam ser lidas do banco mesmo, senão uma mudança feita pelo
- * admin só valeria quando o token fosse renovado (até 1 hora depois).
- * É uma única consulta, e as funções agora rodam em São Paulo, ao lado do
- * banco, então o custo é de poucos milissegundos.
- */
-export async function obterSessao(): Promise<SessaoAtual | null> {
+/* ============================================================
+   POR QUE ESTA FUNÇÃO FOI REESCRITA: ELA ERA O PEDÁGIO DE TODA TELA
+
+   Ela é chamada pelo LAYOUT do portal e de novo pela PÁGINA. Cada chamada
+   custava duas idas ao servidor, uma depois da outra:
+
+     1. `getUser()` — que NÃO é leitura local: é uma requisição ao servidor
+        de autenticação do Supabase, feita toda vez;
+     2. a consulta do perfil, que só começava depois que a primeira voltava.
+
+   Layout + página = QUATRO idas em fila, antes de a tela pedir o primeiro
+   dado de verdade. Somando o middleware, eram cinco. Numa conexão de
+   celular, meio segundo se vai só nisso — em toda troca de tela, sempre.
+
+   Duas mudanças, e nenhuma delas afrouxa a conferência:
+
+   `cache()` (do React) faz a função rodar UMA VEZ por requisição. Layout e
+   página passam a dividir o mesmo resultado em vez de repetirem o trabalho.
+   Isso corta metade do custo sem mudar uma linha das telas.
+
+   E as duas idas restantes passam a ser SIMULTÂNEAS. O identificador da
+   pessoa já está no cookie, então dá para começar a buscar o perfil no
+   mesmo instante em que se pede a conferência — e só usar o perfil depois
+   que a conferência confirmar que é a mesma pessoa. Se não bater (cookie
+   adulterado, sessão trocada no meio), o perfil buscado é descartado e a
+   busca é refeita com o identificador conferido. A resposta continua sendo
+   sempre a da pessoa que o servidor de autenticação confirmou.
+   ============================================================ */
+
+type PerfilBruto = {
+  name: string
+  email: string
+  role: string
+  permissoes: Partial<Permissoes> | null
+} | null
+
+export const obterSessao = cache(async function obterSessao(): Promise<SessaoAtual | null> {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const buscarPerfil = async (id: string): Promise<PerfilBruto> => {
+    const { data } = await supabase
+      .from('users')
+      .select('name, email, role, permissoes')
+      .eq('id', id)
+      .single()
+    return (data as PerfilBruto) ?? null
+  }
 
+  /* Leitura do cookie, sem rede. Serve só para ADIANTAR a busca do perfil;
+     nada é decidido a partir daqui. */
+  const { data: local } = await supabase.auth.getSession()
+  const idProvavel = local.session?.user?.id ?? null
+
+  const [{ data: conferido }, perfilAdiantado] = await Promise.all([
+    supabase.auth.getUser(),
+    idProvavel ? buscarPerfil(idProvavel) : Promise.resolve(null),
+  ])
+
+  const user = conferido.user
   if (!user) return null
 
-  const { data: perfil } = await supabase
-    .from('users')
-    .select('name, email, role, permissoes')
-    .eq('id', user.id)
-    .single()
+  const perfil =
+    idProvavel === user.id && perfilAdiantado ? perfilAdiantado : await buscarPerfil(user.id)
 
   if (!perfil) return null
 
@@ -45,12 +86,12 @@ export async function obterSessao(): Promise<SessaoAtual | null> {
 
   return {
     id: user.id,
-    email: perfil.email as string,
-    name: perfil.name as string,
+    email: perfil.email,
+    name: perfil.name,
     role,
     permissoes: resolverPermissoes(role, perfil.permissoes),
   }
-}
+})
 
 /** Exige uma sessão válida; caso contrário manda para o login. */
 export async function exigirSessao(): Promise<SessaoAtual> {

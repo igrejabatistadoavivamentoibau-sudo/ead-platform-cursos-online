@@ -10,6 +10,28 @@ const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
 const nextConfig = {
   reactStrictMode: true,
 
+  experimental: {
+    /* ============================================================
+       IR E VOLTAR ENTRE DUAS TELAS NÃO PODE CUSTAR DUAS VIAGENS
+
+       O navegador guarda por um tempo o conteúdo das telas por onde a
+       pessoa passou. O padrão eram 30 segundos — curto demais para o uso
+       real: o professor abre Notas, confere uma coisa em Atividades, volta
+       para Notas, e essa volta já custava uma ida inteira ao servidor, com
+       a tela parada de novo.
+
+       Dois minutos cobrem o vaivém de quem está trabalhando numa turma. E
+       não cria dado velho no lugar errado: toda tela que GRAVA alguma
+       coisa manda a plataforma buscar de novo (`router.refresh()` e
+       `revalidatePath`), e isso apaga essa memória na hora. O que fica
+       guardado é só tela em que ninguém mexeu.
+       ============================================================ */
+    staleTimes: {
+      dynamic: 120,
+      static: 300,
+    },
+  },
+
   /* ============================================================
      POR QUE NÃO USAMOS `deploymentId` AQUI
 

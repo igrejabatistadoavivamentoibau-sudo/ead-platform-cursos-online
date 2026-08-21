@@ -95,8 +95,20 @@ export default function AvisoDeAtualizacao({ versaoDaPagina }: { versaoDaPagina:
   }, [versaoDaPagina])
 
   useEffect(() => {
-    verificar()
-    const timer = setInterval(verificar, INTERVALO_MS)
+    /* A LUMI pergunta de 12 em 12 segundos ENQUANTO A ABA ESTÁ À VISTA.
+       Antes ela perguntava sempre, inclusive com a aba escondida atrás de
+       outra a manhã inteira — e cada pergunta é uma requisição ao servidor,
+       que disputa espaço com as telas que a pessoa está de fato usando.
+       Aba escondida não tem ninguém olhando: não há aviso a dar. Ao voltar
+       para a aba, a pergunta é feita na hora (o `visibilitychange` abaixo),
+       então nada se perde. */
+    const escondida = () => document.visibilityState === 'hidden'
+    const perguntarSeVisivel = () => {
+      if (!escondida()) verificar()
+    }
+
+    perguntarSeVisivel()
+    const timer = setInterval(perguntarSeVisivel, INTERVALO_MS)
     const aoVoltar = () => {
       if (document.visibilityState === 'visible') verificar()
     }

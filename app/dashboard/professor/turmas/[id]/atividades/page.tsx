@@ -67,7 +67,9 @@ export default async function AtividadesDaTurmaPage({
   const { data: entregasBanco } = ids.length
     ? await supabase
         .from('entregas')
-        .select('id, atividade_id, aluno_id, texto, entregue_em, nota, feedback, users(name)')
+        .select(
+          'id, atividade_id, aluno_id, texto, entregue_em, nota, feedback, users:users!entregas_aluno_id_fkey(name)'
+        )
         .in('atividade_id', ids)
     : { data: [] }
 

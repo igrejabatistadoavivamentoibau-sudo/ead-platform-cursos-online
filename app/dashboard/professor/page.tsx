@@ -81,22 +81,31 @@ export default async function ProfessorHome() {
 
   const ids = (turmas ?? []).map((t) => t.id)
 
-  const [{ data: matriculas }, { data: encontros }, { data: aulas }] = await Promise.all([
-    ids.length
-      ? supabase.from('turma_alunos').select('turma_id').in('turma_id', ids)
-      : Promise.resolve({ data: [] as { turma_id: string }[] }),
-    ids.length
-      ? supabase.from('encontros').select('turma_id').in('turma_id', ids)
-      : Promise.resolve({ data: [] as { turma_id: string }[] }),
-    (() => {
-      // Aulas agora pertencem ao curso, então contamos por curso e depois
-      // mapeamos de volta para cada turma.
-      const cursoIds = [...new Set((turmas ?? []).map((t) => t.curso_id).filter(Boolean))]
-      return cursoIds.length
-        ? supabase.from('aulas').select('curso_id').in('curso_id', cursoIds as string[])
-        : Promise.resolve({ data: [] as { curso_id: string }[] })
-    })(),
-  ])
+  /* Tudo o que depende só das turmas vai JUNTO, numa leva só.
+     As atividades estavam numa consulta separada, mais abaixo, esperando
+     esta leva terminar para só então começar — e não precisavam: elas
+     dependem dos mesmos `ids`. Era uma ida à rede em fila, de graça, em
+     toda abertura da tela inicial do professor. */
+  const [{ data: matriculas }, { data: encontros }, { data: aulas }, { data: atividadesDasTurmas }] =
+    await Promise.all([
+      ids.length
+        ? supabase.from('turma_alunos').select('turma_id').in('turma_id', ids)
+        : Promise.resolve({ data: [] as { turma_id: string }[] }),
+      ids.length
+        ? supabase.from('encontros').select('turma_id').in('turma_id', ids)
+        : Promise.resolve({ data: [] as { turma_id: string }[] }),
+      (() => {
+        // Aulas agora pertencem ao curso, então contamos por curso e depois
+        // mapeamos de volta para cada turma.
+        const cursoIds = [...new Set((turmas ?? []).map((t) => t.curso_id).filter(Boolean))]
+        return cursoIds.length
+          ? supabase.from('aulas').select('curso_id').in('curso_id', cursoIds as string[])
+          : Promise.resolve({ data: [] as { curso_id: string }[] })
+      })(),
+      ids.length
+        ? supabase.from('atividades').select('id, titulo, turma_id').in('turma_id', ids)
+        : Promise.resolve({ data: [] as { id: string; titulo: string; turma_id: string }[] }),
+    ])
 
   const contar = (lista: { turma_id: string }[] | null) => {
     const m = new Map<string, number>()
@@ -115,21 +124,15 @@ export default async function ProfessorHome() {
     cursoId ? (aulasPorCurso.get(cursoId) ?? 0) : 0
 
   /* ---------- O que está esperando correção ----------
-     Duas consultas em vez de um join: as atividades da turma, e as
-     entregas sem nota dessas atividades. O join aninhado do PostgREST
-     aqui traria a atividade repetida dentro de cada entrega e ainda
-     dependeria do nome exato do relacionamento — duas consultas simples
-     são mais baratas de ler e de manter. */
-  const { data: atividadesDasTurmas } = ids.length
-    ? await supabase.from('atividades').select('id, titulo, turma_id').in('turma_id', ids)
-    : { data: [] as { id: string; titulo: string; turma_id: string }[] }
-
+     As atividades já vieram na leva acima. Aqui sobram as entregas sem
+     nota e os anexos delas, que dependem umas das outras e por isso
+     continuam em fila. */
   const idsAtividades = (atividadesDasTurmas ?? []).map((a) => a.id as string)
 
   const { data: entregasSemNota } = idsAtividades.length
     ? await supabase
         .from('entregas')
-        .select('id, atividade_id, entregue_em, users(name)')
+        .select('id, atividade_id, entregue_em, users:users!entregas_aluno_id_fkey(name)')
         .in('atividade_id', idsAtividades)
         .is('nota', null)
         // O que esperou mais aparece primeiro: é o aluno que está
