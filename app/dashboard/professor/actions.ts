@@ -174,36 +174,150 @@ export async function lancarNota(
 
 // ==================== ATIVIDADES ====================
 
-export async function criarAtividade(
-  turmaId: string,
-  input: { titulo: string; descricao?: string; prazo?: string; nota_maxima: number }
-) {
+export interface DadosDaAtividade {
+  titulo: string
+  descricao?: string
+  /** O recado de COMO entregar: "faça à punho e fotografe as páginas". */
+  aviso?: string
+  /** Instante em que a atividade abre para entrega. Vazio = aberta já. */
+  abre_em?: string | null
+  /** Instante em que o prazo encerra. Vazio = sem prazo. */
+  vence_em?: string | null
+  nota_maxima: number
+}
+
+/**
+ * Confere que a atividade existe, pertence à turma informada, e que quem
+ * está agindo tem o direito de MEXER nela.
+ *
+ * POR QUE ESTA FUNÇÃO EXISTE, EM DUAS PARTES
+ *
+ * 1. O `turmaId` chega do navegador. As versões anteriores confiavam nele:
+ *    conferiam que a TURMA era do professor e depois apagavam/corrigiam
+ *    pelo id da ATIVIDADE, sem conferir que uma coisa tinha a ver com a
+ *    outra. Bastava mandar o id de uma turma sua junto com o id de uma
+ *    atividade alheia. Agora o par é conferido no banco.
+ *
+ * 2. A regra pedida: um professor não edita a atividade do outro; o admin
+ *    edita todas. Como uma turma pode trocar de professor ao longo do
+ *    tempo, "é da minha turma" não basta — o que vale é quem criou.
+ */
+async function garantirAtividadeMinha(atividadeId: string, turmaId: string) {
   const { userId, role } = await exigir('ver_alunos')
-  await garantirTurma(turmaId, userId, role)
   const admin = createAdminClient()
 
+  const { data: atividade } = await admin
+    .from('atividades')
+    .select('id, turma_id, criada_por')
+    .eq('id', atividadeId)
+    .maybeSingle()
+
+  if (!atividade) throw new Error('Atividade não encontrada.')
+  if (atividade.turma_id !== turmaId) {
+    throw new Error('Esta atividade não pertence à turma informada.')
+  }
+
+  if (role === 'admin') return { userId, role, atividade }
+
+  const { data: turma } = await admin
+    .from('turmas')
+    .select('professor_id')
+    .eq('id', atividade.turma_id)
+    .single()
+
+  if (turma?.professor_id !== userId) {
+    throw new Error('Esta turma não está sob sua responsabilidade.')
+  }
+  if (atividade.criada_por !== userId) {
+    throw new Error(
+      'Esta atividade foi criada por outra pessoa. Só quem criou — ou um administrador — pode alterá-la.'
+    )
+  }
+  return { userId, role, atividade }
+}
+
+/** As telas que mostram atividade precisam ser atualizadas juntas. */
+function revalidarAtividades(turmaId: string) {
+  revalidatePath(`/dashboard/professor/turmas/${turmaId}/atividades`)
+  revalidatePath('/dashboard/aluno/atividades')
+  revalidatePath('/dashboard/aluno')
+}
+
+/**
+ * A janela precisa fazer sentido antes de chegar ao banco.
+ *
+ * Uma atividade que vence antes de abrir não é um detalhe de tela: é uma
+ * atividade que ninguém consegue entregar, e o professor só descobre pela
+ * reclamação dos alunos. Barrar aqui custa uma linha.
+ */
+function conferirJanela(abre?: string | null, vence?: string | null) {
+  if (abre && vence && new Date(vence) <= new Date(abre)) {
+    throw new Error('O prazo de entrega tem que ser depois da abertura.')
+  }
+}
+
+export async function criarAtividade(turmaId: string, input: DadosDaAtividade) {
+  const { userId, role } = await exigir('ver_alunos')
+  await garantirTurma(turmaId, userId, role)
+
+  const titulo = input.titulo?.trim()
+  if (!titulo) throw new Error('Dê um título para a atividade.')
+  if (!(input.nota_maxima > 0)) throw new Error('A nota máxima precisa ser maior que zero.')
+  conferirJanela(input.abre_em, input.vence_em)
+
+  const admin = createAdminClient()
   const { error } = await admin.from('atividades').insert({
     turma_id: turmaId,
-    titulo: input.titulo,
-    descricao: input.descricao || null,
-    prazo: input.prazo || null,
+    titulo,
+    descricao: input.descricao?.trim() || null,
+    aviso: input.aviso?.trim() || null,
+    abre_em: input.abre_em || null,
+    vence_em: input.vence_em || null,
     nota_maxima: input.nota_maxima,
+    // Assina quem criou. É esta coluna que decide quem pode editar depois.
+    criada_por: userId,
   })
   if (error) throw new Error(error.message)
 
-  revalidatePath(`/dashboard/professor/turmas/${turmaId}/atividades`)
-  revalidatePath('/dashboard/aluno/atividades')
+  revalidarAtividades(turmaId)
+}
+
+export async function editarAtividade(
+  atividadeId: string,
+  turmaId: string,
+  input: DadosDaAtividade
+) {
+  await garantirAtividadeMinha(atividadeId, turmaId)
+
+  const titulo = input.titulo?.trim()
+  if (!titulo) throw new Error('Dê um título para a atividade.')
+  if (!(input.nota_maxima > 0)) throw new Error('A nota máxima precisa ser maior que zero.')
+  conferirJanela(input.abre_em, input.vence_em)
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('atividades')
+    .update({
+      titulo,
+      descricao: input.descricao?.trim() || null,
+      aviso: input.aviso?.trim() || null,
+      abre_em: input.abre_em || null,
+      vence_em: input.vence_em || null,
+      nota_maxima: input.nota_maxima,
+    })
+    .eq('id', atividadeId)
+  if (error) throw new Error(error.message)
+
+  revalidarAtividades(turmaId)
 }
 
 export async function removerAtividade(atividadeId: string, turmaId: string) {
-  const { userId, role } = await exigir('ver_alunos')
-  await garantirTurma(turmaId, userId, role)
+  await garantirAtividadeMinha(atividadeId, turmaId)
   const admin = createAdminClient()
 
   const { error } = await admin.from('atividades').delete().eq('id', atividadeId)
   if (error) throw new Error(error.message)
-  revalidatePath(`/dashboard/professor/turmas/${turmaId}/atividades`)
-  revalidatePath('/dashboard/aluno/atividades')
+  revalidarAtividades(turmaId)
 }
 
 export async function corrigirEntrega(
@@ -212,22 +326,50 @@ export async function corrigirEntrega(
   input: { nota: number | null; feedback?: string }
 ) {
   const { userId, role } = await exigir('ver_alunos')
-  await garantirTurma(turmaId, userId, role)
   const admin = createAdminClient()
+
+  /* Corrigir é diferente de editar a atividade: quem corrige é o
+     professor DA TURMA, mesmo que a atividade tenha sido criada pelo
+     admin. A restrição de autoria vale para mexer no enunciado e no
+     prazo, não para dar nota ao próprio aluno. */
+  const { data: entrega } = await admin
+    .from('entregas')
+    .select('id, atividade_id, atividades!inner(turma_id, nota_maxima)')
+    .eq('id', entregaId)
+    .maybeSingle()
+
+  if (!entrega) throw new Error('Entrega não encontrada.')
+  const atividade = entrega.atividades as unknown as { turma_id: string; nota_maxima: number }
+  if (atividade.turma_id !== turmaId) {
+    throw new Error('Esta entrega não pertence à turma informada.')
+  }
+  await garantirTurma(turmaId, userId, role)
+
+  /* A nota chega do navegador. O `min`/`max` do campo é conforto para
+     quem digita, não regra: quem manda direto pelo console passa por cima
+     dele. Uma nota 900 numa atividade de 10 estraga a média da turma
+     inteira, e o número não chama atenção — só o resultado, meses depois. */
+  if (input.nota !== null) {
+    if (Number.isNaN(input.nota)) throw new Error('Nota inválida.')
+    if (input.nota < 0) throw new Error('A nota não pode ser negativa.')
+    if (input.nota > Number(atividade.nota_maxima)) {
+      throw new Error(`Esta atividade vale no máximo ${Number(atividade.nota_maxima)}.`)
+    }
+  }
 
   const { error } = await admin
     .from('entregas')
     .update({
       nota: input.nota,
-      feedback: input.feedback || null,
+      feedback: input.feedback?.trim() || null,
       corrigida_em: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('id', entregaId)
   if (error) throw new Error(error.message)
 
-  revalidatePath(`/dashboard/professor/turmas/${turmaId}/atividades`)
-  revalidatePath('/dashboard/aluno/atividades')
+  revalidarAtividades(turmaId)
+  revalidatePath('/dashboard/aluno/notas')
 }
 
 // ==================== AULA AVULSA (vídeo enviado) ====================

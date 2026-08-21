@@ -24,16 +24,33 @@ import {
  * visual em prévia antes de ligar no banco.
  */
 
-function formatarDataCurta(data: string) {
-  const [ano, mes, dia] = data.split('-')
-  return `${dia}/${mes}`
+/* O painel de pendências conta em DIAS, e o prazo agora tem HORA.
+   As duas funções abaixo traduzem uma coisa na outra sempre no fuso de
+   Brasília: sem isso, uma atividade que vence hoje às 23:59 apareceria
+   como "amanhã" para quem está no servidor em UTC. */
+const FUSO = 'America/Sao_Paulo'
+
+function formatarDataCurta(iso: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: FUSO,
+  }).format(new Date(iso))
 }
 
-function diasAte(prazo: string) {
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
-  const alvo = new Date(`${prazo.slice(0, 10)}T00:00:00`)
-  return Math.round((alvo.getTime() - hoje.getTime()) / 86400000)
+/** O dia do calendário em Brasília, como número, para poder subtrair. */
+function diaEmBrasilia(d: Date): number {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: FUSO,
+  }).format(d)
+  return Date.parse(`${partes}T00:00:00Z`) / 86400000
+}
+
+function diasAte(iso: string) {
+  return diaEmBrasilia(new Date(iso)) - diaEmBrasilia(new Date())
 }
 
 export default async function AlunoHome() {
@@ -124,11 +141,19 @@ export default async function AlunoHome() {
     idsTurmas.length
       ? supabase
           .from('atividades')
-          .select('id, turma_id, titulo, prazo')
+          .select('id, turma_id, titulo, abre_em, vence_em')
           .in('turma_id', idsTurmas)
           .eq('publicada', true)
-          .order('prazo', { ascending: true, nullsFirst: false })
-      : Promise.resolve({ data: [] as { id: string; turma_id: string; titulo: string; prazo: string | null }[] }),
+          .order('vence_em', { ascending: true, nullsFirst: false })
+      : Promise.resolve({
+          data: [] as {
+            id: string
+            turma_id: string
+            titulo: string
+            abre_em: string | null
+            vence_em: string | null
+          }[],
+        }),
     supabase.from('entregas').select('atividade_id').eq('aluno_id', sessao.id),
     idsTurmas.length
       ? supabase
@@ -210,20 +235,31 @@ export default async function AlunoHome() {
   /* ---------------- Painel: o que está em aberto ---------------- */
 
   const entregues = new Set((entregas ?? []).map((e) => e.atividade_id))
-  const pendentes = (atividades ?? []).filter((a) => !entregues.has(a.id))
+  const agora = Date.now()
+
+  /* O painel é "o que está em aberto". Atividade que ainda não abriu não
+     está em aberto — está por vir, e cobrar dela hoje só gera aflição.
+     Já a que encerrou continua aparecendo, porque o aluno precisa saber
+     que ficou para trás: sumir com ela é a plataforma escondendo o
+     problema, não resolvendo. */
+  const pendentes = (atividades ?? []).filter((a) => {
+    if (entregues.has(a.id)) return false
+    if (a.abre_em && agora < new Date(a.abre_em).getTime()) return false
+    return true
+  })
 
   const itensPendencia: ItemPainel[] = pendentes.slice(0, 4).map((a) => {
-    const dias = a.prazo ? diasAte(a.prazo) : null
-    const etiqueta =
-      dias === null
+    const venceu = !!a.vence_em && agora > new Date(a.vence_em).getTime()
+    const dias = a.vence_em ? diasAte(a.vence_em) : null
+    const etiqueta = venceu
+      ? ({ texto: 'ENCERRADA', tom: 'ambar' } as const)
+      : dias === null
         ? undefined
-        : dias < 0
-          ? ({ texto: 'ATRASADA', tom: 'ambar' } as const)
-          : dias === 0
-            ? ({ texto: 'HOJE', tom: 'ambar' } as const)
-            : dias <= 3
-              ? ({ texto: `${dias}D`, tom: 'ambar' } as const)
-              : ({ texto: formatarDataCurta(a.prazo!), tom: 'verde' } as const)
+        : dias === 0
+          ? ({ texto: 'HOJE', tom: 'ambar' } as const)
+          : dias <= 3
+            ? ({ texto: `${dias}D`, tom: 'ambar' } as const)
+            : ({ texto: formatarDataCurta(a.vence_em!), tom: 'verde' } as const)
     return {
       href: '/dashboard/aluno/atividades',
       titulo: a.titulo,

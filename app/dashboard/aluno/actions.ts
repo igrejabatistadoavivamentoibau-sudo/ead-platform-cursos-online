@@ -3,6 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { PERCENTUAL_CONCLUSAO, COBERTURA_MINIMA } from '@/lib/video'
+import {
+  TAMANHO_MAXIMO_ENTREGA,
+  MAXIMO_DE_ANEXOS,
+  TIPOS_ACEITOS,
+  EXTENSAO_POR_TIPO,
+} from '@/lib/anexosDaEntrega'
 
 /** O que o player mediu de verdade nesta aula. */
 export interface MedicaoDoVideo {
@@ -179,56 +185,252 @@ export async function salvarResumo(aulaId: string, texto: string) {
 
 // ==================== ENTREGA DE ATIVIDADE ====================
 
-const TAMANHO_MAXIMO_ENTREGA = 20 * 1024 * 1024 // 20 MB
+function formatarMomento(iso: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date(iso))
+}
 
-export async function entregarAtividade(formData: FormData) {
+/**
+ * A JANELA, CONFERIDA NO SERVIDOR
+ *
+ * O banco também confere — há um gatilho em `entregas` e em
+ * `entrega_arquivos` que recusa qualquer entrega fora do prazo, venha de
+ * onde vier. A conferência aqui não é redundância inútil: é o que permite
+ * dar uma frase em português para a pessoa, e é o que impede o aluno de
+ * gastar quatro minutos enviando fotos para ouvir "não" no fim.
+ * O gatilho é a garantia; isto aqui é a educação.
+ */
+async function janelaDaAtividade(atividadeId: string, alunoId: string) {
+  const supabase = await createSessionClient()
+
+  const { data: atividade } = await supabase
+    .from('atividades')
+    .select('id, turma_id, publicada, abre_em, vence_em, titulo')
+    .eq('id', atividadeId)
+    .maybeSingle()
+
+  if (!atividade) throw new Error('Atividade não encontrada.')
+
+  const { data: matricula } = await supabase
+    .from('turma_alunos')
+    .select('status')
+    .eq('turma_id', atividade.turma_id)
+    .eq('aluno_id', alunoId)
+    .maybeSingle()
+
+  if (!matricula || matricula.status !== 'ativo') {
+    throw new Error('Você não está matriculado nesta turma.')
+  }
+  if (!atividade.publicada) {
+    throw new Error('Esta atividade ainda não foi liberada pelo professor.')
+  }
+
+  const agora = Date.now()
+  if (atividade.abre_em && agora < new Date(atividade.abre_em).getTime()) {
+    throw new Error(`Esta atividade abre em ${formatarMomento(atividade.abre_em)}.`)
+  }
+  if (atividade.vence_em && agora > new Date(atividade.vence_em).getTime()) {
+    throw new Error(
+      `O prazo encerrou em ${formatarMomento(atividade.vence_em)}. Fale com o professor.`
+    )
+  }
+  return atividade
+}
+
+/**
+ * Autoriza os anexos e devolve onde cada um deve ser gravado.
+ *
+ * POR QUE O ARQUIVO NÃO PASSA MAIS POR AQUI
+ *
+ * A versão anterior recebia o arquivo dentro desta action, e anunciava
+ * "até 20 MB" na tela. Em produção isso nunca funcionou: a Vercel recusa
+ * requisição acima de ~4,5 MB e o Next limita ação de servidor a 1 MB.
+ * Ou seja, qualquer foto de celular de verdade — que passa de 1 MB com
+ * folga — morria no meio, e o aluno via só um erro sem explicação.
+ *
+ * O mesmo problema já tinha sido resolvido para o vídeo das aulas
+ * (`autorizarEnvioDeVideo`): o servidor só autoriza e diz onde gravar; o
+ * navegador manda direto para o armazenamento. É o caminho que funciona,
+ * e ainda é mais rápido, porque o arquivo dá um salto a menos.
+ *
+ * O caminho começa com o id do aluno de propósito: as regras do bucket
+ * amarram a escrita à pasta de quem está logado.
+ */
+export async function autorizarEnvioDeEntrega(
+  atividadeId: string,
+  arquivos: { nome: string; tipo: string; tamanho: number }[]
+) {
   const supabase = await createSessionClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) throw new Error('Não autenticado.')
 
-  const atividadeId = formData.get('atividade_id') as string
-  const texto = ((formData.get('texto') as string) ?? '').trim()
-  const file = formData.get('arquivo')
+  await janelaDaAtividade(atividadeId, user.id)
 
-  if (!atividadeId) throw new Error('Atividade não informada.')
+  if (arquivos.length > MAXIMO_DE_ANEXOS) {
+    throw new Error(`São no máximo ${MAXIMO_DE_ANEXOS} arquivos por entrega.`)
+  }
 
-  let arquivoPath: string | null = null
-  let arquivoNome: string | null = null
-
-  if (file instanceof File && file.size > 0) {
-    if (file.size > TAMANHO_MAXIMO_ENTREGA) {
-      throw new Error('O arquivo passa de 20 MB. Reduza o tamanho e tente de novo.')
+  return arquivos.map((a) => {
+    if (!TIPOS_ACEITOS.includes(a.tipo)) {
+      throw new Error(`"${a.nome}" não é PDF nem JPEG. Envie só esses dois formatos.`)
     }
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'bin'
-    // Guardado na pasta do próprio aluno — as regras do bucket são privadas
-    arquivoPath = `${user.id}/${atividadeId}-${crypto.randomUUID()}.${ext}`
-    arquivoNome = file.name
+    if (a.tamanho > TAMANHO_MAXIMO_ENTREGA) {
+      throw new Error(`"${a.nome}" passa de 20 MB. Reduza o tamanho e tente de novo.`)
+    }
+    return {
+      nome: a.nome,
+      tipo: a.tipo,
+      tamanho: a.tamanho,
+      path: `${user.id}/${atividadeId}-${crypto.randomUUID()}.${EXTENSAO_POR_TIPO[a.tipo]}`,
+    }
+  })
+}
 
-    const { error: upErr } = await supabase.storage
-      .from('entregas')
-      .upload(arquivoPath, file, { contentType: file.type || undefined, upsert: false })
-    if (upErr) throw new Error(`Falha ao enviar o arquivo: ${upErr.message}`)
+/**
+ * Grava a entrega depois que os arquivos já subiram.
+ *
+ * `substituirAnexos` diz se os anexos que já estavam lá saem de cena. É
+ * `true` quando a pessoa mexeu na lista de arquivos, e `false` quando ela
+ * só corrigiu o texto — para um ajuste de vírgula não apagar as fotos que
+ * ela levou dez minutos para tirar.
+ */
+export async function registrarEntrega(input: {
+  atividadeId: string
+  texto: string
+  anexos: { path: string; nome: string; tipo: string; tamanho: number }[]
+  substituirAnexos: boolean
+}) {
+  const supabase = await createSessionClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Não autenticado.')
+
+  const { atividadeId, anexos, substituirAnexos } = input
+  const texto = (input.texto ?? '').trim()
+
+  await janelaDaAtividade(atividadeId, user.id)
+
+  /* Os caminhos voltam do navegador. Se alguém trocar o caminho por um da
+     pasta de outro aluno, o registro apontaria para o arquivo alheio.
+     O armazenamento já barra a ESCRITA fora da própria pasta; esta linha
+     barra o REGISTRO. */
+  const limpar = async () => {
+    if (anexos.length) await supabase.storage.from('entregas').remove(anexos.map((a) => a.path))
+  }
+  for (const a of anexos) {
+    if (!a.path.startsWith(`${user.id}/`)) {
+      await limpar()
+      throw new Error('Caminho de arquivo inválido.')
+    }
+    if (!TIPOS_ACEITOS.includes(a.tipo)) {
+      await limpar()
+      throw new Error('Formato de arquivo não aceito.')
+    }
   }
 
-  if (!texto && !arquivoPath) {
-    throw new Error('Escreva uma resposta ou anexe um arquivo.')
+  const { data: entrega, error } = await supabase
+    .from('entregas')
+    .upsert(
+      {
+        atividade_id: atividadeId,
+        aluno_id: user.id,
+        texto: texto || null,
+        entregue_em: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'atividade_id,aluno_id' }
+    )
+    .select('id')
+    .single()
+
+  if (error || !entrega) {
+    // Se o registro falhou, os arquivos que subiram viram lixo no bucket.
+    await limpar()
+    throw new Error(error?.message ?? 'Não consegui registrar a entrega.')
   }
 
-  const { error } = await supabase.from('entregas').upsert(
-    {
-      atividade_id: atividadeId,
-      aluno_id: user.id,
-      texto: texto || null,
-      ...(arquivoPath ? { arquivo_path: arquivoPath, arquivo_nome: arquivoNome } : {}),
-      entregue_em: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'atividade_id,aluno_id' }
-  )
-  if (error) throw new Error(error.message)
+  if (substituirAnexos) {
+    const { data: antigos } = await supabase
+      .from('entrega_arquivos')
+      .select('path')
+      .eq('entrega_id', entrega.id)
+
+    if (antigos?.length) {
+      await supabase.from('entrega_arquivos').delete().eq('entrega_id', entrega.id)
+      // Tira também do armazenamento: sem isso cada reenvio deixaria uma
+      // cópia órfã acumulando para sempre.
+      await supabase.storage.from('entregas').remove(antigos.map((a) => a.path))
+    }
+  }
+
+  if (anexos.length) {
+    const { error: erroAnexos } = await supabase.from('entrega_arquivos').insert(
+      anexos.map((a) => ({
+        entrega_id: entrega.id,
+        path: a.path,
+        nome: a.nome,
+        tipo: a.tipo,
+        tamanho: a.tamanho,
+      }))
+    )
+    if (erroAnexos) {
+      await limpar()
+      throw new Error(erroAnexos.message)
+    }
+  }
+
+  // Só depois de tudo gravado é que sabemos se sobrou alguma coisa.
+  const { count } = await supabase
+    .from('entrega_arquivos')
+    .select('id', { count: 'exact', head: true })
+    .eq('entrega_id', entrega.id)
+
+  if (!texto && !count) {
+    throw new Error('Escreva uma resposta ou anexe pelo menos um arquivo.')
+  }
 
   revalidatePath('/dashboard/aluno/atividades')
+  revalidatePath('/dashboard/aluno')
   return { ok: true }
+}
+
+/**
+ * Devolve links temporários para o aluno abrir os próprios anexos.
+ *
+ * Era uma lacuna: o nome do arquivo aparecia na tela como texto morto e o
+ * aluno não tinha como conferir o que tinha mandado. Quem entrega uma foto
+ * de página escrita à mão quer poder olhar se saiu legível.
+ */
+export async function linksDosMeusAnexos(entregaId: string) {
+  const supabase = await createSessionClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Não autenticado.')
+
+  const { data: entrega } = await supabase
+    .from('entregas')
+    .select('id, aluno_id')
+    .eq('id', entregaId)
+    .maybeSingle()
+  if (!entrega || entrega.aluno_id !== user.id) throw new Error('Entrega não encontrada.')
+
+  const { data: arquivos } = await supabase
+    .from('entrega_arquivos')
+    .select('id, path, nome, tipo')
+    .eq('entrega_id', entregaId)
+    .order('enviado_em')
+
+  const saida: { id: string; nome: string; tipo: string; url: string | null }[] = []
+  for (const a of arquivos ?? []) {
+    const { data } = await supabase.storage.from('entregas').createSignedUrl(a.path, 60 * 10)
+    saida.push({ id: a.id, nome: a.nome, tipo: a.tipo, url: data?.signedUrl ?? null })
+  }
+  return saida
 }

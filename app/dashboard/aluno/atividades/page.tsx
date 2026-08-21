@@ -24,26 +24,49 @@ export default async function MinhasAtividadesPage() {
     ids.length
       ? supabase
           .from('atividades')
-          .select('id, turma_id, titulo, descricao, prazo, nota_maxima')
+          .select('id, turma_id, titulo, descricao, aviso, abre_em, vence_em, nota_maxima')
           .in('turma_id', ids)
           .eq('publicada', true)
-          .order('prazo', { ascending: true, nullsFirst: false })
+          // O que vence primeiro aparece primeiro; o que não tem prazo
+          // desce para o fim, porque não é o que aperta.
+          .order('vence_em', { ascending: true, nullsFirst: false })
       : Promise.resolve({ data: [] }),
     supabase
       .from('entregas')
-      .select('atividade_id, texto, arquivo_nome, nota, feedback, entregue_em')
+      .select('id, atividade_id, texto, nota, feedback, entregue_em')
       .eq('aluno_id', sessao.id),
   ])
+
+  /* Os anexos vêm numa consulta só, para todas as entregas do aluno —
+     em vez de uma consulta por atividade, que numa turma com 15 trabalhos
+     seriam 15 idas ao banco só para desenhar uma lista. */
+  const idsDeEntrega = (entregas ?? []).map((e) => e.id as string)
+  const { data: anexos } = idsDeEntrega.length
+    ? await supabase
+        .from('entrega_arquivos')
+        .select('id, entrega_id, nome, tipo')
+        .in('entrega_id', idsDeEntrega)
+        .order('enviado_em')
+    : { data: [] }
+
+  const anexosPorEntrega = new Map<string, { id: string; nome: string; tipo: string }[]>()
+  for (const a of anexos ?? []) {
+    const chave = a.entrega_id as string
+    const lista = anexosPorEntrega.get(chave) ?? []
+    lista.push({ id: a.id as string, nome: a.nome as string, tipo: a.tipo as string })
+    anexosPorEntrega.set(chave, lista)
+  }
 
   const entregaPorAtividade = new Map(
     (entregas ?? []).map((e) => [
       e.atividade_id,
       {
+        id: e.id as string,
         texto: (e.texto as string) ?? null,
-        arquivo_nome: (e.arquivo_nome as string) ?? null,
         nota: e.nota === null ? null : Number(e.nota),
         feedback: (e.feedback as string) ?? null,
         entregue_em: e.entregue_em as string,
+        anexos: anexosPorEntrega.get(e.id as string) ?? [],
       },
     ])
   )
@@ -52,7 +75,9 @@ export default async function MinhasAtividadesPage() {
     id: a.id as string,
     titulo: a.titulo as string,
     descricao: (a.descricao as string) ?? null,
-    prazo: (a.prazo as string) ?? null,
+    aviso: (a.aviso as string) ?? null,
+    abre_em: (a.abre_em as string) ?? null,
+    vence_em: (a.vence_em as string) ?? null,
     nota_maxima: Number(a.nota_maxima),
     turma: nomeDaTurma.get(a.turma_id as string) ?? '',
     entrega: entregaPorAtividade.get(a.id as string) ?? null,
