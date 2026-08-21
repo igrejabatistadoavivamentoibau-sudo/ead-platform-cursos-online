@@ -1,7 +1,34 @@
 import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
+import type { EstiloDeAssinatura } from '@/lib/assinatura'
+
 import { PageHeader, EstadoVazio, Indicador } from '@/components/ui'
 import EntregaAtividade, { type AtividadeAluno } from '@/components/Aluno/EntregaAtividade'
+
+const PAPEL_POR_EXTENSO: Record<string, string> = {
+  professor: 'Professor(a) da turma',
+  admin: 'Coordenação — Escola de Líderes IBAU',
+  aluno: 'Escola de Líderes IBAU',
+}
+
+/* A ASSINATURA SÓ EXISTE SE A CORREÇÃO EXISTIR.
+   Faltando quem corrigiu, quando, ou a nota, não se monta assinatura
+   nenhuma — meia assinatura é pior que nenhuma, porque parece um registro
+   e não é. Entrega antiga, corrigida antes desta versão, cai aqui: ela
+   mostra a nota como sempre mostrou, só não vem com o selo. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function assinaturaDaEntrega(e: any) {
+  const c = e.corretor as { assinatura_nome?: string; name?: string; role?: string; assinatura_estilo?: string } | null
+  const nome = c?.assinatura_nome ?? c?.name
+  if (!nome || !e.corrigida_em || !e.corrigida_por || e.nota === null) return null
+  return {
+    assinanteId: e.corrigida_por as string,
+    nome,
+    papel: PAPEL_POR_EXTENSO[c?.role ?? ''] ?? 'Escola de Líderes IBAU',
+    estilo: (c?.assinatura_estilo ?? null) as EstiloDeAssinatura | null,
+    em: e.corrigida_em as string,
+  }
+}
 
 export default async function MinhasAtividadesPage() {
   const sessao = await exigirSessao()
@@ -33,7 +60,7 @@ export default async function MinhasAtividadesPage() {
       : Promise.resolve({ data: [] }),
     supabase
       .from('entregas')
-      .select('id, atividade_id, texto, nota, feedback, entregue_em')
+      .select('id, atividade_id, texto, nota, feedback, entregue_em, corrigida_em, corrigida_por, corretor:users!entregas_corrigida_por_fkey(assinatura_nome, name, role, assinatura_estilo)')
       .eq('aluno_id', sessao.id),
   ])
 
@@ -67,6 +94,7 @@ export default async function MinhasAtividadesPage() {
         feedback: (e.feedback as string) ?? null,
         entregue_em: e.entregue_em as string,
         anexos: anexosPorEntrega.get(e.id as string) ?? [],
+        assinatura: assinaturaDaEntrega(e),
       },
     ])
   )

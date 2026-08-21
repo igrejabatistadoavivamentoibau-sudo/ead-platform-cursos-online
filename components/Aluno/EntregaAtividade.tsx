@@ -29,6 +29,8 @@ import {
   ACEITE_DO_CAMPO,
   tamanhoLegivel,
 } from '@/lib/anexosDaEntrega'
+import { BlocoDeAssinatura } from '@/components/Assinatura'
+import type { EstiloDeAssinatura } from '@/lib/assinatura'
 import { Botao, Alerta, Selo, CAMPO } from '@/components/ui'
 
 export interface AnexoDaEntrega {
@@ -54,6 +56,14 @@ export interface AtividadeAluno {
     feedback: string | null
     entregue_em: string
     anexos: AnexoDaEntrega[]
+    /** Quem corrigiu, quando. Null enquanto ninguém corrigiu. */
+    assinatura: {
+      assinanteId: string
+      nome: string
+      papel: string
+      estilo: EstiloDeAssinatura | null
+      em: string
+    } | null
   } | null
 }
 
@@ -319,6 +329,26 @@ export default function EntregaAtividade({ atividade }: { atividade: AtividadeAl
               </div>
             )}
           </div>
+        )}
+
+        {/* A ASSINATURA DA CORREÇÃO.
+            Vem depois do comentário e antes de tudo o mais, porque é o
+            fecho: quem corrigiu, quando, e quanto. Antes disto o aluno via
+            um número aparecer na tela sem dono e sem data — e não tinha a
+            quem perguntar. */}
+        {atividade.entrega?.assinatura && (
+          <BlocoDeAssinatura
+            dados={{
+              entregaId: atividade.entrega.id,
+              assinanteId: atividade.entrega.assinatura.assinanteId,
+              nome: atividade.entrega.assinatura.nome,
+              papel: atividade.entrega.assinatura.papel,
+              estilo: atividade.entrega.assinatura.estilo,
+              em: atividade.entrega.assinatura.em,
+              nota: atividade.entrega.nota,
+              notaMaxima: atividade.nota_maxima,
+            }}
+          />
         )}
 
         {atividade.entrega?.feedback && (

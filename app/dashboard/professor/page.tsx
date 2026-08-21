@@ -13,6 +13,7 @@ import {
   BookOpenText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import ParaCorrigir, { type EntregaPendente } from '@/components/Turma/ParaCorrigir'
 import { exigirSessao } from '@/lib/auth'
 import { Selo } from '@/components/ui'
 import HeroPortal from '@/components/Dashboard/HeroPortal'
@@ -113,6 +114,62 @@ export default async function ProfessorHome() {
   const aulasDaTurma = (cursoId: string | null) =>
     cursoId ? (aulasPorCurso.get(cursoId) ?? 0) : 0
 
+  /* ---------- O que está esperando correção ----------
+     Duas consultas em vez de um join: as atividades da turma, e as
+     entregas sem nota dessas atividades. O join aninhado do PostgREST
+     aqui traria a atividade repetida dentro de cada entrega e ainda
+     dependeria do nome exato do relacionamento — duas consultas simples
+     são mais baratas de ler e de manter. */
+  const { data: atividadesDasTurmas } = ids.length
+    ? await supabase.from('atividades').select('id, titulo, turma_id').in('turma_id', ids)
+    : { data: [] as { id: string; titulo: string; turma_id: string }[] }
+
+  const idsAtividades = (atividadesDasTurmas ?? []).map((a) => a.id as string)
+
+  const { data: entregasSemNota } = idsAtividades.length
+    ? await supabase
+        .from('entregas')
+        .select('id, atividade_id, entregue_em, users(name)')
+        .in('atividade_id', idsAtividades)
+        .is('nota', null)
+        // O que esperou mais aparece primeiro: é o aluno que está
+        // sofrendo com a demora, e ordenar pelo mais novo esconderia
+        // exatamente ele.
+        .order('entregue_em', { ascending: true })
+        .limit(60)
+    : { data: [] as unknown[] }
+
+  const idsPendentes = (entregasSemNota ?? []).map((e) => (e as { id: string }).id)
+  const { data: anexosPendentes } = idsPendentes.length
+    ? await supabase.from('entrega_arquivos').select('entrega_id').in('entrega_id', idsPendentes)
+    : { data: [] as { entrega_id: string }[] }
+
+  const anexosPorEntrega = new Map<string, number>()
+  for (const a of anexosPendentes ?? []) {
+    const k = a.entrega_id as string
+    anexosPorEntrega.set(k, (anexosPorEntrega.get(k) ?? 0) + 1)
+  }
+
+  const atividadePorId = new Map(
+    (atividadesDasTurmas ?? []).map((a) => [a.id as string, a])
+  )
+  const nomeDaTurma = new Map((turmas ?? []).map((t) => [t.id as string, t.nome as string]))
+
+  const pendentes: EntregaPendente[] = (entregasSemNota ?? []).map((e) => {
+    const linha = e as { id: string; atividade_id: string; entregue_em: string; users: unknown }
+    const at = atividadePorId.get(linha.atividade_id)
+    const u = linha.users as { name?: string } | null
+    return {
+      entregaId: linha.id,
+      alunoNome: u?.name ?? 'Aluno',
+      atividadeTitulo: (at?.titulo as string) ?? 'Atividade',
+      turmaId: (at?.turma_id as string) ?? '',
+      turmaNome: nomeDaTurma.get((at?.turma_id as string) ?? '') ?? '',
+      entregueEm: linha.entregue_em,
+      anexos: anexosPorEntrega.get(linha.id) ?? 0,
+    }
+  })
+
   const emAndamento = (turmas ?? []).filter((t) => t.status === 'em_andamento').length
   const totalAlunos = (turmas ?? []).reduce((s, t) => s + (alunosPorTurma.get(t.id) ?? 0), 0)
 
@@ -139,7 +196,14 @@ export default async function ProfessorHome() {
         ]}
       />
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      {/* A caixa de correções vem ANTES dos números da turma.
+          Número de turma é retrato; entrega esperando é trabalho parado.
+          O que cobra ação fica em cima. */}
+      <div className="mt-6">
+        <ParaCorrigir pendentes={pendentes} />
+      </div>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-3">
         {stats.map((stat, i) => (
           <div
             key={stat.label}

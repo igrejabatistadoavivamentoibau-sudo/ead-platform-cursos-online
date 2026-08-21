@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
-import { PageHeader, Card, EstadoVazio, Selo, Indicador } from '@/components/ui'
+import { PageHeader, Card, EstadoVazio, Selo, Indicador, BotaoLink } from '@/components/ui'
 
 const TIPO_LABEL: Record<string, string> = {
   prova: 'Prova',
@@ -110,6 +110,20 @@ export default async function MinhasNotasPage() {
                       {turma.curso && (
                         <p className="mt-0.5 text-[12.5px] text-gray-500">{turma.curso}</p>
                       )}
+                      {/* O aluno também tira o próprio boletim. Antes ele
+                          só via os números na tela e não tinha como levar
+                          para lugar nenhum — nem para mostrar em casa. */}
+                      <div className="mt-2">
+                        <BotaoLink
+                          href={`/api/boletim/${turma.id}?aluno=${sessao.id}`}
+                          target="_blank"
+                          variante="fantasma"
+                          tamanho="sm"
+                          icone="Printer"
+                        >
+                          Meu boletim (PDF)
+                        </BotaoLink>
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">

@@ -45,6 +45,13 @@
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-display: 'Plus Jakarta Sans Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 
+  /* AS DUAS CALIGRAFIAS DA ASSINATURA ELETRÔNICA.
+     São duas, e não uma, para que dois professores assinando o mesmo
+     boletim não saiam com a letra idêntica — o estilo de cada pessoa é
+     decidido pelo próprio nome (ver lib/assinatura.ts). */
+  --font-assinatura-classica: 'Great Vibes', 'Segoe Script', 'Brush Script MT', cursive;
+  --font-assinatura-corrente: 'Dancing Script', 'Segoe Script', cursive;
+
   --color-brand-50: var(--brand-50);
   --color-brand-100: var(--brand-100);
   --color-brand-200: var(--brand-200);

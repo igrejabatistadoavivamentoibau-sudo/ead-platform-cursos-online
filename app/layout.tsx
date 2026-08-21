@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/plus-jakarta-sans";
+// As caligrafias da assinatura eletrônica. Vêm empacotadas com o site em
+// vez de virem do Google: fonte que depende da internet do aluno é fonte
+// que um dia não chega, e a assinatura sairia em letra de forma.
+import "@fontsource/great-vibes";
+import "@fontsource/dancing-script";
 import "./globals.css";
 import { GUARDIAO_DA_TELA } from "@/lib/guardiaoDaTela";
 import AbreOCofre from "@/components/Sistema/AbreOCofre";

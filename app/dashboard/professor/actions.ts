@@ -357,12 +357,18 @@ export async function corrigirEntrega(
     }
   }
 
+  /* QUEM CORRIGIU FICA REGISTRADO.
+     A entrega guardava QUANDO foi corrigida e nunca POR QUEM. Numa turma
+     que troca de professor, ou quando o admin corrige, o aluno recebia
+     uma nota sem dono e sem ter a quem perguntar. É esta coluna que a
+     assinatura eletrônica assina. */
   const { error } = await admin
     .from('entregas')
     .update({
       nota: input.nota,
       feedback: input.feedback?.trim() || null,
       corrigida_em: new Date().toISOString(),
+      corrigida_por: userId,
       updated_at: new Date().toISOString(),
     })
     .eq('id', entregaId)

@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { exigirPermissao } from '@/lib/auth'
-import { PageHeader, Selo } from '@/components/ui'
+import { PageHeader, Selo, BotaoLink } from '@/components/ui'
 import AbasTurma from '@/components/Turma/AbasTurma'
 import NotasManager, { type Avaliacao, type AlunoNota } from '@/components/Turma/NotasManager'
 
@@ -72,6 +72,21 @@ export default async function NotasDaTurmaPage({ params }: { params: Promise<{ i
         contadores={{ atividades: totalAtividades ?? 0 }}
       />
 
+
+      {/* O BOLETIM SAI DAQUI.
+          Fica junto das notas, que é onde o professor está quando alguém
+          pede o boletim. Abre em aba nova já com o diálogo de impressão —
+          "Salvar como PDF" é do próprio navegador. */}
+      <div className="mb-5 flex flex-wrap gap-2">
+        <BotaoLink
+          href={`/api/boletim/${id}`}
+          target="_blank"
+          variante="secundario"
+          icone="Printer"
+        >
+          Boletins da turma (PDF)
+        </BotaoLink>
+      </div>
       <NotasManager
         turmaId={id}
         avaliacoes={(avaliacoes ?? []) as Avaliacao[]}
