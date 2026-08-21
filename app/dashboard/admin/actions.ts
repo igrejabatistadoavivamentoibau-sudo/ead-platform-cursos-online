@@ -38,18 +38,56 @@ export async function criarTurma(input: {
   descricao?: string
   professor_id?: string
   data_inicio?: string
+  /** O módulo a que esta turma pertence. É ele que traz o curso junto. */
+  modulo_id?: string
+  modalidade?: 'presencial' | 'ead'
 }) {
   await requireAdmin()
   const admin = createAdminClient()
 
+  /* A turma pertence ao MÓDULO, não ao curso. É isso que permite "várias
+     turmas de primeiro módulo, várias de segundo". O `curso_id` é
+     preenchido sozinho pelo banco a partir do módulo — a coluna continua
+     existindo para o código antigo não quebrar durante a publicação. */
   const { error } = await admin.from('turmas').insert({
     nome: input.nome,
     descricao: input.descricao || null,
     professor_id: input.professor_id || null,
     data_inicio: input.data_inicio || null,
+    modulo_id: input.modulo_id || null,
+    modalidade: input.modalidade ?? 'ead',
   })
 
   if (error) throw new Error(error.message)
+  revalidatePath('/dashboard/admin/turmas')
+}
+
+/**
+ * Ajusta módulo e modalidade de uma turma que já existe.
+ *
+ * Separado de `definirCursoDaTurma` de propósito: aquela função dizia a
+ * que CURSO a turma pertence, e agora quem responde por isso é o módulo.
+ * Ela continua existindo para não quebrar chamada antiga, mas o caminho
+ * novo é este.
+ */
+export async function definirModuloDaTurma(
+  turmaId: string,
+  input: { modulo_id: string | null; modalidade?: 'presencial' | 'ead' }
+) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('turmas')
+    .update({
+      modulo_id: input.modulo_id,
+      ...(input.modalidade ? { modalidade: input.modalidade } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', turmaId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
   revalidatePath('/dashboard/admin/turmas')
 }
 
@@ -128,16 +166,71 @@ export async function removerTurma(turmaId: string) {
   revalidatePath('/dashboard/professor')
 }
 
-export async function matricularAluno(turmaId: string, alunoId: string) {
+/**
+ * Confere o pré-requisito do módulo, sem matricular ninguém.
+ *
+ * A tela chama isto ANTES de mostrar o botão, para poder explicar o
+ * motivo em vez de só recusar. "Ainda está cursando o Módulo 1" e
+ * "reprovado no Módulo 1" levam a decisões diferentes de quem está
+ * matriculando.
+ */
+export async function conferirPreRequisito(turmaId: string, alunoId: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const { data, error } = await admin.rpc('pode_entrar_no_modulo', {
+    p_aluno: alunoId,
+    p_turma: turmaId,
+  })
+  if (error) throw new Error(error.message)
+  const linha = Array.isArray(data) ? data[0] : data
+  return {
+    pode: linha?.pode !== false,
+    motivo: (linha?.motivo as string) ?? null,
+  }
+}
+
+/**
+ * Matricula, respeitando a regra dos módulos.
+ *
+ * A REGRA, E A EXCEÇÃO QUE ELA PRECISA TER
+ * Só entra numa turma do Módulo 2 quem foi aprovado no Módulo 1. Mas a
+ * escola é de gente, não de planilha: existe o aluno que veio
+ * transferido, o que cursou o módulo antes da plataforma existir, o que
+ * a coordenação decidiu adiantar. Uma regra sem porta de exceção vira
+ * uma regra que alguém contorna por fora — e aí ela não vale nada.
+ *
+ * Então o administrador pode passar por cima, mas de forma explícita e
+ * registrada: `ignorarPreRequisito` só chega aqui se ele tiver confirmado
+ * na tela, e o motivo fica gravado na matrícula.
+ */
+export async function matricularAluno(
+  turmaId: string,
+  alunoId: string,
+  opcoes?: { ignorarPreRequisito?: boolean; motivo?: string }
+) {
   await requireAdmin()
   const admin = createAdminClient()
 
-  const { error } = await admin
-    .from('turma_alunos')
-    .insert({ turma_id: turmaId, aluno_id: alunoId })
+  if (!opcoes?.ignorarPreRequisito) {
+    const r = await conferirPreRequisito(turmaId, alunoId)
+    if (!r.pode) throw new Error(r.motivo ?? 'Este aluno não cumpre o pré-requisito do módulo.')
+  }
+
+  const { error } = await admin.from('turma_alunos').insert({
+    turma_id: turmaId,
+    aluno_id: alunoId,
+    ...(opcoes?.ignorarPreRequisito
+      ? {
+          observacao_conclusao:
+            'Matriculado sem o pré-requisito do módulo pela coordenação.' +
+            (opcoes.motivo ? ` Motivo: ${opcoes.motivo}` : ''),
+        }
+      : {}),
+  })
 
   if (error) throw new Error(error.message)
   revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
+  revalidatePath('/dashboard/admin/repetentes')
 }
 
 export async function removerMatricula(turmaId: string, matriculaId: string) {
@@ -1184,4 +1277,174 @@ export async function removerBlocoSite(id: string) {
 
   revalidatePath('/dashboard/admin/site')
   revalidatePath('/')
+}
+
+// ============ MÓDULOS DO CURSO ============
+
+/* ============================================================
+   OS MÓDULOS
+
+   "Curso é escola de líderes, mas posso ter várias turmas de primeiro
+   módulo, várias de segundo." É essa a forma: o curso é o programa
+   inteiro, o módulo é a etapa, e a turma é um grupo de gente fazendo uma
+   etapa numa época.
+
+   Tudo aqui é editável pela coordenação — criar, renomear, reordenar,
+   apagar, mover aula de um módulo para outro. É o que foi pedido, e com
+   razão: estrutura de curso muda, e ter que pedir para alguém mexer no
+   código a cada mudança é o que faz a plataforma virar um estorvo.
+   ============================================================ */
+
+export async function criarModulo(cursoId: string, input: { nome: string; descricao?: string }) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const nome = input.nome?.trim()
+  if (!nome) throw new Error('Dê um nome para o módulo.')
+
+  const { data: ultimo } = await admin
+    .from('modulos')
+    .select('ordem')
+    .eq('curso_id', cursoId)
+    .order('ordem', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { error } = await admin.from('modulos').insert({
+    curso_id: cursoId,
+    nome,
+    descricao: input.descricao?.trim() || null,
+    ordem: (ultimo?.ordem ?? 0) + 1,
+  })
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+}
+
+export async function renomearModulo(
+  moduloId: string,
+  cursoId: string,
+  input: { nome: string; descricao?: string }
+) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const nome = input.nome?.trim()
+  if (!nome) throw new Error('Dê um nome para o módulo.')
+
+  const { error } = await admin
+    .from('modulos')
+    .update({ nome, descricao: input.descricao?.trim() || null, updated_at: new Date().toISOString() })
+    .eq('id', moduloId)
+    .eq('curso_id', cursoId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+}
+
+/**
+ * Troca de lugar com o vizinho.
+ *
+ * A ordem não é enfeite: é ela que decide o pré-requisito. Mover o
+ * Módulo 3 para a segunda posição muda quem pode entrar em quê — por
+ * isso a troca é sempre com o vizinho, uma casa por vez, e não um campo
+ * numérico livre onde é fácil digitar 7 sem querer e reescrever o curso.
+ */
+export async function moverModulo(moduloId: string, cursoId: string, direcao: 'cima' | 'baixo') {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: modulos } = await admin
+    .from('modulos')
+    .select('id, ordem')
+    .eq('curso_id', cursoId)
+    .order('ordem', { ascending: true })
+
+  const lista = modulos ?? []
+  const i = lista.findIndex((m) => m.id === moduloId)
+  if (i < 0) throw new Error('Módulo não encontrado.')
+  const j = direcao === 'cima' ? i - 1 : i + 1
+  if (j < 0 || j >= lista.length) return
+
+  /* A ordem tem índice único junto com o curso? Não tem — mas mesmo assim
+     a troca passa por um valor de passagem (-1). Sem isso, o primeiro
+     UPDATE deixaria dois módulos com a mesma ordem por um instante, e
+     qualquer leitura concorrente veria a lista fora de ordem. */
+  const a = lista[i]
+  const b = lista[j]
+  await admin.from('modulos').update({ ordem: -1 }).eq('id', a.id)
+  await admin.from('modulos').update({ ordem: a.ordem }).eq('id', b.id)
+  await admin.from('modulos').update({ ordem: b.ordem }).eq('id', a.id)
+
+  revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+}
+
+/**
+ * Apaga um módulo.
+ *
+ * Apagar leva junto as AULAS do módulo (é o que o banco faz em cascata) e
+ * deixa as TURMAS sem módulo — não apaga turma nenhuma, porque turma tem
+ * aluno, nota e presença dentro. Por isso a conferência antes: se houver
+ * turma pendurada, a função recusa e diz quantas são, em vez de deixar
+ * um rastro de turmas órfãs que ninguém entende depois.
+ */
+export async function removerModulo(moduloId: string, cursoId: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const [{ count: turmas }, { count: aulas }] = await Promise.all([
+    admin.from('turmas').select('id', { count: 'exact', head: true }).eq('modulo_id', moduloId),
+    admin.from('aulas').select('id', { count: 'exact', head: true }).eq('modulo_id', moduloId),
+  ])
+
+  if (turmas && turmas > 0) {
+    throw new Error(
+      `Este módulo tem ${turmas} ${turmas === 1 ? 'turma' : 'turmas'}. Mova ${turmas === 1 ? 'ela' : 'elas'} para outro módulo antes de apagar.`
+    )
+  }
+  if (aulas && aulas > 0) {
+    throw new Error(
+      `Este módulo tem ${aulas} ${aulas === 1 ? 'aula' : 'aulas'}. Mova ou apague ${aulas === 1 ? 'ela' : 'elas'} antes.`
+    )
+  }
+
+  const { error } = await admin.from('modulos').delete().eq('id', moduloId).eq('curso_id', cursoId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+}
+
+/** Move uma aula para outro módulo do mesmo curso. */
+export async function moverAulaDeModulo(aulaId: string, cursoId: string, moduloId: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: modulo } = await admin
+    .from('modulos')
+    .select('id, curso_id')
+    .eq('id', moduloId)
+    .maybeSingle()
+  if (!modulo || modulo.curso_id !== cursoId) {
+    throw new Error('Este módulo não pertence a este curso.')
+  }
+
+  /* O número da aula é único DENTRO do módulo. Chegando num módulo que já
+     tem uma aula com aquele número, o banco recusaria — então a aula
+     entra no fim da fila do destino. Sem isto, mover a Aula 1 do Módulo 1
+     para o Módulo 2 daria um erro de banco cru na cara da pessoa. */
+  const { data: ultima } = await admin
+    .from('aulas')
+    .select('numero')
+    .eq('modulo_id', moduloId)
+    .order('numero', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { error } = await admin
+    .from('aulas')
+    .update({ modulo_id: moduloId, numero: (ultima?.numero ?? 0) + 1, updated_at: new Date().toISOString() })
+    .eq('id', aulaId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
 }

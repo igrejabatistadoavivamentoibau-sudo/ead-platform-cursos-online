@@ -8,6 +8,7 @@ import CursoForm from '@/components/Cursos/CursoForm'
 import CursoAcoes from '@/components/Cursos/CursoAcoes'
 import AulasManager, { type AulaItem } from '@/components/Aulas/AulasManager'
 import AulaAvulsaForm from '@/components/Aulas/AulaAvulsaForm'
+import ModulosDoCurso, { type ModuloItem } from '@/components/Cursos/ModulosDoCurso'
 import {
   corDoCurso,
   urlDaCapa,
@@ -29,14 +30,44 @@ export default async function CursoDetalhePage({
   const { data: curso } = await supabase.from('cursos').select('*').eq('id', id).single()
   if (!curso) notFound()
 
-  const [{ data: aulas }, { data: turmas }] = await Promise.all([
+  const [{ data: aulas }, { data: turmas }, { data: modulos }] = await Promise.all([
     supabase
       .from('aulas')
-      .select('id, numero, titulo, descricao, video_url, duracao_minutos, publicada')
+      .select('id, numero, titulo, descricao, video_url, duracao_minutos, publicada, modulo_id')
       .eq('curso_id', id)
       .order('numero', { ascending: true }),
-    supabase.from('turmas').select('id, nome, status').eq('curso_id', id),
+    supabase.from('turmas').select('id, nome, status, modulo_id').eq('curso_id', id),
+    supabase
+      .from('modulos')
+      .select('id, nome, descricao, ordem')
+      .eq('curso_id', id)
+      .order('ordem', { ascending: true }),
   ])
+
+  /* Os módulos com o que está pendurado em cada um. O número de turmas
+     importa na tela: apagar um módulo com turma dentro é recusado, e a
+     pessoa precisa ver isso ANTES de tentar. */
+  const turmasPorModulo = new Map<string, number>()
+  for (const t of turmas ?? []) {
+    const k = (t.modulo_id as string) ?? ''
+    if (k) turmasPorModulo.set(k, (turmasPorModulo.get(k) ?? 0) + 1)
+  }
+
+  const listaDeModulos: ModuloItem[] = (modulos ?? []).map((m) => ({
+    id: m.id as string,
+    nome: m.nome as string,
+    descricao: (m.descricao as string) ?? null,
+    ordem: Number(m.ordem),
+    aulas: (aulas ?? [])
+      .filter((a) => a.modulo_id === m.id)
+      .map((a) => ({
+        id: a.id as string,
+        numero: Number(a.numero),
+        titulo: a.titulo as string,
+        publicada: a.publicada as boolean,
+      })),
+    turmas: turmasPorModulo.get(m.id as string) ?? 0,
+  }))
 
   const idsTurmas = (turmas ?? []).map((t) => t.id)
   const idsAulas = (aulas ?? []).map((a) => a.id)
@@ -189,6 +220,13 @@ export default async function CursoDetalhePage({
       <div className="mb-5">
         <AulaAvulsaForm cursoId={curso.id} />
       </div>
+      {/* Os módulos vêm ANTES da lista de aulas de propósito: é a
+          estrutura que explica a lista. Quem chega aqui para organizar o
+          curso precisa ver primeiro em quantas etapas ele se divide. */}
+      <div className="mb-8">
+        <ModulosDoCurso cursoId={curso.id} modulos={listaDeModulos} />
+      </div>
+
       <AulasManager cursoId={curso.id} aulas={lista} totalAlunos={totalAlunos} />
 
       {/* ---------- Editar dados ---------- */}

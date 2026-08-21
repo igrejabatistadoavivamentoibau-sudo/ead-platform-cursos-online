@@ -8,7 +8,7 @@ export default function AbasTurma({
   contadores,
 }: {
   turmaId: string
-  atual: 'avanco' | 'aulas' | 'chamada' | 'notas' | 'atividades'
+  atual: 'avanco' | 'aulas' | 'chamada' | 'notas' | 'atividades' | 'conclusao'
   presencial: boolean
   contadores?: { atividades?: number; pedidos?: number }
 }) {
@@ -37,6 +37,10 @@ export default function AbasTurma({
       icone: 'FileText',
       contador: contadores?.atividades,
     },
+    /* A conclusão fica por último de propósito: é o fim do caminho da
+       turma, e o único item da barra que decide se alguém avança ou
+       repete o módulo. */
+    { href: `${base}/conclusao`, label: 'Conclusão', icone: 'GraduationCap' },
   ]
 
   return <Abas itens={itens} atual={`${base}/${atual}`} />

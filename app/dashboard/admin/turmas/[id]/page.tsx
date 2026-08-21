@@ -6,6 +6,7 @@ import TurmaStatusActions from '@/components/Dashboard/TurmaStatusActions'
 import MatriculaManager from '@/components/Dashboard/MatriculaManager'
 import EncontroManager from '@/components/Dashboard/EncontroManager'
 import CursoDaTurma from '@/components/Dashboard/CursoDaTurma'
+import ModuloDaTurma, { type ModuloEscolhivel } from '@/components/Dashboard/ModuloDaTurma'
 import { BotaoLink } from '@/components/ui'
 import ExcluirTurma from '@/components/Dashboard/ExcluirTurma'
 
@@ -27,7 +28,7 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
 
   const { data: turma } = await supabase
     .from('turmas')
-    .select('id, nome, descricao, status, data_inicio, professor_id, curso_id')
+    .select('id, nome, descricao, status, data_inicio, professor_id, curso_id, modulo_id, modalidade')
     .eq('id', id)
     .single()
 
@@ -46,6 +47,21 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
     .from('cursos')
     .select('id, titulo')
     .order('ordem', { ascending: true })
+
+  /* Todos os módulos de todos os cursos, para o seletor. São poucos por
+     natureza (um curso tem 2 a 5 etapas), então uma consulta só resolve —
+     e o agrupamento por curso acontece na tela. */
+  const { data: modulosBanco } = await supabase
+    .from('modulos')
+    .select('id, nome, ordem, cursos(titulo)')
+    .order('ordem', { ascending: true })
+
+  const modulosEscolhiveis: ModuloEscolhivel[] = (modulosBanco ?? []).map((m) => ({
+    id: m.id as string,
+    nome: m.nome as string,
+    ordem: Number(m.ordem),
+    cursoTitulo: (m.cursos as unknown as { titulo?: string } | null)?.titulo ?? 'Sem curso',
+  }))
 
   const matriculados = (matriculas ?? []).map((m) => {
     const aluno = m.users as unknown as { id?: string; name?: string; email?: string } | null
@@ -131,11 +147,25 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
       </div>
 
       <div className="mb-6">
-        <CursoDaTurma
+        {/* O módulo substitui a escolha de curso: ele traz o curso junto.
+            A escolha de curso continua logo abaixo, para as turmas antigas
+            que ainda não foram encaixadas num módulo. */}
+        <ModuloDaTurma
           turmaId={turma.id}
-          cursoAtual={turma.curso_id}
-          cursos={cursos ?? []}
+          moduloAtual={(turma.modulo_id as string) ?? null}
+          modalidadeAtual={turma.modalidade === 'presencial' ? 'presencial' : 'ead'}
+          modulos={modulosEscolhiveis}
         />
+
+        {!turma.modulo_id && (
+          <div className="mt-4">
+            <CursoDaTurma
+              turmaId={turma.id}
+              cursoAtual={turma.curso_id}
+              cursos={cursos ?? []}
+            />
+          </div>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">

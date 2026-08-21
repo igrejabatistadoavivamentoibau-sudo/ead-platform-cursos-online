@@ -78,6 +78,9 @@ const ADMIN: PerfilDePortal = {
     { href: '/dashboard/professor/conversas', label: 'Conversas', icone: 'MessagesSquare', grupo: 'Pessoas' },
     { href: '/dashboard/admin/notificacoes', label: 'Notificações', icone: 'Bell', grupo: 'Pessoas' },
     { href: '/dashboard/admin/inscricoes', label: 'Inscrições', icone: 'Inbox', grupo: 'Pessoas' },
+    // Quem reprovou e está esperando a coordenação decidir em qual turma
+    // refaz o módulo. Sem um lugar no menu, essa fila ficaria invisível.
+    { href: '/dashboard/admin/repetentes', label: 'Repete o módulo', icone: 'RotateCcw', grupo: 'Pessoas' },
     { href: '/dashboard/admin/usuarios', label: 'Usuários', icone: 'Users2', grupo: 'Pessoas' },
     { href: '/dashboard/admin/permissoes', label: 'Permissões', icone: 'ShieldCheck', grupo: 'Pessoas' },
 

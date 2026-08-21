@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolverPermissoes, type ChavePermissao, type UserRole } from '@/lib/permissoes'
+import { NOTA_DE_APROVACAO } from '@/lib/boletim'
 
 /** Confirma permissão a partir da sessão e devolve quem está agindo. */
 async function exigir(chave: ChavePermissao) {
@@ -664,4 +665,127 @@ export async function responderJustificativa(
 
   revalidatePath(`/dashboard/professor/turmas/${turmaId}/chamada`)
   revalidatePath('/dashboard/aluno/presencas')
+}
+
+// ==================== CONCLUIR A TURMA ====================
+
+
+export interface DecisaoDeConclusao {
+  alunoId: string
+  /** A média que vale. Vem calculada, o professor pode ajustar. */
+  media: number | null
+  situacao: 'aprovado' | 'reprovado' | 'desistente'
+  frequencia: number | null
+  observacao?: string
+}
+
+/**
+ * Fecha a turma e registra a situação de cada aluno.
+ *
+ * POR QUE A MÉDIA FICA GRAVADA, E NÃO É RECALCULADA DEPOIS
+ * Se a situação fosse calculada toda vez que alguém abre a tela, ela
+ * mudaria sozinha: o professor corrige uma atividade atrasada em novembro
+ * e o aluno reprovado em agosto "vira" aprovado sem ninguém decidir nada
+ * — e sem ninguém saber. Conclusão é ato, não consulta. A média do dia do
+ * fechamento fica congelada, junto de quem fechou e quando.
+ *
+ * POR QUE O PROFESSOR PODE AJUSTAR O NÚMERO
+ * Porque a escola é de gente. Existe o aluno que perdeu a prova por um
+ * enterro na família, o que fez tudo e travou num trabalho, o caso que a
+ * coordenação já resolveu por fora. Uma régua sem exceção é uma régua que
+ * alguém contorna por fora da plataforma — e aí o registro passa a
+ * mentir. Aqui a exceção existe, mas é escrita: fica o número, o motivo,
+ * e o nome de quem decidiu.
+ */
+export async function concluirTurma(
+  turmaId: string,
+  decisoes: DecisaoDeConclusao[],
+  opcoes?: { encerrarTurma?: boolean }
+) {
+  const { userId, role } = await exigir('ver_alunos')
+  await garantirTurma(turmaId, userId, role)
+  const admin = createAdminClient()
+
+  if (!decisoes.length) throw new Error('Nenhum aluno para concluir.')
+
+  const { data: matriculas } = await admin
+    .from('turma_alunos')
+    .select('id, aluno_id')
+    .eq('turma_id', turmaId)
+
+  const idPorAluno = new Map((matriculas ?? []).map((m) => [m.aluno_id as string, m.id as string]))
+  const agora = new Date().toISOString()
+
+  for (const d of decisoes) {
+    const matriculaId = idPorAluno.get(d.alunoId)
+    if (!matriculaId) continue
+
+    if (d.media !== null) {
+      if (Number.isNaN(d.media)) throw new Error('Média inválida.')
+      if (d.media < 0 || d.media > 10) throw new Error('A média final vai de 0 a 10.')
+    }
+
+    /* Aprovar alguém abaixo da nota de corte é possível, mas exige
+       justificativa escrita. Sem isso a exceção viraria rotina e ninguém
+       conseguiria explicar, meses depois, por que aquele aluno passou. */
+    if (
+      d.situacao === 'aprovado' &&
+      d.media !== null &&
+      d.media < NOTA_DE_APROVACAO &&
+      !d.observacao?.trim()
+    ) {
+      throw new Error(
+        `Para aprovar com média abaixo de ${NOTA_DE_APROVACAO}, escreva o motivo no campo de observação.`
+      )
+    }
+
+    const { error } = await admin
+      .from('turma_alunos')
+      .update({
+        situacao: d.situacao,
+        media_final: d.media,
+        frequencia_final: d.frequencia,
+        observacao_conclusao: d.observacao?.trim() || null,
+        concluida_em: agora,
+        concluida_por: userId,
+        status: d.situacao === 'aprovado' ? 'concluido' : 'ativo',
+      })
+      .eq('id', matriculaId)
+    if (error) throw new Error(error.message)
+  }
+
+  if (opcoes?.encerrarTurma) {
+    await admin
+      .from('turmas')
+      .update({ status: 'encerrada', updated_at: agora })
+      .eq('id', turmaId)
+  }
+
+  revalidatePath(`/dashboard/professor/turmas/${turmaId}/conclusao`)
+  revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
+  revalidatePath('/dashboard/admin/repetentes')
+  revalidatePath('/dashboard/aluno/notas')
+}
+
+/** Reabre a turma para corrigir um fechamento feito errado. */
+export async function reabrirConclusao(turmaId: string, alunoId: string) {
+  const { userId, role } = await exigir('ver_alunos')
+  await garantirTurma(turmaId, userId, role)
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('turma_alunos')
+    .update({
+      situacao: 'cursando',
+      media_final: null,
+      frequencia_final: null,
+      concluida_em: null,
+      concluida_por: null,
+      status: 'ativo',
+    })
+    .eq('turma_id', turmaId)
+    .eq('aluno_id', alunoId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/dashboard/professor/turmas/${turmaId}/conclusao`)
 }
