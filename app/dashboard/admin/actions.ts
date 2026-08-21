@@ -579,8 +579,67 @@ function revalidarAulas(cursoId: string) {
   revalidatePath('/dashboard/aluno/cursos')
 }
 
+/**
+ * O módulo em que a aula vai entrar.
+ *
+ * Existe porque a aula deixou de pertencer ao curso e passou a pertencer ao
+ * MÓDULO (migração 022) — e as duas telas de criar aula continuaram gravando
+ * só o curso. A aula era criada, aparecia para o professor e **não existia
+ * para o aluno**, porque a tela dele monta o curso a partir dos módulos.
+ * Nenhum erro na tela; uma aula que "sumiu".
+ *
+ * Confere que o módulo escolhido é deste curso: o id chega do navegador, e
+ * sem essa conferência daria para pendurar uma aula no curso de outra pessoa.
+ * Sem escolha, cai no primeiro módulo — que é o certo para escola de um
+ * módulo só, que é a maioria.
+ */
+async function moduloDaAula(
+  admin: ReturnType<typeof createAdminClient>,
+  cursoId: string,
+  moduloId?: string
+): Promise<string | null> {
+  if (moduloId) {
+    const { data } = await admin
+      .from('modulos')
+      .select('id')
+      .eq('id', moduloId)
+      .eq('curso_id', cursoId)
+      .maybeSingle()
+    if (!data) throw new Error('Este módulo não é deste curso.')
+    return data.id as string
+  }
+
+  const { data } = await admin
+    .from('modulos')
+    .select('id')
+    .eq('curso_id', cursoId)
+    .order('ordem', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  // Null é aceitável: o gatilho `aula_entra_num_modulo` resolve no banco.
+  return (data?.id as string) ?? null
+}
+
+/** O próximo número livre DENTRO do módulo — a contagem é por módulo. */
+async function proximoNumeroDaAula(
+  admin: ReturnType<typeof createAdminClient>,
+  moduloId: string | null
+) {
+  if (!moduloId) return undefined
+  const { data } = await admin
+    .from('aulas')
+    .select('numero')
+    .eq('modulo_id', moduloId)
+    .order('numero', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return (Number(data?.numero) || 0) + 1
+}
+
 export async function criarAula(input: {
   curso_id: string
+  modulo_id?: string
   titulo: string
   descricao?: string
   video_url?: string
@@ -590,18 +649,12 @@ export async function criarAula(input: {
   await garantirAcessoAoCurso(input.curso_id, user.id, role)
   const admin = createAdminClient()
 
-  // Número da aula é sequencial dentro do curso (Aula 1, Aula 2, ...)
-  const { data: ultima } = await admin
-    .from('aulas')
-    .select('numero')
-    .eq('curso_id', input.curso_id)
-    .order('numero', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const moduloId = await moduloDaAula(admin, input.curso_id, input.modulo_id)
 
   const { error } = await admin.from('aulas').insert({
     curso_id: input.curso_id,
-    numero: (ultima?.numero ?? 0) + 1,
+    modulo_id: moduloId,
+    numero: await proximoNumeroDaAula(admin, moduloId),
     titulo: input.titulo,
     descricao: input.descricao || null,
     video_url: input.video_url || null,
@@ -658,11 +711,23 @@ export async function moverAula(aulaId: string, cursoId: string, direcao: 'cima'
   await garantirAcessoAoCurso(cursoId, user.id, role)
   const admin = createAdminClient()
 
-  const { data: aulas } = await admin
+  /* A ordem é DENTRO DO MÓDULO, não do curso.
+     Antes esta consulta trazia o curso inteiro. Com módulos, a lista vinha
+     embaralhada (Aula 1 do Módulo 1, Aula 1 do Módulo 2, Aula 2 do Módulo
+     1...) e a seta trocava o número de uma aula do Módulo 1 com o de uma do
+     Módulo 2 — bagunçando os dois de uma vez, ou esbarrando no índice que
+     exige número único por módulo. */
+  const { data: aula } = await admin
     .from('aulas')
-    .select('id, numero')
-    .eq('curso_id', cursoId)
-    .order('numero', { ascending: true })
+    .select('modulo_id')
+    .eq('id', aulaId)
+    .maybeSingle()
+
+  const consulta = admin.from('aulas').select('id, numero')
+  const { data: aulas } = await (aula?.modulo_id
+    ? consulta.eq('modulo_id', aula.modulo_id)
+    : consulta.eq('curso_id', cursoId).is('modulo_id', null)
+  ).order('numero', { ascending: true })
 
   if (!aulas) return
   const i = aulas.findIndex((a) => a.id === aulaId)

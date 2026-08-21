@@ -1,6 +1,16 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { BookOpenText, Clock, Users2, ArrowRight, Check, Play, Monitor, Users } from 'lucide-react'
+import {
+  BookOpenText,
+  Clock,
+  Users2,
+  ArrowRight,
+  Check,
+  Play,
+  Monitor,
+  Users,
+  Layers,
+} from 'lucide-react'
 import { corDoCurso, urlDaCapa, NIVEL_LABEL, MODALIDADE, type Curso } from '@/lib/cursos'
 
 export interface CursoCardProps {
@@ -13,6 +23,14 @@ export interface CursoCardProps {
   aulasConcluidas?: number
   /** Mostra o selo de rascunho quando o curso ainda não foi publicado. */
   mostrarStatus?: boolean
+  /**
+   * Em qual módulo esta pessoa está, quando o curso tem mais de um.
+   *
+   * Sem isso o cartão dizia "Escola de Líderes — 6 de 30 aulas" somando os
+   * três módulos, inclusive os que ela não pode abrir. O número ficava
+   * baixo por um motivo que não era o esforço dela.
+   */
+  etapa?: string | null
 }
 
 export default function CursoCard({
@@ -23,6 +41,7 @@ export default function CursoCard({
   progresso,
   aulasConcluidas,
   mostrarStatus = false,
+  etapa = null,
 }: CursoCardProps) {
   const cor = corDoCurso(curso.cor)
   const capa = urlDaCapa(curso.capa_path)
@@ -115,6 +134,15 @@ export default function CursoCard({
           {curso.titulo}
         </h3>
 
+        {etapa && (
+          <span
+            className={`mt-1.5 inline-flex w-fit items-center gap-1 rounded-md px-2 py-[3px] text-[11px] font-bold ring-1 ${cor.suave} ${cor.anel} ${cor.texto}`}
+          >
+            <Layers className="h-3 w-3" strokeWidth={2.4} />
+            {etapa}
+          </span>
+        )}
+
         {curso.subtitulo && (
           <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-gray-500">
             {curso.subtitulo}
@@ -153,7 +181,7 @@ export default function CursoCard({
             <div className="mb-1.5 flex items-baseline justify-between gap-2">
               <span className="text-[11.5px] text-gray-500">
                 {aulasConcluidas !== undefined && totalAulas !== undefined
-                  ? `${aulasConcluidas} de ${totalAulas} aulas`
+                  ? `${aulasConcluidas} de ${totalAulas} aulas${etapa ? ' do módulo' : ''}`
                   : 'Seu progresso'}
               </span>
               <span className={`text-[12px] font-bold tabular-nums ${cor.texto}`}>

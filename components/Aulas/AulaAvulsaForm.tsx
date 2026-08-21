@@ -22,7 +22,16 @@ const TIPOS = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime']
  * O servidor participa só nas pontas: autoriza o envio e registra a aula
  * depois. As duas conversas são de texto curto.
  */
-export default function AulaAvulsaForm({ cursoId }: { cursoId: string }) {
+export default function AulaAvulsaForm({
+  cursoId,
+  modulos = [],
+}: {
+  cursoId: string
+  /** Os módulos do curso. Com um só, a escolha nem aparece. */
+  modulos?: { id: string; nome: string; ordem: number }[]
+}) {
+  const emOrdem = [...modulos].sort((a, b) => a.ordem - b.ordem)
+  const escolheModulo = emOrdem.length > 1
   const [aberto, setAberto] = useState(false)
   const [arquivo, setArquivo] = useState<File | null>(null)
   const [pct, setPct] = useState<number | null>(null)
@@ -69,6 +78,7 @@ export default function AulaAvulsaForm({ cursoId }: { cursoId: string }) {
     const dados = new FormData(e.currentTarget)
     const titulo = (dados.get('titulo') as string)?.trim()
     const descricao = (dados.get('descricao') as string)?.trim()
+    const moduloId = (dados.get('modulo_id') as string) || emOrdem[0]?.id
 
     if (!arquivo) return setError('Escolha o arquivo de vídeo.')
     if (!TIPOS.includes(arquivo.type)) {
@@ -97,7 +107,7 @@ export default function AulaAvulsaForm({ cursoId }: { cursoId: string }) {
         arquivo
       )
 
-      await registrarAulaEnviada({ cursoId, titulo, descricao, videoPath })
+      await registrarAulaEnviada({ cursoId, moduloId, titulo, descricao, videoPath })
 
       formRef.current?.reset()
       setArquivo(null)
@@ -147,6 +157,20 @@ export default function AulaAvulsaForm({ cursoId }: { cursoId: string }) {
         </p>
 
         <div className="space-y-4">
+          {/* O módulo vem antes do nome: é ele que decide quem vai ver esta
+              aula. Com um módulo só, não há decisão a tomar. */}
+          {escolheModulo && (
+            <Campo label="Módulo">
+              <select name="modulo_id" disabled={enviando} className={CAMPO} defaultValue={emOrdem[0]?.id}>
+                {emOrdem.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nome}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+          )}
+
           <Campo label="Nome da aula">
             <input
               name="titulo"

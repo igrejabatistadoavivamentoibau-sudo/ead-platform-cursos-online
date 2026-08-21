@@ -420,6 +420,9 @@ export async function autorizarEnvioDeVideo(cursoId: string, nomeArquivo: string
  */
 export async function registrarAulaEnviada(dados: {
   cursoId: string
+  /** Em qual módulo a aula entra. Sem isso ela nasce fora de todos e o
+      aluno nunca a vê — a tela dele monta o curso a partir dos módulos. */
+  moduloId?: string
   titulo: string
   descricao?: string
   videoPath: string
@@ -451,17 +454,44 @@ export async function registrarAulaEnviada(dados: {
     if (!count) throw new Error('Este curso não está sob sua responsabilidade.')
   }
 
-  const { data: ultima } = await admin
-    .from('aulas')
-    .select('numero')
-    .eq('curso_id', cursoId)
-    .order('numero', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  /* O módulo escolhido tem que ser DESTE curso — o id vem do navegador.
+     Sem escolha, cai no primeiro, que é o certo para curso de um módulo só. */
+  let moduloId: string | null = null
+  if (dados.moduloId) {
+    const { data } = await admin
+      .from('modulos')
+      .select('id')
+      .eq('id', dados.moduloId)
+      .eq('curso_id', cursoId)
+      .maybeSingle()
+    if (!data) throw new Error('Este módulo não é deste curso.')
+    moduloId = data.id as string
+  } else {
+    const { data } = await admin
+      .from('modulos')
+      .select('id')
+      .eq('curso_id', cursoId)
+      .order('ordem', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    moduloId = (data?.id as string) ?? null
+  }
+
+  // A contagem é por módulo: o Módulo 2 tem a "Aula 1" dele.
+  const { data: ultima } = moduloId
+    ? await admin
+        .from('aulas')
+        .select('numero')
+        .eq('modulo_id', moduloId)
+        .order('numero', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null }
 
   const { error } = await admin.from('aulas').insert({
     curso_id: cursoId,
-    numero: (ultima?.numero ?? 0) + 1,
+    modulo_id: moduloId,
+    numero: (Number(ultima?.numero) || 0) + 1,
     titulo,
     descricao: descricao || null,
     video_path: videoPath,

@@ -1,7 +1,11 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { exigirPermissao } from '@/lib/auth'
-import VisaoDoCurso, { type AulaDoCurso, type ProgressoAula } from '@/components/Cursos/VisaoDoCurso'
+import VisaoDoCurso, {
+  type AulaDoCurso,
+  type ProgressoAula,
+  type ModuloNaTela,
+} from '@/components/Cursos/VisaoDoCurso'
 import FaixaPreview from '@/components/Cursos/FaixaPreview'
 import { montarPreview } from '@/lib/preview'
 import type { Curso } from '@/lib/cursos'
@@ -36,6 +40,7 @@ export default async function PreviewCursoProfessor({
         <VisaoDoCurso
           curso={dados.curso as Curso}
           aulas={dados.aulas as AulaDoCurso[]}
+          modulos={dados.modulos as ModuloNaTela[]}
           aulaAtual={dados.aulaAtual as AulaDoCurso}
           progressoPorAula={new Map<string, ProgressoAula>()}
           hrefAula={(aulaId) => `${base}?aula=${aulaId}${dados.incluirRascunhos ? '&rascunhos=1' : ''}`}

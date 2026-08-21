@@ -17,6 +17,7 @@ import {
   Clock,
   PlayCircle,
   AlertCircle,
+  Layers,
 } from 'lucide-react'
 import {
   criarAula,
@@ -36,6 +37,14 @@ export interface AulaItem {
   duracao_minutos: number | null
   publicada: boolean
   concluidas?: number
+  modulo_id?: string | null
+}
+
+/** Os módulos do curso, para a aula nova saber onde entrar. */
+export interface ModuloDaLista {
+  id: string
+  nome: string
+  ordem: number
 }
 
 const CAMPO =
@@ -45,10 +54,13 @@ export default function AulasManager({
   cursoId,
   aulas,
   totalAlunos,
+  modulos = [],
 }: {
   cursoId: string
   aulas: AulaItem[]
   totalAlunos: number
+  /** Vazio ou com um item só: a escolha some da tela, porque não há escolha. */
+  modulos?: ModuloDaLista[]
 }) {
   const [criando, setCriando] = useState(false)
   const [editando, setEditando] = useState<string | null>(null)
@@ -56,9 +68,21 @@ export default function AulasManager({
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
-  const [form, setForm] = useState({ titulo: '', descricao: '', video_url: '', duracao: '' })
+  const emOrdem = [...modulos].sort((a, b) => a.ordem - b.ordem)
+  const escolheModulo = emOrdem.length > 1
+  const nomeDoModulo = new Map(emOrdem.map((m) => [m.id, m.nome]))
+  const primeiroModulo = emOrdem[0]?.id ?? ''
 
-  const resetForm = () => setForm({ titulo: '', descricao: '', video_url: '', duracao: '' })
+  const VAZIO = {
+    titulo: '',
+    descricao: '',
+    video_url: '',
+    duracao: '',
+    modulo_id: primeiroModulo,
+  }
+  const [form, setForm] = useState(VAZIO)
+
+  const resetForm = () => setForm(VAZIO)
 
   const acao = (fn: () => Promise<void>, aoTerminar?: () => void) => {
     setError(null)
@@ -79,6 +103,7 @@ export default function AulasManager({
       () =>
         criarAula({
           curso_id: cursoId,
+          modulo_id: form.modulo_id || undefined,
           titulo: form.titulo,
           descricao: form.descricao || undefined,
           video_url: form.video_url || undefined,
@@ -115,8 +140,16 @@ export default function AulasManager({
       descricao: aula.descricao ?? '',
       video_url: aula.video_url ?? '',
       duracao: aula.duracao_minutos ? String(aula.duracao_minutos) : '',
+      modulo_id: aula.modulo_id ?? primeiroModulo,
     })
   }
+
+  const ordemDoModulo = new Map(emOrdem.map((m) => [m.id, m.ordem]))
+  const emOrdemDeExibicao = [...aulas].sort(
+    (a, b) =>
+      (ordemDoModulo.get(a.modulo_id ?? primeiroModulo) ?? 0) -
+        (ordemDoModulo.get(b.modulo_id ?? primeiroModulo) ?? 0) || a.numero - b.numero
+  )
 
   const previewVideo = analisarVideo(form.video_url)
 
@@ -140,7 +173,13 @@ export default function AulasManager({
         <form onSubmit={handleCriar} className="card-alive p-5 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-gray-900">
-              Nova aula <span className="text-gray-400 font-normal">(Aula {aulas.length + 1})</span>
+              Nova aula{' '}
+              <span className="text-gray-400 font-normal">
+                {/* A contagem é por MÓDULO: cada módulo tem a "Aula 1" dele,
+                    não continua a numeração do anterior. */}
+                (Aula {aulas.filter((a) => (a.modulo_id ?? primeiroModulo) === form.modulo_id).length + 1}
+                {escolheModulo ? ` de ${nomeDoModulo.get(form.modulo_id) ?? ''}` : ''})
+              </span>
             </h2>
             <button
               type="button"
@@ -153,6 +192,32 @@ export default function AulasManager({
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
+            {/* A escolha do módulo vem PRIMEIRO porque é a que muda o
+                significado de tudo abaixo dela — inclusive o número da aula.
+                Com um módulo só, ela não aparece: escolha de uma opção é
+                trabalho sem decisão. */}
+            {escolheModulo && (
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Módulo
+                </label>
+                <select
+                  value={form.modulo_id}
+                  onChange={(e) => setForm({ ...form, modulo_id: e.target.value })}
+                  className={CAMPO}
+                >
+                  {emOrdem.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1.5 text-[11.5px] text-gray-500">
+                  O aluno só vê esta aula se ele estiver num módulo que a contém.
+                </p>
+              </div>
+            )}
+
             <div className="sm:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                 Nome da aula
@@ -270,12 +335,24 @@ export default function AulasManager({
         </div>
       )}
 
-      {/* ===== Lista de aulas ===== */}
+      {/* ===== Lista de aulas =====
+          Ordenada por MÓDULO e depois por número. Sem isso a lista sairia
+          embaralhada assim que existisse um segundo módulo — Aula 1 do
+          Módulo 1, Aula 1 do Módulo 2, Aula 2 do Módulo 1 —, porque a
+          numeração passou a recomeçar em cada módulo. */}
       {aulas.length > 0 ? (
         <div className="space-y-3">
-          {aulas.map((aula, i) => {
+          {emOrdemDeExibicao.map((aula, i) => {
             const miniatura = miniaturaDoVideo(aula.video_url)
             const emEdicao = editando === aula.id
+            const moduloDaAula = aula.modulo_id ?? primeiroModulo
+            /* As setas só andam dentro do próprio módulo: trocar de lugar
+               com uma aula de outro módulo bagunçaria os dois. */
+            const primeiraDoModulo =
+              i === 0 || (emOrdemDeExibicao[i - 1].modulo_id ?? primeiroModulo) !== moduloDaAula
+            const ultimaDoModulo =
+              i === emOrdemDeExibicao.length - 1 ||
+              (emOrdemDeExibicao[i + 1].modulo_id ?? primeiroModulo) !== moduloDaAula
 
             return (
               <div key={aula.id} className={`card-alive overflow-hidden ${aula.publicada ? '' : 'opacity-75'}`}>
@@ -403,6 +480,12 @@ export default function AulasManager({
                       )}
 
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-500 mb-4">
+                        {escolheModulo && (
+                          <span className="inline-flex items-center gap-1.5 font-semibold text-brand-700">
+                            <Layers className="h-3.5 w-3.5" strokeWidth={2.25} />
+                            {nomeDoModulo.get(moduloDaAula) ?? 'Sem módulo'}
+                          </span>
+                        )}
                         {aula.duracao_minutos && (
                           <span className="inline-flex items-center gap-1.5">
                             <Clock className="h-3.5 w-3.5" strokeWidth={2} />
@@ -461,7 +544,7 @@ export default function AulasManager({
 
                         <button
                           type="button"
-                          disabled={isPending || i === 0}
+                          disabled={isPending || primeiraDoModulo}
                           onClick={() => acao(() => moverAula(aula.id, cursoId, 'cima'))}
                           className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:text-brand-700 hover:bg-brand-50 transition-colors disabled:opacity-25 disabled:hover:bg-transparent"
                           aria-label="Mover aula para cima"
@@ -471,7 +554,7 @@ export default function AulasManager({
                         </button>
                         <button
                           type="button"
-                          disabled={isPending || i === aulas.length - 1}
+                          disabled={isPending || ultimaDoModulo}
                           onClick={() => acao(() => moverAula(aula.id, cursoId, 'baixo'))}
                           className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:text-brand-700 hover:bg-brand-50 transition-colors disabled:opacity-25 disabled:hover:bg-transparent"
                           aria-label="Mover aula para baixo"

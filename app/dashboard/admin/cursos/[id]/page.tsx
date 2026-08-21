@@ -215,7 +215,7 @@ export default async function CursoDetalhePage({
       {/* ---------- Aulas ---------- */}
       <h2 className="font-bold text-gray-900 mb-4">Vídeo aulas do curso</h2>
       <div className="mb-5">
-        <AulaAvulsaForm cursoId={curso.id} />
+        <AulaAvulsaForm cursoId={curso.id} modulos={listaDeModulos} />
       </div>
       {/* Os módulos vêm ANTES da lista de aulas de propósito: é a
           estrutura que explica a lista. Quem chega aqui para organizar o
@@ -224,7 +224,12 @@ export default async function CursoDetalhePage({
         <ModulosDoCurso cursoId={curso.id} modulos={listaDeModulos} />
       </div>
 
-      <AulasManager cursoId={curso.id} aulas={lista} totalAlunos={totalAlunos} />
+      <AulasManager
+        cursoId={curso.id}
+        aulas={lista}
+        totalAlunos={totalAlunos}
+        modulos={listaDeModulos}
+      />
 
       {/* ---------- Editar dados ---------- */}
       <h2 className="font-bold text-gray-900 mt-10 mb-4">Dados do curso</h2>

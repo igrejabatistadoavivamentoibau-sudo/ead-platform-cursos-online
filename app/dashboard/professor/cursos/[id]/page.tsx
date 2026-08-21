@@ -36,14 +36,28 @@ export default async function CursoProfessorPage({
     if (!count) redirect('/dashboard/professor')
   }
 
-  const [{ data: aulas }, { data: turmas }] = await Promise.all([
+  const [{ data: aulas }, { data: turmas }, { data: modulos }] = await Promise.all([
     supabase
       .from('aulas')
-      .select('id, numero, titulo, descricao, video_url, duracao_minutos, publicada')
+      .select('id, numero, titulo, descricao, video_url, duracao_minutos, publicada, modulo_id')
       .eq('curso_id', id)
       .order('numero', { ascending: true }),
     supabase.from('turmas').select('id').eq('curso_id', id),
+    /* Os módulos entram aqui só para a aula nova saber onde nascer. O
+       professor não reorganiza módulos — isso é da coordenação —, mas ele
+       CRIA aula, e aula sem módulo é aula que o aluno nunca vê. */
+    supabase
+      .from('modulos')
+      .select('id, nome, ordem')
+      .eq('curso_id', id)
+      .order('ordem', { ascending: true }),
   ])
+
+  const listaDeModulos = (modulos ?? []).map((m) => ({
+    id: m.id as string,
+    nome: m.nome as string,
+    ordem: Number(m.ordem),
+  }))
 
   const idsTurmas = (turmas ?? []).map((t) => t.id)
   const idsAulas = (aulas ?? []).map((a) => a.id)
@@ -121,10 +135,15 @@ export default async function CursoProfessorPage({
           presencial, mas disponível em qualquer curso: nem todo professor
           quer depender do YouTube. */}
       <div className="mb-5">
-        <AulaAvulsaForm cursoId={id} />
+        <AulaAvulsaForm cursoId={id} modulos={listaDeModulos} />
       </div>
 
-      <AulasManager cursoId={id} aulas={lista} totalAlunos={matriculas?.length ?? 0} />
+      <AulasManager
+        cursoId={id}
+        aulas={lista}
+        totalAlunos={matriculas?.length ?? 0}
+        modulos={listaDeModulos}
+      />
     </div>
   )
 }

@@ -3,6 +3,11 @@ import { PlayCircle, FileText, MessagesSquare, GraduationCap, ArrowRight } from 
 import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
 import {
+  modulosDoAluno,
+  type MatriculaNoModulo,
+  type SituacaoNaTurma,
+} from '@/lib/modulosDoAluno'
+import {
   HeroAluno,
   SecaoTitulo,
   CursoCardVivo,
@@ -64,7 +69,7 @@ export default async function AlunoHome() {
   const { data: matriculas } = await supabase
     .from('turma_alunos')
     .select(
-      'turma_id, turmas(id, nome, descricao, status, curso_id, professor_id, cursos(id, titulo, cor, modalidade, ordem))'
+      'turma_id, situacao, turmas(id, nome, descricao, status, curso_id, modulo_id, professor_id, cursos(id, titulo, cor, modalidade, ordem))'
     )
     .eq('aluno_id', sessao.id)
 
@@ -84,6 +89,7 @@ export default async function AlunoHome() {
         descricao?: string | null
         status?: string
         curso_id?: string | null
+        modulo_id?: string | null
         professor_id?: string | null
         cursos?: CursoBruto | null
       } | null
@@ -94,6 +100,8 @@ export default async function AlunoHome() {
         descricao: t.descricao ?? null,
         status: t.status ?? 'planejada',
         cursoId: t.curso_id ?? null,
+        moduloId: t.modulo_id ?? null,
+        situacao: (m.situacao as SituacaoNaTurma) ?? 'cursando',
         professorId: t.professor_id ?? null,
         curso: t.cursos ?? null,
       }
@@ -104,6 +112,8 @@ export default async function AlunoHome() {
     descricao: string | null
     status: string
     cursoId: string | null
+    moduloId: string | null
+    situacao: SituacaoNaTurma
     professorId: string | null
     curso: CursoBruto | null
   }[]
@@ -120,6 +130,7 @@ export default async function AlunoHome() {
     { data: atividades },
     { data: entregas },
     { data: mensagens },
+    { data: modulos },
   ] = await Promise.all([
     idsProfessores.length
       ? supabase.from('users').select('id, name').in('id', idsProfessores)
@@ -133,11 +144,19 @@ export default async function AlunoHome() {
              os cursos, e "próxima aula" nunca aparecia. Silencioso, e por
              isso mesmo difícil de perceber: parecia que o aluno não tinha
              conteúdo, não que a consulta estava quebrada. */
-          .select('id, curso_id, titulo, numero')
+          .select('id, curso_id, modulo_id, titulo, numero')
           .in('curso_id', idsCursos)
           .eq('publicada', true)
           .order('numero', { ascending: true })
-      : Promise.resolve({ data: [] as { id: string; curso_id: string; titulo: string; numero: number }[] }),
+      : Promise.resolve({
+          data: [] as {
+            id: string
+            curso_id: string
+            modulo_id: string | null
+            titulo: string
+            numero: number
+          }[],
+        }),
     supabase
       .from('aula_progresso')
       .select('aula_id, concluida')
@@ -179,6 +198,17 @@ export default async function AlunoHome() {
             autor_id: string
           }[],
         }),
+    /* Os módulos entram para a conta saber onde o aluno está. Sem eles,
+       "6 de 30 aulas" somaria módulos que ele não pode nem abrir. */
+    idsCursos.length
+      ? supabase
+          .from('modulos')
+          .select('id, curso_id, nome, ordem')
+          .in('curso_id', idsCursos)
+          .order('ordem', { ascending: true })
+      : Promise.resolve({
+          data: [] as { id: string; curso_id: string; nome: string; ordem: number }[],
+        }),
   ])
 
   const nomeProfessor = new Map((professores ?? []).map((p) => [p.id, p.name]))
@@ -188,13 +218,47 @@ export default async function AlunoHome() {
 
   const concluidas = new Set((progressos ?? []).map((p) => p.aula_id))
 
-  const aulasPorCurso = new Map<string, { id: string; titulo: string }[]>()
-  for (const a of aulas ?? []) {
-    aulasPorCurso.set(a.curso_id, [...(aulasPorCurso.get(a.curso_id) ?? []), { id: a.id, titulo: a.titulo }])
+  /* ---------------- O que conta como "as minhas aulas" ----------------
+
+     Antes esta tela somava TODAS as aulas do curso. Com módulos, isso
+     passou a incluir aulas de módulos em que o aluno nem está matriculado
+     — e que ele não tem permissão de abrir. O número ficava baixo por um
+     motivo que não era o esforço dele, e "próxima aula" podia apontar para
+     um módulo trancado.
+
+     Agora conta o MÓDULO EM QUE ELE ESTÁ, que é a mesma conta da tela
+     "Meus cursos". Duas telas discordando sobre "6 de 10" é pior do que
+     qualquer uma das duas estar um pouco fora. */
+  const moduloAtualDoCurso = new Map<string, string | null>()
+  for (const cursoId of idsCursos) {
+    const doCurso = (modulos ?? [])
+      .filter((m) => m.curso_id === cursoId)
+      .map((m) => ({ id: m.id as string, nome: m.nome as string, ordem: Number(m.ordem) }))
+
+    const minhas: MatriculaNoModulo[] = turmas
+      .filter((t) => t.cursoId === cursoId && t.moduloId)
+      .map((t) => ({ moduloId: t.moduloId as string, situacao: t.situacao }))
+
+    const resolvidos = modulosDoAluno(doCurso, minhas)
+    const atual = resolvidos.find((m) => m.atual) ?? resolvidos.find((m) => m.aberto) ?? null
+    moduloAtualDoCurso.set(cursoId, atual?.id ?? null)
   }
 
-  const totalAulas = (aulas ?? []).length
-  const aulasFeitas = (aulas ?? []).filter((a) => concluidas.has(a.id)).length
+  const minhasAulas = (aulas ?? []).filter((a) => {
+    const atual = moduloAtualDoCurso.get(a.curso_id)
+    return atual ? a.modulo_id === atual : true
+  })
+
+  const aulasPorCurso = new Map<string, { id: string; titulo: string }[]>()
+  for (const a of minhasAulas) {
+    aulasPorCurso.set(a.curso_id, [
+      ...(aulasPorCurso.get(a.curso_id) ?? []),
+      { id: a.id, titulo: a.titulo },
+    ])
+  }
+
+  const totalAulas = minhasAulas.length
+  const aulasFeitas = minhasAulas.filter((a) => concluidas.has(a.id)).length
 
   const presencasMinhas = (presencas ?? [])
     .map((p) => ({

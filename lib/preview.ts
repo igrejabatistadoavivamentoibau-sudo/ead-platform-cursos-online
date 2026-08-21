@@ -14,13 +14,20 @@ export async function montarPreview(
   aulaSelecionada: string | undefined,
   incluirRascunhos: boolean
 ) {
-  const [{ data: curso }, { data: todas }] = await Promise.all([
+  const [{ data: curso }, { data: todas }, { data: modulos }] = await Promise.all([
     supabase.from('cursos').select('*').eq('id', cursoId).single(),
     supabase
       .from('aulas')
-      .select('id, numero, titulo, descricao, video_url, video_path, duracao_minutos, publicada')
+      .select(
+        'id, numero, titulo, descricao, video_url, video_path, duracao_minutos, publicada, modulo_id'
+      )
       .eq('curso_id', cursoId)
       .order('numero', { ascending: true }),
+    supabase
+      .from('modulos')
+      .select('id, nome, descricao, ordem')
+      .eq('curso_id', cursoId)
+      .order('ordem', { ascending: true }),
   ])
 
   if (!curso) return null
@@ -28,7 +35,28 @@ export async function montarPreview(
   const lista = todas ?? []
   const totalRascunhos = lista.filter((a) => !a.publicada).length
   const aulas = incluirRascunhos ? lista : lista.filter((a) => a.publicada)
-  const aulaAtual = aulas.find((a) => a.id === aulaSelecionada) ?? aulas[0] ?? null
+
+  /* A pré-visualização mostra o curso agrupado por módulo, igual ao aluno —
+     mas com TODOS os módulos abertos. Ela existe para conferir o material,
+     e trancar o conteúdo justamente para quem precisa revisá-lo seria o
+     contrário do que ela serve. O que ela precisa reproduzir fielmente é a
+     ORDEM e o agrupamento, que é onde um erro de cadastro aparece. */
+  const grupos = (modulos ?? []).map((m) => ({
+    id: m.id as string,
+    nome: m.nome as string,
+    descricao: (m.descricao as string) ?? null,
+    ordem: Number(m.ordem),
+    estado: 'cursando' as const,
+    aberto: true,
+    atual: false,
+    aulas: aulas
+      .filter((a) => a.modulo_id === m.id)
+      .sort((x, y) => Number(x.numero) - Number(y.numero)),
+  }))
+
+  // Na ordem em que o aluno veria: módulo, depois número dentro dele.
+  const emOrdem = grupos.flatMap((g) => g.aulas)
+  const aulaAtual = emOrdem.find((a) => a.id === aulaSelecionada) ?? emOrdem[0] ?? aulas[0] ?? null
 
   // Link que inverte o estado do botão de rascunhos.
   // Só mantemos a aula aberta se ela ainda vai existir na próxima listagem —
@@ -43,7 +71,8 @@ export async function montarPreview(
 
   return {
     curso,
-    aulas,
+    aulas: emOrdem.length > 0 ? emOrdem : aulas,
+    modulos: grupos,
     aulaAtual,
     totalRascunhos,
     incluirRascunhos,

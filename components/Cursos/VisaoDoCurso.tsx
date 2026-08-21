@@ -1,12 +1,13 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { CheckCircle2, Clock, Trophy, Lock, Video, EyeOff } from 'lucide-react'
+import { CheckCircle2, Clock, Trophy, Lock, Video, EyeOff, Layers, Check } from 'lucide-react'
 import VideoPlayer from '@/components/Aulas/VideoPlayer'
 import AulaTrancada, { type SituacaoDoPedido } from '@/components/Aulas/AulaTrancada'
 import { lerJanela } from '@/lib/janelaDaAtividade'
 import ResumoAula from '@/components/Aulas/ResumoAula'
 import CadernoDaAula from '@/components/Caderno/CadernoDaAula'
 import { corDoCurso, urlDaCapa, NIVEL_LABEL, type Curso } from '@/lib/cursos'
+import type { EstadoDoModulo } from '@/lib/modulosDoAluno'
 import { urlDoVideo } from '@/lib/video'
 
 export interface AulaDoCurso {
@@ -44,6 +45,24 @@ export interface JanelaDaAula {
 }
 
 /**
+ * Um módulo do curso já resolvido para esta pessoa: com as aulas dele e
+ * com a informação de se ela pode ou não entrar.
+ *
+ * Quem decide isso é `lib/modulosDoAluno.ts` — aqui só desenhamos.
+ */
+export interface ModuloNaTela {
+  id: string
+  nome: string
+  descricao?: string | null
+  ordem: number
+  estado: EstadoDoModulo
+  aberto: boolean
+  atual: boolean
+  motivo?: string
+  aulas: AulaDoCurso[]
+}
+
+/**
  * A tela do curso como o ALUNO vê.
  *
  * É usada tanto pelo portal do aluno quanto pela pré-visualização do
@@ -60,6 +79,7 @@ export default function VisaoDoCurso({
   preview = false,
   resumo,
   janelas,
+  modulos,
 }: {
   curso: Curso
   aulas: AulaDoCurso[]
@@ -72,6 +92,11 @@ export default function VisaoDoCurso({
   resumo?: { texto: string; feedback: string | null }
   /** Janela de cada aula nesta turma. Vazio = tudo liberado. */
   janelas?: Map<string, JanelaDaAula>
+  /**
+   * O curso dividido em módulos. Sem isso, a tela cai no comportamento
+   * antigo — uma lista só —, o que continua certo para curso de um módulo.
+   */
+  modulos?: ModuloNaTela[]
 }) {
   const cor = corDoCurso(curso.cor)
   const capa = urlDaCapa(curso.capa_path)
@@ -96,7 +121,35 @@ export default function VisaoDoCurso({
 
   const trancaAtual = janelaDe(aulaAtual.id)
 
-  const publicadas = aulas.filter((a) => a.publicada !== false)
+  /* ---------- Os módulos, e o que conta como "o curso" ----------
+
+     Sem módulos declarados, cai no comportamento antigo: um grupo só, com
+     tudo dentro. É o que continua certo para curso de um módulo.
+
+     Com módulos, o avanço passa a medir o MÓDULO EM QUE A PESSOA ESTÁ, e
+     não o curso inteiro. Contar o curso inteiro parece mais completo e é
+     desanimador e falso: quem está no Módulo 1 de três nunca passaria de
+     33%, por mais que fizesse tudo certo — e as aulas que faltam para
+     chegar a 100% ela nem tem permissão de abrir. */
+  const grupos: ModuloNaTela[] =
+    modulos && modulos.length > 0
+      ? [...modulos].sort((a, b) => a.ordem - b.ordem)
+      : [
+          {
+            id: '_todos',
+            nome: curso.titulo,
+            ordem: 1,
+            estado: 'cursando' as EstadoDoModulo,
+            aberto: true,
+            atual: true,
+            aulas,
+          },
+        ]
+
+  const temModulos = (modulos?.length ?? 0) > 1
+  const grupoDoAvanco = grupos.find((g) => g.atual) ?? grupos.find((g) => g.aberto) ?? grupos[0]
+
+  const publicadas = (grupoDoAvanco?.aulas ?? aulas).filter((a) => a.publicada !== false)
   const totalConcluidas = publicadas.filter((a) => progressoPorAula.get(a.id)?.concluida).length
   const pctGeral =
     publicadas.length > 0 ? Math.round((totalConcluidas / publicadas.length) * 100) : 0
@@ -146,7 +199,11 @@ export default function VisaoDoCurso({
               />
             </div>
             <p className="text-brand-100/80 text-xs mt-2">
-              {preview ? 'Progresso de exemplo' : `${pctGeral}% do curso concluído`}
+              {preview
+                ? 'Progresso de exemplo'
+                : temModulos
+                  ? `${pctGeral}% de ${grupoDoAvanco?.nome ?? 'este módulo'}`
+                  : `${pctGeral}% do curso concluído`}
             </p>
           </div>
         </div>
@@ -217,11 +274,74 @@ export default function VisaoDoCurso({
           />
         </div>
 
-        {/* ---------- Lista de aulas ---------- */}
-        <div>
-          <h2 className="font-bold text-gray-900 mb-3">Conteúdo do curso</h2>
+        {/* ---------- Lista de aulas, agrupada por módulo ----------
+
+             O agrupamento não é enfeite de organização: com a numeração
+             recomeçando em cada módulo, uma lista corrida mostra duas
+             "Aula 1" seguidas e some com a informação que explica isso.
+
+             O módulo fechado APARECE, com cadeado e com o motivo. Esconder
+             seria mais limpo e pior: quem termina o Módulo 1 precisa ver
+             que existe um 2, senão a conclusão parece o fim do curso. E as
+             aulas dele não são listadas — não é o cadeado que segura, é
+             não existir link nenhum para clicar. */}
+        <div className="space-y-5">
+          <h2 className="font-bold text-gray-900">Conteúdo do curso</h2>
+
+          {grupos.map((g) => (
+            <div key={g.id}>
+              {temModulos && (
+                <div
+                  className={`mb-2 flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 ring-1 ${
+                    g.atual
+                      ? `${cor.suave} ${cor.anel}`
+                      : g.aberto
+                        ? 'bg-white ring-brand-950/[0.06]'
+                        : 'bg-gray-50 ring-gray-200'
+                  }`}
+                >
+                  {g.aberto ? (
+                    <Layers
+                      className={`h-4 w-4 shrink-0 ${g.atual ? cor.texto : 'text-gray-400'}`}
+                      strokeWidth={2.1}
+                    />
+                  ) : (
+                    <Lock className="h-4 w-4 shrink-0 text-gray-400" strokeWidth={2.25} />
+                  )}
+
+                  <span
+                    className={`text-[13.5px] font-bold ${
+                      g.aberto ? (g.atual ? cor.texto : 'text-gray-800') : 'text-gray-500'
+                    }`}
+                  >
+                    {g.nome}
+                  </span>
+
+                  {g.estado === 'aprovado' && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700 ring-1 ring-brand-200">
+                      <Check className="h-3 w-3" strokeWidth={2.75} />
+                      Concluído
+                    </span>
+                  )}
+                  {g.atual && g.estado !== 'aprovado' && (
+                    <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-bold text-gray-600 ring-1 ring-brand-950/[0.08]">
+                      Você está aqui
+                    </span>
+                  )}
+
+                  <span className="ml-auto text-[11.5px] tabular-nums text-gray-500">
+                    {g.aulas.length} {g.aulas.length === 1 ? 'aula' : 'aulas'}
+                  </span>
+
+                  {!g.aberto && g.motivo && (
+                    <p className="w-full text-[12px] leading-relaxed text-gray-500">{g.motivo}</p>
+                  )}
+                </div>
+              )}
+
+              {g.aberto && g.aulas.length > 0 && (
           <div className="card-alive divide-y divide-gray-100 overflow-hidden">
-            {aulas.map((a) => {
+            {g.aulas.map((a) => {
               const p = progressoPorAula.get(a.id)
               const ativa = a.id === aulaAtual.id
               const rascunho = a.publicada === false
@@ -299,6 +419,18 @@ export default function VisaoDoCurso({
               )
             })}
           </div>
+              )}
+
+              {g.aberto && g.aulas.length === 0 && (
+                <div className="rounded-2xl bg-white p-6 text-center ring-1 ring-brand-950/[0.06]">
+                  <Video className="mx-auto mb-2 h-7 w-7 text-gray-300" strokeWidth={1.6} />
+                  <p className="text-[13px] text-gray-500">
+                    Nenhuma aula publicada neste módulo ainda.
+                  </p>
+                </div>
+              )}
+            </div>
+          ))}
 
           {aulas.length === 0 && (
             <div className="card-alive p-8 text-center">
