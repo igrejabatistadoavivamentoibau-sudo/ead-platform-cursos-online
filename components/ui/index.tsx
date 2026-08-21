@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import * as Icones from 'lucide-react'
+import Voltar, { RegistroDaTrilha } from './Voltar'
 
 /* ============================================================
    PRIMITIVOS DE INTERFACE
@@ -33,17 +34,18 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-7">
-      {voltar && (
-        <Link
-          href={voltar.href}
-          className="group mb-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-brand-700"
-        >
-          <Icones.ArrowLeft
-            className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-x-0.5"
-            strokeWidth={2.2}
-          />
-          {voltar.label}
-        </Link>
+      {/* O "voltar" agora usa a trilha (lib/trilha.ts): se existe uma tela
+          anterior aqui dentro, ele volta para ELA e devolve a rolagem no
+          ponto em que a pessoa estava. Só cai no endereço declarado quando
+          não há histórico — link de fora, aba nova, F5 no meio do caminho.
+
+          Quando a tela não tem botão de voltar, o registro entra sozinho:
+          sem ele a trilha ficaria com buracos, e o "voltar" da tela
+          seguinte pularia uma casa. */}
+      {voltar ? (
+        <Voltar href={voltar.href} label={voltar.label} titulo={titulo} />
+      ) : (
+        <RegistroDaTrilha titulo={titulo} />
       )}
 
       <div className="flex flex-wrap items-start justify-between gap-4">

@@ -350,3 +350,31 @@ h1, h2, h3, h4 {
 html[data-nav-recolhida='1'] aside[data-nav-lateral] {
   width: 62px;
 }
+
+/* ============================================================
+   A ENTRADA DA TELA
+
+   Cento e quarenta milissegundos. É curto de propósito: o objetivo é
+   suavizar a troca, não fazer a pessoa esperar uma animação. Qualquer
+   coisa acima de uns 200ms deixa de parecer fluidez e passa a parecer
+   lentidão — e a queixa aqui era justamente de lentidão.
+
+   O deslocamento é de 4px, quase imperceptível. Ele existe só para dar a
+   direção do movimento; um fade puro parece um piscar.
+
+   E respeita quem pediu para o sistema não animar nada: há gente que
+   sente enjoo com movimento na tela, e a plataforma é usada por muita
+   gente diferente.
+   ============================================================ */
+@keyframes entrada-de-tela {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.entrada-de-tela {
+  animation: entrada-de-tela 140ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entrada-de-tela { animation: none; }
+}

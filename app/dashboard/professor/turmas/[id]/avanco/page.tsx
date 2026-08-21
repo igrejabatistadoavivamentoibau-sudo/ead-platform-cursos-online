@@ -1,6 +1,6 @@
-import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
-import { ArrowLeft, Check, Minus, TrendingUp, Users2, Trophy, BookOpenText } from 'lucide-react'
+import { Check, Minus, TrendingUp, Users2, Trophy, BookOpenText } from 'lucide-react'
+import Voltar from '@/components/ui/Voltar'
 import { createClient } from '@/lib/supabase/server'
 import { exigirPermissao } from '@/lib/auth'
 
@@ -91,16 +91,12 @@ export default async function AvancoDaTurmaPage({
 
   return (
     <div className="p-5 sm:p-8">
-      <Link
+      <Voltar
         href="/dashboard/professor"
-        className="group inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-700 transition-colors mb-4"
-      >
-        <ArrowLeft
-          className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-1"
-          strokeWidth={2.25}
-        />
-        Minhas turmas
-      </Link>
+        label="Minhas turmas"
+        titulo="Avanço da turma"
+        margem="mb-4"
+      />
 
       <div className="mb-7 animate-float-in">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Avanço da turma</h1>

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
-import { ArrowLeft, BookOpenText, Users2, Eye } from 'lucide-react'
+import { BookOpenText, Users2, Eye } from 'lucide-react'
+import Voltar from '@/components/ui/Voltar'
 import { createClient } from '@/lib/supabase/server'
 import { exigirPermissao } from '@/lib/auth'
 import AulasManager, { type AulaItem } from '@/components/Aulas/AulasManager'
@@ -74,16 +75,12 @@ export default async function CursoProfessorPage({
 
   return (
     <div className="p-5 sm:p-8">
-      <Link
+      <Voltar
         href="/dashboard/professor"
-        className="group inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-700 transition-colors mb-4"
-      >
-        <ArrowLeft
-          className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-1"
-          strokeWidth={2.25}
-        />
-        Voltar
-      </Link>
+        label="Minhas turmas"
+        titulo={curso.titulo}
+        margem="mb-4"
+      />
 
       <div className="mb-7 flex flex-wrap items-start justify-between gap-4 animate-float-in">
         <div className="min-w-0">

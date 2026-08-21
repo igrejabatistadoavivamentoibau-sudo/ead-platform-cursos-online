@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Users2, BookOpenText, Clock, GraduationCap, Eye } from 'lucide-react'
+import { Users2, BookOpenText, Clock, GraduationCap, Eye } from 'lucide-react'
+import Voltar from '@/components/ui/Voltar'
 import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
 import CursoForm from '@/components/Cursos/CursoForm'
@@ -102,16 +103,12 @@ export default async function CursoDetalhePage({
 
   return (
     <div className="p-5 sm:p-8">
-      <Link
+      <Voltar
         href="/dashboard/admin/cursos"
-        className="group inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-700 transition-colors mb-4"
-      >
-        <ArrowLeft
-          className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-1"
-          strokeWidth={2.25}
-        />
-        Todos os cursos
-      </Link>
+        label="Todos os cursos"
+        titulo={curso.titulo}
+        margem="mb-4"
+      />
 
       {/* ---------- Cabeçalho do curso ---------- */}
       <div className="relative overflow-hidden rounded-2xl mb-7 animate-float-in">

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { destinoDoLogin } from '@/lib/destinoDoLogin'
 import {
   Mail,
   Lock,
@@ -109,7 +110,11 @@ export default function LoginForm() {
         )
       }
 
-      router.push(DASHBOARD_POR_PAPEL[role])
+      const proximo =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('proximo')
+          : null
+      router.push(destinoDoLogin(proximo, role))
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao fazer login')

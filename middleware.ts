@@ -43,40 +43,73 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Valida a sessão com o Supabase. Antes fazíamos isto E MAIS uma consulta
-  // ao banco só para descobrir o papel da pessoa — duas idas e voltas em
-  // toda navegação. Agora o papel vem dentro do próprio token (app_metadata),
-  // sincronizado por gatilho no banco, então sobra apenas esta chamada.
+  /* ============================================================
+     O DEFEITO QUE FAZIA A PESSOA VOLTAR PARA O COMEÇO
+
+     A chamada abaixo faz duas coisas: confere quem está logado E, quando
+     o token está perto de vencer, RENOVA a sessão. A renovação chega aqui
+     pelo `setAll` acima, que monta uma `response` nova carregando os
+     cookies novos.
+
+     O problema estava logo adiante: cada desvio criava um
+     `NextResponse.redirect(...)` do zero e devolvia esse — jogando fora a
+     `response` com os cookies renovados. O navegador continuava com o
+     token velho, a requisição seguinte falhava de novo, e a pessoa era
+     mandada para o login. Ela entrava, caía na porta do portal, e tinha
+     que refazer a pé todo o caminho até onde estava.
+
+     Silencioso, e por isso difícil de perceber: não dava erro nenhum.
+     Parecia "a plataforma me desconectou do nada".
+
+     `desviarPara` é a correção: todo desvio copia os cookies que a
+     `response` acumulou antes de sair daqui.
+     ============================================================ */
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
+  const desviarPara = (url: URL) => {
+    const desvio = NextResponse.redirect(url)
+    for (const cookie of response.cookies.getAll()) desvio.cookies.set(cookie)
+    return desvio
+  }
+
   const path = request.nextUrl.pathname
 
   if (path.startsWith('/dashboard')) {
-    if (!user) {
+    /* PARA ONDE A PESSOA ESTAVA INDO.
+       Sem isto, o login despejava todo mundo na porta do portal. Quem
+       estava numa aula específica e precisou entrar de novo perdia o
+       lugar. Guardamos o destino e o login devolve a pessoa nele.
+
+       Só o caminho interno, nunca um endereço completo: um destino vindo
+       de fora poderia ser usado para levar alguém para outro site logo
+       depois de entrar. */
+    const paraLogin = () => {
       const url = request.nextUrl.clone()
       url.pathname = '/auth/login'
-      return NextResponse.redirect(url)
+      url.search = ''
+      url.searchParams.set('proximo', path + (request.nextUrl.search || ''))
+      return url
     }
+
+    if (!user) return desviarPara(paraLogin())
 
     const role = (user.app_metadata?.role as string | undefined) ?? undefined
     const home = role ? HOME_POR_PAPEL[role] : undefined
 
-    if (!home) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/auth/login'
-      return NextResponse.redirect(url)
-    }
+    if (!home) return desviarPara(paraLogin())
 
     const regra = PAPEIS_PERMITIDOS.find((r) => path.startsWith(r.prefixo))
 
-    // Área desconhecida ou área que este papel não pode acessar →
-    // manda para a casa dele.
+    // Área desconhecida ou área que este papel não pode acessar → manda
+    // para a casa dele. Aqui NÃO guardamos o destino: seria devolver a
+    // pessoa exatamente ao lugar onde ela não pode entrar.
     if (!regra || !regra.papeis.includes(role!)) {
       const url = request.nextUrl.clone()
       url.pathname = home
-      return NextResponse.redirect(url)
+      url.search = ''
+      return desviarPara(url)
     }
   }
 

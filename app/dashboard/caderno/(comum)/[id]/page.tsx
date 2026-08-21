@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Video, ExternalLink } from 'lucide-react'
+import { Video, ExternalLink } from 'lucide-react'
+import Voltar from '@/components/ui/Voltar'
 import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
 import EditorCaderno from '@/components/Caderno/EditorCaderno'
@@ -28,16 +29,12 @@ export default async function PaginaDoCaderno({ params }: { params: Promise<{ id
   return (
     <div className="p-5 sm:p-8">
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        <Link
+        <Voltar
           href="/dashboard/caderno"
-          className="group inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-brand-700"
-        >
-          <ArrowLeft
-            className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5"
-            strokeWidth={2.2}
-          />
-          Meu caderno
-        </Link>
+          label="Meu caderno"
+          titulo={(pagina.titulo as string) || 'Página do caderno'}
+          margem=""
+        />
 
         {aula?.titulo && (
           <>

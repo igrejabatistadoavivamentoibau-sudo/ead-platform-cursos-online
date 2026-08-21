@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { ArrowLeft, Search, BookOpenText } from 'lucide-react'
+import { Search, BookOpenText } from 'lucide-react'
+import Voltar from '@/components/ui/Voltar'
 import { buscar, normalizar, VERSOES, VERSAO_PADRAO, versaoValida } from '@/lib/biblia'
 
 export const dynamic = 'force-dynamic'
@@ -62,16 +63,12 @@ export default async function BuscaBibliaPage({
 
   return (
     <div className="p-5 sm:p-8">
-      <Link
+      <Voltar
         href="/dashboard/biblia"
-        className="group mb-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-brand-700"
-      >
-        <ArrowLeft
-          className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5"
-          strokeWidth={2.2}
-        />
-        Voltar à leitura
-      </Link>
+        label="Voltar à leitura"
+        titulo="Buscar na Bíblia"
+        margem="mb-5"
+      />
 
       <h1 className="font-display text-[22px] font-bold tracking-[-0.02em] text-gray-900 sm:text-[26px]">
         Buscar na Bíblia

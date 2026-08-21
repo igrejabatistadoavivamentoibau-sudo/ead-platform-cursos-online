@@ -1,6 +1,6 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Video } from 'lucide-react'
+import { Video } from 'lucide-react'
+import Voltar from '@/components/ui/Voltar'
 import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
 import VisaoDoCurso, {
@@ -108,13 +108,12 @@ export default async function CursoDoAlunoPage({
   if (lista.length === 0) {
     return (
       <div className="p-5 sm:p-8">
-        <Link
+        <Voltar
           href="/dashboard/aluno/cursos"
-          className="group inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-700 transition-colors mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-1" strokeWidth={2.25} />
-          Meus cursos
-        </Link>
+          label="Meus cursos"
+          titulo={curso.titulo}
+          margem="mb-4"
+        />
         <div className="card-alive p-14 text-center max-w-lg mx-auto">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-brand-700">
             <Video className="h-8 w-8" strokeWidth={1.6} />
@@ -139,13 +138,12 @@ export default async function CursoDoAlunoPage({
 
   return (
     <div className="p-5 sm:p-8">
-      <Link
+      <Voltar
         href="/dashboard/aluno/cursos"
-        className="group inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-700 transition-colors mb-4"
-      >
-        <ArrowLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-1" strokeWidth={2.25} />
-        Meus cursos
-      </Link>
+        label="Meus cursos"
+        titulo={curso.titulo}
+        margem="mb-4"
+      />
 
       <VisaoDoCurso
         curso={curso as Curso}
