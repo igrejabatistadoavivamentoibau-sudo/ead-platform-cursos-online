@@ -11,21 +11,21 @@ const nextConfig = {
   reactStrictMode: true,
 
   /* ============================================================
-     A RAIZ DA "TELA BRANCA SEM DESIGN"
+     POR QUE NÃO USAMOS `deploymentId` AQUI
 
-     A cada publicação, os arquivos de estilo e de código ganham nomes
-     novos. Se o navegador reaproveitar uma PÁGINA guardada de antes, ela
-     vai pedir arquivos que não existem mais — e sobra o texto cru na tela.
+     Existia nesta linha um `deploymentId`. Ele carimba em cada arquivo a
+     qual publicação ele pertence, e serve para UMA coisa só: permitir que
+     a hospedagem entregue o arquivo da publicação certa. Só que isso
+     depende de uma chave ligada à mão no painel da Vercel. Fora isso, o
+     carimbo é ignorado — e cobra caro: troca o ENDEREÇO de todos os
+     arquivos a cada publicação, obrigando quem já usava a plataforma a
+     baixar tudo de novo, inclusive o que não mudou.
 
-     `deploymentId` faz o Next carimbar em cada arquivo a qual publicação
-     ele pertence. Com a "Skew Protection" ligada na Vercel (Settings →
-     Advanced), a plataforma passa a entregar o arquivo da publicação certa
-     mesmo depois de uma nova ter subido — e a tela branca deixa de existir
-     na origem, em vez de ser remendada depois.
-
-     Sem a opção ligada lá, esta linha é inofensiva.
+     Sem o carimbo, o nome de cada arquivo é o resumo do próprio conteúdo.
+     O que não mudou continua com o mesmo nome e continua valendo. E o que
+     protege a aula aberta durante a publicação é o cofre (public/sw.js),
+     que funciona em qualquer hospedagem e não depende de painel nenhum.
      ============================================================ */
-  deploymentId: process.env.VERCEL_DEPLOYMENT_ID,
 
   async headers() {
     return [

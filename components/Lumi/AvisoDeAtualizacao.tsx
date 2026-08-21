@@ -126,38 +126,42 @@ export default function AvisoDeAtualizacao({ versaoDaPagina }: { versaoDaPagina:
     window.location.replace(url.toString())
   }
 
+  /* ============================================================
+     POR QUE ISTO ENCOLHEU
+
+     O aviso era um cartão grande, com retrato, título, dois parágrafos e
+     dois botões, plantado em cima do canto da tela. Para quem estava no
+     meio de uma aula, aquilo era um susto e um estorvo: parecia erro.
+
+     Não é erro. É um recado de rotina — "saiu versão nova, clique quando
+     quiser". Recado de rotina se dá em voz baixa. Virou uma pastilha de
+     uma linha só: o retrato da LUMI pequeno, a frase curta, o botão, e o
+     X para tirar da frente. Ocupa um canto e não disputa a atenção com a
+     aula. Se a pessoa ignorar, não acontece nada de ruim — a página velha
+     continua funcionando por causa do cofre (public/sw.js).
+     ============================================================ */
+
   // O anúncio de chegada só aparece se não houver defasagem para resolver:
   // "atualize" e "você já está atualizado" juntos seriam contraditórios.
   if ((!temNova || dispensado) && chegouNaNova) {
     return (
-      <div className="fixed inset-x-4 bottom-4 z-[60] mx-auto max-w-sm animate-float-in sm:left-auto sm:right-6 sm:mx-0">
-        <div className="overflow-hidden rounded-2xl bg-white shadow-deep ring-1 ring-brand-950/10">
-          <div className="flex items-center gap-3 p-4">
-            <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full ring-2 ring-brand-500/25">
-              <Image src="/lumi-avatar.png" alt="LUMI" fill sizes="40px" className="object-cover" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-[13.5px] font-bold text-gray-900">
-                A plataforma foi atualizada ✨
-              </p>
-              <p className="mt-0.5 text-[12px] leading-relaxed text-gray-500">
-                Você já está na versão mais nova. Bom proveito!
-              </p>
-              <p className="mt-1.5 flex items-center gap-1.5 text-[10.5px]">
-                <Sparkles className="h-2.5 w-2.5 text-accent-500" strokeWidth={2.4} />
-                <span className="font-display font-bold text-brand-700">LUMI</span>
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setChegouNaNova(false)}
-              aria-label="Fechar"
-              className="shrink-0 text-gray-300 transition-colors hover:text-gray-500"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="h-1 bg-gradient-to-r from-brand-500 via-accent-400 to-brand-500" />
+      <div className="fixed bottom-4 right-4 z-[60] animate-float-in">
+        <div className="flex items-center gap-2.5 rounded-full bg-white/95 py-1.5 pl-1.5 pr-3 shadow-lg ring-1 ring-brand-950/10 backdrop-blur">
+          <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full ring-1 ring-brand-500/25">
+            <Image src="/lumi-avatar.png" alt="LUMI" fill sizes="28px" className="object-cover" />
+          </span>
+          <span className="whitespace-nowrap text-[12.5px] font-medium text-gray-600">
+            Tudo atualizado
+          </span>
+          <Sparkles className="h-3 w-3 shrink-0 text-accent-500" strokeWidth={2.4} />
+          <button
+            type="button"
+            onClick={() => setChegouNaNova(false)}
+            aria-label="Fechar"
+            className="-mr-1 shrink-0 text-gray-300 transition-colors hover:text-gray-500"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
     )
@@ -166,61 +170,41 @@ export default function AvisoDeAtualizacao({ versaoDaPagina }: { versaoDaPagina:
   if (!temNova || dispensado) return null
 
   return (
-    <div className="fixed inset-x-4 bottom-4 z-[60] mx-auto max-w-md animate-float-in sm:left-auto sm:right-6 sm:mx-0">
-      <div className="overflow-hidden rounded-2xl bg-white shadow-deep ring-1 ring-brand-950/10">
-        <div className="flex items-start gap-3 p-4">
-          <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full ring-2 ring-brand-500/25">
-            <Image src="/lumi-avatar.png" alt="LUMI" fill sizes="44px" className="object-cover" />
-          </span>
+    <div className="fixed bottom-4 right-4 z-[60] animate-float-in">
+      <div className="flex items-center gap-2 rounded-full bg-white/95 py-1.5 pl-1.5 pr-2 shadow-lg ring-1 ring-brand-950/10 backdrop-blur">
+        <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full ring-1 ring-brand-500/25">
+          <Image src="/lumi-avatar.png" alt="LUMI" fill sizes="28px" className="object-cover" />
+        </span>
 
-          <div className="min-w-0 flex-1">
-            <p className="font-display text-[14px] font-bold text-gray-900">
-              Nova versão disponível!
-            </p>
-            <p className="mt-0.5 text-[12.5px] leading-relaxed text-gray-500">
-              Saiu uma atualização enquanto você estava aqui. Clique para carregar as novidades —
-              leva um instante.
-            </p>
+        {/* A frase some no celular: lá o espaço é do botão, que é o que
+            importa. No computador ela explica o botão sem precisar de
+            parágrafo. */}
+        <span className="hidden whitespace-nowrap text-[12.5px] font-medium text-gray-600 sm:inline">
+          Nova versão disponível
+        </span>
 
-            <div className="mt-3 flex items-center gap-2">
-              <button
-                type="button"
-                disabled={recarregando}
-                onClick={atualizar}
-                className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-700 px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-60"
-              >
-                <RefreshCw
-                  className={`h-[15px] w-[15px] ${recarregando ? 'animate-spin' : ''}`}
-                  strokeWidth={2.2}
-                />
-                {recarregando ? 'Atualizando...' : 'Atualizar agora'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setDispensado(true)}
-                className="inline-flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold text-gray-500 transition-colors hover:bg-gray-100"
-              >
-                Depois
-              </button>
-            </div>
+        <button
+          type="button"
+          disabled={recarregando}
+          onClick={atualizar}
+          title="Carregar a versão nova da plataforma"
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-brand-700 px-3.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-60"
+        >
+          <RefreshCw
+            className={`h-[13px] w-[13px] ${recarregando ? 'animate-spin' : ''}`}
+            strokeWidth={2.4}
+          />
+          {recarregando ? 'Atualizando' : 'Atualizar'}
+        </button>
 
-            <p className="mt-2.5 flex items-center gap-1.5 text-[11.5px]">
-              <Sparkles className="h-3 w-3 text-accent-500" strokeWidth={2.4} />
-              <span className="font-display font-bold text-brand-700">LUMI</span>
-              <span className="text-gray-400">· sua assistente na Escola de Líderes</span>
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setDispensado(true)}
-            aria-label="Fechar aviso"
-            className="shrink-0 text-gray-300 transition-colors hover:text-gray-500"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="h-1 bg-gradient-to-r from-brand-500 via-accent-400 to-brand-500" />
+        <button
+          type="button"
+          onClick={() => setDispensado(true)}
+          aria-label="Agora não"
+          className="shrink-0 px-0.5 text-gray-300 transition-colors hover:text-gray-500"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   )

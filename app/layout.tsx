@@ -3,6 +3,7 @@ import "@fontsource-variable/inter";
 import "@fontsource-variable/plus-jakarta-sans";
 import "./globals.css";
 import { GUARDIAO_DA_TELA } from "@/lib/guardiaoDaTela";
+import AbreOCofre from "@/components/Sistema/AbreOCofre";
 
 export const metadata: Metadata = {
   title: "Escola de Líderes IBAU",
@@ -33,6 +34,15 @@ export default function RootLayout({ children }: LayoutProps) {
           carregado e CONFERIR que carregou.
         */}
         <span id="ibau-sentinela-estilo" className="hidden" aria-hidden="true" />
+        {/*
+          O COFRE DOS ARQUIVOS.
+          Guarda no aparelho do aluno uma cópia de cada arquivo de código e
+          de estilo. Quando publicamos uma versão nova e os arquivos antigos
+          deixam de existir no servidor, quem está com a página aberta
+          continua sendo atendido pela cópia — a aula não desmonta no meio.
+          Ver public/sw.js e components/Sistema/AbreOCofre.tsx.
+        */}
+        <AbreOCofre />
         {children}
       </body>
     </html>

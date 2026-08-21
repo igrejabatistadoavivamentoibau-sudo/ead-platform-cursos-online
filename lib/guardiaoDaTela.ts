@@ -37,26 +37,90 @@ export const GUARDIAO_DA_TELA = `
 (function () {
   try {
     var CHAVE = 'ibau:recuperou-em';
+    var CHAVE_VEZES = 'ibau:recuperou-vezes';
     var ID_SENTINELA = 'ibau-sentinela-estilo';
 
+    /* ---- QUANTAS TENTATIVAS, E POR QUE ESTE NÚMERO ----
+
+       A versão anterior travava em "uma tentativa por minuto". Parecia
+       prudente e estava errada: se a primeira recarga não resolvesse, a
+       segunda — a que apaga o que guardamos no aparelho — só poderia
+       acontecer um minuto depois. Ou seja, a válvula de escape existia no
+       papel e ficava fechada justamente na hora do aperto.
+
+       O certo é o contrário: escalar rápido e parar cedo.
+         1ª falha -> recarrega (quase sempre resolve: a publicação trocou
+                     os arquivos e basta buscar os novos)
+         2ª falha -> apaga TUDO o que é nosso no aparelho e recarrega
+         3ª falha -> para. Se nem assim, o problema não é nosso (servidor
+                     fora do ar, internet caída) e ficar recarregando só
+                     piora. Melhor a pessoa ver a página como está do que
+                     um piscar infinito.
+       O intervalo mínimo de 3 segundos é só para não empilhar duas
+       recargas no mesmo instante. */
+    var LIMITE_DE_TENTATIVAS = 2;
+
     function recuperar(motivo) {
+      var vezes = 1;
       try {
         var ultima = Number(sessionStorage.getItem(CHAVE) || 0);
-        // Uma tentativa por minuto. Sem esta trava, uma falha permanente
-        // (servidor fora do ar, por exemplo) viraria um laço de recargas e
-        // a plataforma ficaria inutilizável.
-        if (Date.now() - ultima < 60000) return;
+        if (Date.now() - ultima < 3000) return;
+        vezes = Number(sessionStorage.getItem(CHAVE_VEZES) || 0) + 1;
+        if (vezes > LIMITE_DE_TENTATIVAS) {
+          try { console.warn('[IBAU] a tela segue quebrada e nao vou recarregar de novo:', motivo); } catch (e) {}
+          return;
+        }
         sessionStorage.setItem(CHAVE, String(Date.now()));
+        sessionStorage.setItem(CHAVE_VEZES, String(vezes));
       } catch (e) { /* navegador sem armazenamento: segue mesmo assim */ }
 
-      try { console.warn('[IBAU] recuperando a tela:', motivo); } catch (e) {}
+      try { console.warn('[IBAU] recuperando a tela:', motivo, '| tentativa', vezes); } catch (e) {}
 
       // Endereço com marca de tempo: obriga o navegador a buscar tudo de
       // novo do servidor, em vez de reaproveitar o que ele guardou — que é
       // exatamente o que está quebrado.
       var url = new URL(window.location.href);
       url.searchParams.set('v', Date.now().toString(36));
+
+      // ---- O FREIO DE MÃO ----
+      // A segunda tentativa não repete a primeira: ela apaga o cofre e o
+      // operário de segundo plano antes de recarregar. A plataforma volta
+      // ao estado de quem nunca entrou nela. É a garantia escrita de que
+      // nenhuma invenção nossa — nem o cofre — consegue deixar a escola
+      // presa numa tela quebrada.
+      if (vezes >= LIMITE_DE_TENTATIVAS && navigator.serviceWorker && window.caches) {
+        // A suspensão com prazo é o detalhe que faz diferença: sem ela, a
+        // página recarregaria e o cofre se registraria de novo na hora,
+        // trazendo de volta exatamente o que acabamos de apagar. Um dia,
+        // depois, ele volta sozinho — um deploy ruim não pode custar a
+        // proteção para sempre.
+        try {
+          localStorage.setItem('ibau:cofre-suspenso-ate', String(Date.now() + 86400000));
+        } catch (e) {}
+
+        var voltar = function () { window.location.replace(url.toString()); };
+        var limpeza = [
+          navigator.serviceWorker.getRegistrations().then(function (rs) {
+            return Promise.all(rs.map(function (r) { return r.unregister(); }));
+          }),
+          caches.keys().then(function (ns) {
+            return Promise.all(ns.map(function (n) { return caches.delete(n); }));
+          })
+        ];
+        // Se a limpeza travar, recarrega assim mesmo em 1,5s: nunca
+        // deixamos o aluno parado esperando uma faxina.
+        setTimeout(voltar, 1500);
+        Promise.all(limpeza).then(voltar, voltar);
+        return;
+      }
+
       window.location.replace(url.toString());
+    }
+
+    // Uma tela que chegou inteira zera o contador: as falhas que interessam
+    // são as SEGUIDAS, não duas quedas separadas por uma semana boa.
+    function tudoCerto() {
+      try { sessionStorage.removeItem(CHAVE_VEZES); } catch (e) {}
     }
 
     // ---- 0. A largura da barra lateral, ANTES do primeiro traço ----
@@ -102,16 +166,28 @@ export const GUARDIAO_DA_TELA = `
       // visível, o estilo não foi aplicado — e a tela está crua.
       var visivel = getComputedStyle(s).display !== 'none';
       if (visivel) recuperar('estilo ausente (sentinela visivel)');
+      else tudoCerto();
     }
 
-    // Duas conferidas: uma quando a página termina de montar, outra um
-    // pouco depois, para o caso de o estilo estar apenas demorando.
-    if (document.readyState === 'complete') {
-      setTimeout(conferirEstilo, 400);
-    } else {
-      window.addEventListener('load', function () { setTimeout(conferirEstilo, 400); });
+    /* ---- QUANDO CONFERIR, E POR QUE MAIS DE UMA VEZ ----
+
+       Eram duas conferidas (400ms e 2,5s). Faltava uma, e a falta só
+       apareceu quando testei o pior caso: a primeira recarga acontece,
+       a tela continua quebrada, e as duas conferidas da nova página caem
+       DENTRO do intervalo mínimo de 3 segundos entre tentativas — então
+       a segunda tentativa, a que apaga o que guardamos no aparelho, nunca
+       chegava a acontecer. A válvula existia e não abria.
+
+       Agora são quatro, espaçadas até passar dos 3 segundos. Conferir de
+       novo não custa nada (é ler uma propriedade de um elemento) e, se a
+       tela estiver boa, cada conferida apenas confirma isso e zera o
+       contador. */
+    var MOMENTOS = [400, 2500, 5200, 8000];
+    function agendarConferidas() {
+      for (var i = 0; i < MOMENTOS.length; i++) setTimeout(conferirEstilo, MOMENTOS[i]);
     }
-    setTimeout(conferirEstilo, 2500);
+    if (document.readyState === 'complete') agendarConferidas();
+    else window.addEventListener('load', agendarConferidas);
   } catch (e) {
     // Guardião com defeito não pode derrubar a plataforma.
   }
