@@ -8,14 +8,22 @@ export default function AbasTurma({
   contadores,
 }: {
   turmaId: string
-  atual: 'avanco' | 'chamada' | 'notas' | 'atividades'
+  atual: 'avanco' | 'aulas' | 'chamada' | 'notas' | 'atividades'
   presencial: boolean
-  contadores?: { atividades?: number }
+  contadores?: { atividades?: number; pedidos?: number }
 }) {
   const base = `/dashboard/professor/turmas/${turmaId}`
 
   const itens = [
     { href: `${base}/avanco`, label: 'Avanço', icone: 'TrendingUp' },
+    {
+      href: `${base}/aulas`,
+      label: 'Aulas',
+      icone: 'PlayCircle',
+      // O contador aqui é de PEDIDOS de liberação parados. É o único
+      // número desta barra que significa "tem alguém esperando você".
+      contador: contadores?.pedidos,
+    },
     {
       href: `${base}/chamada`,
       // O nome muda conforme a modalidade: no EAD a chamada é gerada sozinha

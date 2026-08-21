@@ -3,7 +3,11 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, Video } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
-import VisaoDoCurso, { type AulaDoCurso, type ProgressoAula } from '@/components/Cursos/VisaoDoCurso'
+import VisaoDoCurso, {
+  type AulaDoCurso,
+  type ProgressoAula,
+  type JanelaDaAula,
+} from '@/components/Cursos/VisaoDoCurso'
 import type { Curso } from '@/lib/cursos'
 
 export default async function CursoDoAlunoPage({
@@ -32,6 +36,65 @@ export default async function CursoDoAlunoPage({
     .from('aula_progresso')
     .select('aula_id, concluida, percentual')
     .eq('aluno_id', sessao.id)
+
+  /* ---------- A janela de cada aula NESTA turma ----------
+     A aula é do curso, mas a data de abrir e fechar é da turma. Então
+     primeiro descobrimos em qual turma deste curso o aluno está.
+
+     Ele pode estar em mais de uma (repetindo o módulo, por exemplo). Nesse
+     caso vale a MAIS PERMISSIVA: se ele tem direito de assistir por algum
+     caminho, ele tem direito. A regra é a mesma do banco — as duas
+     precisam concordar, senão a tela diz uma coisa e o servidor faz outra. */
+  const { data: minhasTurmas } = await supabase
+    .from('turma_alunos')
+    .select('turma_id, turmas!inner(id, curso_id)')
+    .eq('aluno_id', sessao.id)
+    .eq('status', 'ativo')
+
+  const turmasDoCurso = (minhasTurmas ?? [])
+    .filter((m) => (m.turmas as unknown as { curso_id?: string } | null)?.curso_id === id)
+    .map((m) => m.turma_id as string)
+
+  const [{ data: janelasBanco }, { data: pedidos }] = await Promise.all([
+    turmasDoCurso.length
+      ? supabase
+          .from('aula_turma')
+          .select('turma_id, aula_id, abre_em, vence_em')
+          .in('turma_id', turmasDoCurso)
+      : Promise.resolve({ data: [] }),
+    turmasDoCurso.length
+      ? supabase
+          .from('liberacoes_de_aula')
+          .select('turma_id, aula_id, status, resposta, libera_ate')
+          .in('turma_id', turmasDoCurso)
+          .eq('aluno_id', sessao.id)
+      : Promise.resolve({ data: [] }),
+  ])
+
+  const agora = Date.now()
+  const janelas = new Map<string, JanelaDaAula>()
+  for (const j of janelasBanco ?? []) {
+    const aulaId = j.aula_id as string
+    const p = (pedidos ?? []).find(
+      (x) => x.aula_id === aulaId && x.turma_id === j.turma_id
+    )
+    const liberada =
+      p?.status === 'liberada' &&
+      (!p.libera_ate || agora <= new Date(p.libera_ate as string).getTime())
+
+    const nova: JanelaDaAula = {
+      turmaId: j.turma_id as string,
+      abre_em: (j.abre_em as string) ?? null,
+      vence_em: (j.vence_em as string) ?? null,
+      pedido: (p?.status as JanelaDaAula['pedido']) ?? 'nenhum',
+      respostaDoProfessor: (p?.resposta as string) ?? null,
+      liberada: !!liberada,
+    }
+
+    // Mais de uma turma com a mesma aula: fica a que deixa assistir.
+    const jaTem = janelas.get(aulaId)
+    if (!jaTem || nova.liberada) janelas.set(aulaId, nova)
+  }
 
   const progressoPorAula = new Map<string, ProgressoAula>(
     (progressos ?? []).map((p) => [
@@ -89,7 +152,8 @@ export default async function CursoDoAlunoPage({
         aulas={lista}
         aulaAtual={atual}
         progressoPorAula={progressoPorAula}
-        hrefAula={(aulaId) => `/dashboard/aluno/cursos/${id}?aula=${aulaId}`}
+        janelas={janelas}
+      hrefAula={(aulaId) => `/dashboard/aluno/cursos/${id}?aula=${aulaId}`}
         resumo={
           resumo ? { texto: resumo.texto as string, feedback: (resumo.feedback as string) ?? null } : undefined
         }

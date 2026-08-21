@@ -434,3 +434,99 @@ export async function linksDosMeusAnexos(entregaId: string) {
   }
   return saida
 }
+
+// ==================== AULA FECHADA E FALTA JUSTIFICADA ====================
+
+/**
+ * O aluno pede para o professor liberar uma aula cujo prazo passou.
+ *
+ * POR QUE ISTO EXISTE
+ * Fechar a aula sem dar caminho nenhum transformaria um atraso em perda
+ * definitiva — e a maioria dos atrasos numa escola de igreja tem motivo
+ * (plantão, doença, viagem a trabalho). O aluno escreve o motivo, o
+ * professor lê e decide. A decisão é dele, e fica registrada.
+ *
+ * O pedido nasce sempre "pendente": as regras do banco não deixam o aluno
+ * criar um pedido já liberado, nem alterar o próprio pedido depois. Se
+ * deixassem, o pedido seria só um formulário e não uma autorização.
+ */
+export async function pedirLiberacaoDeAula(turmaId: string, aulaId: string, motivo: string) {
+  const supabase = await createSessionClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Não autenticado.')
+
+  const texto = (motivo ?? '').trim()
+  if (texto.length < 10) {
+    throw new Error('Escreva o motivo com um pouco mais de detalhe — o professor precisa entender.')
+  }
+
+  const { data: jaTem } = await supabase
+    .from('liberacoes_de_aula')
+    .select('id, status')
+    .eq('turma_id', turmaId)
+    .eq('aula_id', aulaId)
+    .eq('aluno_id', user.id)
+    .maybeSingle()
+
+  if (jaTem) {
+    throw new Error(
+      jaTem.status === 'pendente'
+        ? 'Você já pediu, e o professor ainda não respondeu.'
+        : jaTem.status === 'recusada'
+          ? 'Seu pedido foi respondido. Fale com o professor pessoalmente.'
+          : 'Esta aula já está liberada para você.'
+    )
+  }
+
+  const { error } = await supabase
+    .from('liberacoes_de_aula')
+    .insert({ turma_id: turmaId, aula_id: aulaId, aluno_id: user.id, motivo: texto })
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/dashboard/aluno/cursos')
+  return { ok: true }
+}
+
+/**
+ * O aluno justifica uma falta.
+ *
+ * Escreve só o texto — quem decide é o professor. As regras do banco
+ * garantem isso mesmo que alguém chame esta gravação por fora do site:
+ * o mesmo comando que grava a justificativa não consegue mexer em
+ * `presente` nem no status da decisão.
+ */
+export async function justificarFalta(presencaId: string, texto: string) {
+  const supabase = await createSessionClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Não autenticado.')
+
+  const justificativa = (texto ?? '').trim()
+  if (justificativa.length < 10) {
+    throw new Error('Escreva o motivo da falta com um pouco mais de detalhe.')
+  }
+
+  const { data: presenca } = await supabase
+    .from('presencas')
+    .select('id, aluno_id, presente, justificativa_status')
+    .eq('id', presencaId)
+    .maybeSingle()
+
+  if (!presenca || presenca.aluno_id !== user.id) throw new Error('Falta não encontrada.')
+  if (presenca.presente) throw new Error('Esta presença está registrada. Não há falta para justificar.')
+  if (presenca.justificativa_status === 'aceita' || presenca.justificativa_status === 'recusada') {
+    throw new Error('O professor já respondeu esta justificativa.')
+  }
+
+  const { error } = await supabase
+    .from('presencas')
+    .update({ justificativa })
+    .eq('id', presencaId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/dashboard/aluno/presencas')
+  return { ok: true }
+}

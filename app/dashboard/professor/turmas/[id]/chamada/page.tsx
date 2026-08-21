@@ -7,6 +7,7 @@ import ChamadaManager, {
   type EncontroItem,
   type LinhaPresenca,
 } from '@/components/Turma/ChamadaManager'
+import Justificativas, { type JustificativaPendente } from '@/components/Turma/Justificativas'
 
 export default async function ChamadaDaTurmaPage({
   params,
@@ -44,6 +45,37 @@ export default async function ChamadaDaTurmaPage({
   ])
 
   const lista = (encontros ?? []) as EncontroItem[]
+
+  /* AS JUSTIFICATIVAS DE TODA A TURMA, DE UMA VEZ.
+     Não por encontro: espalhadas por quinze encontros, o professor só
+     acharia a justificativa se por acaso abrisse o encontro certo — ou
+     seja, quase nunca. Aqui a fila inteira aparece junta. */
+  const idsEncontros = lista.map((e) => e.id)
+  const { data: justificadas } = idsEncontros.length
+    ? await supabase
+        .from('presencas')
+        .select(
+          'id, justificativa, justificativa_status, justificativa_resposta, justificativa_em, encontro_id, users(name)'
+        )
+        .in('encontro_id', idsEncontros)
+        .not('justificativa', 'is', null)
+        .order('justificativa_em', { ascending: true })
+    : { data: [] }
+
+  const encontroPorId = new Map(lista.map((e) => [e.id, e]))
+  const justificativas: JustificativaPendente[] = (justificadas ?? []).map((j) => {
+    const u = j.users as unknown as { name?: string } | null
+    const e = encontroPorId.get(j.encontro_id as string)
+    return {
+      presencaId: j.id as string,
+      alunoNome: u?.name ?? 'Aluno',
+      encontroTitulo: e?.titulo ?? 'Encontro',
+      data: e?.data ?? '',
+      texto: j.justificativa as string,
+      status: (j.justificativa_status as 'pendente' | 'aceita' | 'recusada') ?? 'pendente',
+      resposta: (j.justificativa_resposta as string) ?? null,
+    }
+  })
   const atual = lista.find((e) => e.id === encontroSelecionado) ?? lista[0] ?? null
 
   let linhas: LinhaPresenca[] = []
@@ -92,6 +124,8 @@ export default async function ChamadaDaTurmaPage({
         presencial={presencial}
         contadores={{ atividades: totalAtividades ?? 0 }}
       />
+
+      <Justificativas turmaId={id} justificativas={justificativas} />
 
       <ChamadaManager
         turmaId={id}

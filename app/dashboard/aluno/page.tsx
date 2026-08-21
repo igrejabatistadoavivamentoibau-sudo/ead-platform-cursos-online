@@ -127,11 +127,17 @@ export default async function AlunoHome() {
     idsCursos.length
       ? supabase
           .from('aulas')
-          .select('id, curso_id, titulo, ordem')
+          /* A coluna é `numero`, não `ordem`. Com o nome errado o banco
+             respondia erro 400, o código não conferia o erro, e a lista
+             chegava vazia — a tela inicial mostrava 0 aulas e 0% em TODOS
+             os cursos, e "próxima aula" nunca aparecia. Silencioso, e por
+             isso mesmo difícil de perceber: parecia que o aluno não tinha
+             conteúdo, não que a consulta estava quebrada. */
+          .select('id, curso_id, titulo, numero')
           .in('curso_id', idsCursos)
           .eq('publicada', true)
-          .order('ordem', { ascending: true })
-      : Promise.resolve({ data: [] as { id: string; curso_id: string; titulo: string; ordem: number }[] }),
+          .order('numero', { ascending: true })
+      : Promise.resolve({ data: [] as { id: string; curso_id: string; titulo: string; numero: number }[] }),
     supabase
       .from('aula_progresso')
       .select('aula_id, concluida')

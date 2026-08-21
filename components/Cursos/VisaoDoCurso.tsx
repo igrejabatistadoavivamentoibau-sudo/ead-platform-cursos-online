@@ -2,6 +2,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { CheckCircle2, Clock, Trophy, Lock, Video, EyeOff } from 'lucide-react'
 import VideoPlayer from '@/components/Aulas/VideoPlayer'
+import AulaTrancada, { type SituacaoDoPedido } from '@/components/Aulas/AulaTrancada'
+import { lerJanela } from '@/lib/janelaDaAtividade'
 import ResumoAula from '@/components/Aulas/ResumoAula'
 import CadernoDaAula from '@/components/Caderno/CadernoDaAula'
 import { corDoCurso, urlDaCapa, NIVEL_LABEL, type Curso } from '@/lib/cursos'
@@ -25,6 +27,23 @@ export interface ProgressoAula {
 }
 
 /**
+ * A janela da aula NESTA turma, e o que o aluno já pediu sobre ela.
+ *
+ * Não vem no preview do professor: lá não existe aluno nem turma, e
+ * trancar a pré-visualização impediria justamente quem precisa conferir
+ * o conteúdo de conferir.
+ */
+export interface JanelaDaAula {
+  turmaId: string | null
+  abre_em: string | null
+  vence_em: string | null
+  pedido: SituacaoDoPedido
+  respostaDoProfessor: string | null
+  /** Liberação individual em vigor: passa por cima da janela. */
+  liberada: boolean
+}
+
+/**
  * A tela do curso como o ALUNO vê.
  *
  * É usada tanto pelo portal do aluno quanto pela pré-visualização do
@@ -40,6 +59,7 @@ export default function VisaoDoCurso({
   hrefAula,
   preview = false,
   resumo,
+  janelas,
 }: {
   curso: Curso
   aulas: AulaDoCurso[]
@@ -50,10 +70,31 @@ export default function VisaoDoCurso({
   preview?: boolean
   /** Resumo que o aluno já escreveu para a aula aberta. */
   resumo?: { texto: string; feedback: string | null }
+  /** Janela de cada aula nesta turma. Vazio = tudo liberado. */
+  janelas?: Map<string, JanelaDaAula>
 }) {
   const cor = corDoCurso(curso.cor)
   const capa = urlDaCapa(curso.capa_path)
   const progressoAtual = progressoPorAula.get(aulaAtual.id)
+
+  /* A TRAVA DA AULA.
+     Calculada aqui, no servidor, porque esta tela é um Server Component —
+     o relógio é o do servidor, mas todas as comparações são em instantes
+     absolutos, onde fuso não existe. Quem já concluiu a aula continua
+     podendo revê-la: fechar o que a pessoa já assistiu seria tirar dela
+     um material que ela conquistou. */
+  const janelaDe = (aulaId: string) => {
+    if (preview || !janelas) return null
+    const j = janelas.get(aulaId)
+    if (!j) return null
+    if (j.liberada) return null
+    if (progressoPorAula.get(aulaId)?.concluida) return null
+    const estado = lerJanela(j.abre_em, j.vence_em).estado
+    if (estado === 'aberta') return null
+    return { ...j, estado }
+  }
+
+  const trancaAtual = janelaDe(aulaAtual.id)
 
   const publicadas = aulas.filter((a) => a.publicada !== false)
   const totalConcluidas = publicadas.filter((a) => progressoPorAula.get(a.id)?.concluida).length
@@ -114,15 +155,28 @@ export default function VisaoDoCurso({
       <div className="grid lg:grid-cols-[1fr_360px] gap-6">
         {/* ---------- Player ---------- */}
         <div>
-          <VideoPlayer
-            key={aulaAtual.id}
-            aulaId={aulaAtual.id}
-            videoUrl={urlDoVideo(aulaAtual.video_path) ?? aulaAtual.video_url}
-            titulo={aulaAtual.titulo}
-            concluidaInicial={progressoAtual?.concluida ?? false}
-            percentualInicial={progressoAtual?.percentual ?? 0}
-            somenteLeitura={preview}
-          />
+          {trancaAtual ? (
+            <AulaTrancada
+              turmaId={trancaAtual.turmaId}
+              aulaId={aulaAtual.id}
+              tituloAula={aulaAtual.titulo}
+              motivo={trancaAtual.estado === 'ainda_nao_abriu' ? 'ainda_nao_abriu' : 'encerrada'}
+              abreEm={trancaAtual.abre_em}
+              venceEm={trancaAtual.vence_em}
+              pedido={trancaAtual.pedido}
+              respostaDoProfessor={trancaAtual.respostaDoProfessor}
+            />
+          ) : (
+            <VideoPlayer
+              key={aulaAtual.id}
+              aulaId={aulaAtual.id}
+              videoUrl={urlDoVideo(aulaAtual.video_path) ?? aulaAtual.video_url}
+              titulo={aulaAtual.titulo}
+              concluidaInicial={progressoAtual?.concluida ?? false}
+              percentualInicial={progressoAtual?.percentual ?? 0}
+              somenteLeitura={preview}
+            />
+          )}
 
           <div className="mt-5">
             <div className="flex flex-wrap items-center gap-2.5">
@@ -171,6 +225,7 @@ export default function VisaoDoCurso({
               const p = progressoPorAula.get(a.id)
               const ativa = a.id === aulaAtual.id
               const rascunho = a.publicada === false
+              const tranca = janelaDe(a.id)
 
               return (
                 <Link
@@ -192,6 +247,11 @@ export default function VisaoDoCurso({
                   >
                     {p?.concluida ? (
                       <CheckCircle2 className="h-4.5 w-4.5" strokeWidth={2.25} />
+                    ) : tranca ? (
+                      /* O cadeado ocupa o lugar do número de propósito: é a
+                         informação que muda o que a pessoa vai fazer a
+                         seguir, e o número dela continua no título. */
+                      <Lock className="h-4 w-4" strokeWidth={2.25} />
                     ) : (
                       a.numero
                     )}
@@ -214,6 +274,11 @@ export default function VisaoDoCurso({
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700">
                           <EyeOff className="h-3 w-3" strokeWidth={2.25} />
                           Rascunho
+                        </span>
+                      ) : tranca ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500">
+                          <Lock className="h-3 w-3" strokeWidth={2.25} />
+                          {tranca.estado === 'ainda_nao_abriu' ? 'Abre depois' : 'Prazo encerrado'}
                         </span>
                       ) : p?.concluida ? (
                         <span className={`text-[11px] font-semibold ${cor.texto}`}>Concluída</span>

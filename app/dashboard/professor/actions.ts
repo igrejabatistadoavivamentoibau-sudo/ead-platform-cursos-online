@@ -476,3 +476,192 @@ export async function registrarAulaEnviada(dados: {
   revalidatePath(`/dashboard/professor/cursos/${cursoId}`)
   revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
 }
+
+// ==================== AULAS DENTRO DA TURMA ====================
+
+/* ============================================================
+   A JANELA DA AULA É DA TURMA, NÃO DA AULA
+
+   A aula pertence ao curso, e o mesmo curso é dado por várias turmas em
+   épocas diferentes — a turma de março e a de agosto veem a MESMA aula.
+   Uma data gravada na aula valeria para todas ao mesmo tempo: abrir para
+   a de agosto fecharia para a de março.
+
+   Sem linha em `aula_turma`, a aula está liberada. A escola não precisa
+   marcar data em nada para continuar funcionando como funciona hoje.
+   ============================================================ */
+
+export async function definirJanelaDaAula(
+  turmaId: string,
+  aulaId: string,
+  input: { abre_em?: string | null; vence_em?: string | null }
+) {
+  const { userId, role } = await exigir('gerenciar_aulas')
+  await garantirTurma(turmaId, userId, role)
+  const admin = createAdminClient()
+
+  // A aula tem que ser do curso desta turma. Sem isto, o id da aula vindo
+  // do navegador poderia apontar para o curso de outra pessoa.
+  const { data: turma } = await admin.from('turmas').select('curso_id').eq('id', turmaId).single()
+  const { data: aula } = await admin.from('aulas').select('curso_id').eq('id', aulaId).maybeSingle()
+  if (!aula || !turma?.curso_id || aula.curso_id !== turma.curso_id) {
+    throw new Error('Esta aula não pertence ao curso desta turma.')
+  }
+
+  if (input.abre_em && input.vence_em && new Date(input.vence_em) <= new Date(input.abre_em)) {
+    throw new Error('O prazo para assistir tem que ser depois da abertura.')
+  }
+
+  /* Sem data nenhuma, a linha some em vez de ficar com dois nulos. Linha
+     vazia e ausência de linha significam a mesma coisa — deixar as duas
+     formas conviverem é criar um estado a mais para alguém interpretar
+     errado depois. */
+  if (!input.abre_em && !input.vence_em) {
+    const { error } = await admin
+      .from('aula_turma')
+      .delete()
+      .eq('turma_id', turmaId)
+      .eq('aula_id', aulaId)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await admin.from('aula_turma').upsert(
+      {
+        turma_id: turmaId,
+        aula_id: aulaId,
+        abre_em: input.abre_em || null,
+        vence_em: input.vence_em || null,
+        definida_por: userId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'turma_id,aula_id' }
+    )
+    if (error) throw new Error(error.message)
+  }
+
+  revalidatePath(`/dashboard/professor/turmas/${turmaId}/aulas`)
+  revalidatePath('/dashboard/aluno/cursos')
+}
+
+/** Copia a mesma janela para todas as aulas do curso desta turma. */
+export async function definirJanelaDeTodasAsAulas(
+  turmaId: string,
+  input: { abre_em?: string | null; vence_em?: string | null }
+) {
+  const { userId, role } = await exigir('gerenciar_aulas')
+  await garantirTurma(turmaId, userId, role)
+  const admin = createAdminClient()
+
+  const { data: turma } = await admin.from('turmas').select('curso_id').eq('id', turmaId).single()
+  if (!turma?.curso_id) throw new Error('Esta turma ainda não tem curso definido.')
+
+  const { data: aulas } = await admin
+    .from('aulas')
+    .select('id')
+    .eq('curso_id', turma.curso_id)
+    .eq('publicada', true)
+
+  if (!aulas?.length) throw new Error('Este curso não tem aulas publicadas.')
+
+  if (!input.abre_em && !input.vence_em) {
+    const { error } = await admin.from('aula_turma').delete().eq('turma_id', turmaId)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await admin.from('aula_turma').upsert(
+      aulas.map((a) => ({
+        turma_id: turmaId,
+        aula_id: a.id as string,
+        abre_em: input.abre_em || null,
+        vence_em: input.vence_em || null,
+        definida_por: userId,
+        updated_at: new Date().toISOString(),
+      })),
+      { onConflict: 'turma_id,aula_id' }
+    )
+    if (error) throw new Error(error.message)
+  }
+
+  revalidatePath(`/dashboard/professor/turmas/${turmaId}/aulas`)
+  revalidatePath('/dashboard/aluno/cursos')
+  return aulas.length
+}
+
+/**
+ * O professor responde ao pedido de liberação de um aluno.
+ *
+ * `libera_ate` existe para o "sim" não virar um sim para sempre: o
+ * professor libera até domingo, e depois disso a aula fecha de novo
+ * sozinha. Sem prazo, a liberação vale enquanto o aluno estiver na turma.
+ */
+export async function decidirLiberacaoDeAula(
+  liberacaoId: string,
+  turmaId: string,
+  input: { status: 'liberada' | 'recusada'; resposta?: string; libera_ate?: string | null }
+) {
+  const { userId, role } = await exigir('gerenciar_aulas')
+  await garantirTurma(turmaId, userId, role)
+  const admin = createAdminClient()
+
+  const { data: pedido } = await admin
+    .from('liberacoes_de_aula')
+    .select('id, turma_id')
+    .eq('id', liberacaoId)
+    .maybeSingle()
+  if (!pedido) throw new Error('Pedido não encontrado.')
+  if (pedido.turma_id !== turmaId) throw new Error('Este pedido não é desta turma.')
+
+  const { error } = await admin
+    .from('liberacoes_de_aula')
+    .update({
+      status: input.status,
+      resposta: input.resposta?.trim() || null,
+      libera_ate: input.status === 'liberada' ? input.libera_ate || null : null,
+      decidida_por: userId,
+      decidida_em: new Date().toISOString(),
+    })
+    .eq('id', liberacaoId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/dashboard/professor/turmas/${turmaId}/aulas`)
+  revalidatePath('/dashboard/aluno/cursos')
+}
+
+/**
+ * O professor responde à justificativa de falta.
+ *
+ * Aceitar NÃO vira presença. A falta continua registrada, só passa a ter
+ * motivo reconhecido. Transformar em presença seria falsificar a chamada,
+ * e o documento tem que continuar dizendo o que aconteceu.
+ */
+export async function responderJustificativa(
+  presencaId: string,
+  turmaId: string,
+  input: { status: 'aceita' | 'recusada'; resposta?: string }
+) {
+  const { userId, role } = await exigir('fazer_chamada')
+  await garantirTurma(turmaId, userId, role)
+  const admin = createAdminClient()
+
+  const { data: presenca } = await admin
+    .from('presencas')
+    .select('id, encontros!inner(turma_id)')
+    .eq('id', presencaId)
+    .maybeSingle()
+  if (!presenca) throw new Error('Presença não encontrada.')
+  const enc = presenca.encontros as unknown as { turma_id: string }
+  if (enc.turma_id !== turmaId) throw new Error('Esta falta não é desta turma.')
+
+  const { error } = await admin
+    .from('presencas')
+    .update({
+      justificativa_status: input.status,
+      justificativa_resposta: input.resposta?.trim() || null,
+      justificativa_decidida_por: userId,
+      justificativa_decidida_em: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', presencaId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/dashboard/professor/turmas/${turmaId}/chamada`)
+  revalidatePath('/dashboard/aluno/presencas')
+}
