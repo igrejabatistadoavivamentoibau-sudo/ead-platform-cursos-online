@@ -49,6 +49,7 @@ type PerfilBruto = {
   name: string
   email: string
   role: string
+  ativo: boolean | null
   permissoes: Partial<Permissoes> | null
 } | null
 
@@ -58,7 +59,7 @@ export const obterSessao = cache(async function obterSessao(): Promise<SessaoAtu
   const buscarPerfil = async (id: string): Promise<PerfilBruto> => {
     const { data } = await supabase
       .from('users')
-      .select('name, email, role, permissoes')
+      .select('name, email, role, ativo, permissoes')
       .eq('id', id)
       .single()
     return (data as PerfilBruto) ?? null
@@ -81,6 +82,13 @@ export const obterSessao = cache(async function obterSessao(): Promise<SessaoAtu
     idProvavel === user.id && perfilAdiantado ? perfilAdiantado : await buscarPerfil(user.id)
 
   if (!perfil) return null
+
+  /* DESATIVADO NÃO ENTRA — nem quem já estava dentro.
+     Suspender a conta no serviço de autenticação impede logins NOVOS, mas
+     quem estava com a plataforma aberta continuaria navegando até o token
+     vencer (até uma hora). Aqui a sessão morre na requisição seguinte:
+     `exigirSessao` devolve a pessoa para o login. */
+  if (perfil.ativo === false) return null
 
   const role = perfil.role as UserRole
 

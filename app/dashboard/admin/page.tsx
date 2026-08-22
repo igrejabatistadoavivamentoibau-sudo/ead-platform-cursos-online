@@ -29,8 +29,18 @@ export default async function AdminOverview() {
     supabase.from('users').select('name').eq('id', user!.id).single(),
     supabase.from('turmas').select('id', { count: 'exact', head: true }),
     supabase.from('turmas').select('id', { count: 'exact', head: true }).eq('status', 'em_andamento'),
-    supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'aluno'),
-    supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'professor'),
+    // Os números do painel contam gente ativa: somar quem saiu daria à
+    // coordenação um retrato que não corresponde à escola de hoje.
+    supabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'aluno')
+      .eq('ativo', true),
+    supabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'professor')
+      .eq('ativo', true),
     supabase
       .from('turmas')
       .select('id, nome, status')

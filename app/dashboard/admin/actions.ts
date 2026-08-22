@@ -388,6 +388,219 @@ export async function atualizarPapel(userId: string, role: 'aluno' | 'professor'
   revalidatePath('/dashboard/admin/usuarios')
 }
 
+/* ============================================================
+   TIRAR ALGUÉM DA PLATAFORMA
+
+   São duas coisas diferentes, e tratá-las como uma só seria errado nos
+   dois sentidos:
+
+   DESATIVAR é o caso comum — a pessoa saiu da igreja, trancou, parou de
+   estudar. Ela perde o acesso e some das listas, mas o que ela fez
+   continua existindo: nota lançada, presença, trabalho entregue,
+   certificado. É reversível, e é o que a escola vai usar quase sempre.
+
+   EXCLUIR é o caso raro — cadastro errado, duplicado, ou pedido formal de
+   remoção de dados. Apaga a pessoa e tudo o que está pendurado nela.
+
+   As duas travas que importam moram no BANCO (migração 024), não aqui:
+   ninguém consegue apagar, desativar ou rebaixar o último administrador
+   ativo. Tela se contorna pelo console do navegador; gatilho, não.
+   ============================================================ */
+
+/** Suspensão longa no serviço de autenticação. Cem anos é o "para sempre" que a API aceita. */
+const SUSPENSAO = '876000h'
+
+/* ============================================================
+   POR QUE ESTAS AÇÕES DEVOLVEM O ERRO EM VEZ DE LANÇÁ-LO
+
+   Descobri isto testando: quando uma ação de servidor LANÇA um erro, o
+   Next, na versão publicada, apaga a mensagem antes de ela chegar ao
+   navegador — por segurança, para não vazar detalhe interno. A pessoa
+   recebe no lugar um parágrafo em inglês dizendo que "ocorreu um erro no
+   render dos Server Components".
+
+   Ou seja: toda frase cuidadosamente escrita aqui ("digite o nome
+   exatamente como está", "esta é a única conta de administrador") só
+   aparece durante o desenvolvimento. Em produção, a pessoa vê o
+   parágrafo em inglês. Em desenvolvimento tudo parece certo, e é por isso
+   que isso passa despercebido.
+
+   Então estas ações DEVOLVEM o resultado — sucesso ou motivo — em vez de
+   lançar. A mensagem é dado, e dado atravessa.
+   ============================================================ */
+
+export type Resultado<T = unknown> = ({ ok: true } & (T extends object ? T : object)) | { ok: false; erro: string }
+
+const motivo = (e: unknown, padrao: string) =>
+  e instanceof Error && e.message ? e.message : padrao
+
+export async function definirAtivoDoUsuario(
+  userId: string,
+  ativo: boolean
+): Promise<Resultado> {
+  let quemMexe
+  try {
+    quemMexe = await requireAdmin()
+  } catch (e) {
+    return { ok: false, erro: motivo(e, 'Apenas administradores podem fazer isso.') }
+  }
+  const admin = createAdminClient()
+
+  if (userId === quemMexe.id && !ativo) {
+    return { ok: false, erro: 'Você não pode desativar a própria conta — ficaria de fora na hora.' }
+  }
+
+  /* A ordem importa. Primeiro o perfil, porque é ele que carrega a trava do
+     último administrador: se a mudança for recusada, nada foi suspenso e a
+     pessoa continua entrando normalmente. Suspender antes e falhar depois
+     deixaria alguém trancado do lado de fora sem estar desativado. */
+  const { error } = await admin
+    .from('users')
+    .update({
+      ativo,
+      desativado_em: ativo ? null : new Date().toISOString(),
+      desativado_por: ativo ? null : quemMexe.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId)
+
+  if (error) return { ok: false, erro: error.message }
+
+  const { error: erroAuth } = await admin.auth.admin.updateUserById(userId, {
+    ban_duration: ativo ? 'none' : SUSPENSAO,
+  })
+
+  if (erroAuth) {
+    // Desfaz para as duas metades não discordarem: perfil dizendo uma coisa
+    // e o login fazendo outra é pior do que a operação não ter acontecido.
+    await admin.from('users').update({ ativo: !ativo }).eq('id', userId)
+    return {
+      ok: false,
+      erro: `Não consegui ${ativo ? 'reativar' : 'suspender'} o acesso: ${erroAuth.message}`,
+    }
+  }
+
+  revalidatePath('/dashboard/admin/usuarios')
+  return { ok: true }
+}
+
+export interface ResumoDoUsuario {
+  notas: number
+  presencas: number
+  entregas: number
+  certificados: number
+  matriculas: number
+  turmas_como_professor: number
+  mensagens: number
+  anotacoes_biblia: number
+  paginas_caderno: number
+  aulas_assistidas: number
+}
+
+const NADA: ResumoDoUsuario = {
+  notas: 0,
+  presencas: 0,
+  entregas: 0,
+  certificados: 0,
+  matriculas: 0,
+  turmas_como_professor: 0,
+  mensagens: 0,
+  anotacoes_biblia: 0,
+  paginas_caderno: 0,
+  aulas_assistidas: 0,
+}
+
+/** O que seria apagado junto. A tela mostra isto ANTES de perguntar se pode. */
+export async function resumoDoUsuario(
+  userId: string
+): Promise<Resultado<{ resumo: ResumoDoUsuario }>> {
+  try {
+    await requireAdmin()
+  } catch (e) {
+    return { ok: false, erro: motivo(e, 'Apenas administradores podem fazer isso.') }
+  }
+  const admin = createAdminClient()
+
+  const { data, error } = await admin.rpc('resumo_do_usuario', { p_id: userId })
+  if (error) return { ok: false, erro: error.message }
+
+  const linha = (Array.isArray(data) ? data[0] : data) as ResumoDoUsuario | undefined
+  return { ok: true, resumo: linha ?? NADA }
+}
+
+/** Compara ignorando acento, maiúscula e espaço sobrando. */
+const mesmoNome = (a: string, b: string) => {
+  const limpar = (x: string) =>
+    x
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+  return limpar(a) === limpar(b)
+}
+
+export async function excluirUsuario(
+  userId: string,
+  confirmacao: string
+): Promise<Resultado<{ nome: string }>> {
+  let quemMexe
+  try {
+    quemMexe = await requireAdmin()
+  } catch (e) {
+    return { ok: false, erro: motivo(e, 'Apenas administradores podem fazer isso.') }
+  }
+  const admin = createAdminClient()
+
+  if (userId === quemMexe.id) {
+    return { ok: false, erro: 'Você não pode excluir a própria conta.' }
+  }
+
+  const { data: pessoa } = await admin
+    .from('users')
+    .select('name, email')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (!pessoa) return { ok: false, erro: 'Esta pessoa já não existe mais.' }
+
+  /* A confirmação é conferida AQUI, e não só na tela. O nome digitado é a
+     única parte deste fluxo que exige a pessoa parar e ler quem ela está
+     apagando — e uma conferência que mora só no navegador não é
+     conferência nenhuma. */
+  if (!mesmoNome(confirmacao ?? '', pessoa.name as string)) {
+    return {
+      ok: false,
+      erro: `Para confirmar, digite o nome exatamente como está: "${pessoa.name}".`,
+    }
+  }
+
+  /* Primeiro o acesso, depois os dados.
+     Se a segunda parte falhar, a pessoa já está fora — que é o essencial —
+     e a tela ainda mostra o cadastro, então dá para tentar de novo. Na
+     ordem inversa, uma falha deixaria uma conta capaz de entrar sem perfil
+     nenhum: invisível no painel e difícil de perceber. */
+  const { error: erroAuth } = await admin.auth.admin.deleteUser(userId)
+  if (erroAuth && !/not\s*found/i.test(erroAuth.message)) {
+    return { ok: false, erro: `Não consegui remover o acesso: ${erroAuth.message}` }
+  }
+
+  const { error } = await admin.from('users').delete().eq('id', userId)
+  if (error) return { ok: false, erro: error.message }
+
+  /* Os arquivos que a pessoa enviou não somem sozinhos: o banco apaga a
+     LINHA que aponta para o arquivo, e o arquivo continua ocupando espaço
+     no armazenamento. Numa exclusão a pedido da pessoa, deixar as fotos dos
+     trabalhos dela para trás seria não ter excluído. */
+  const { data: arquivos } = await admin.storage.from('entregas').list(userId)
+  if (arquivos?.length) {
+    await admin.storage.from('entregas').remove(arquivos.map((a) => `${userId}/${a.name}`))
+  }
+
+  revalidatePath('/dashboard/admin/usuarios')
+  return { ok: true, nome: pessoa.name as string }
+}
+
 // ============ SLIDES DO CARROSSEL ============
 
 const TIPOS_IMAGEM = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']

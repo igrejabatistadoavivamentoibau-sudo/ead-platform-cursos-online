@@ -27,7 +27,13 @@ export default async function TurmasPage() {
       .from('turmas')
       .select('id, nome, descricao, status, data_inicio, professor_id')
       .order('created_at', { ascending: false }),
-    supabase.from('users').select('id, name').eq('role', 'professor').order('name'),
+    // Professor desativado não pode ser escolhido para uma turma nova.
+    supabase
+      .from('users')
+      .select('id, name')
+      .eq('role', 'professor')
+      .eq('ativo', true)
+      .order('name'),
   ])
 
   const turmas = exigirDados(resTurmas, 'as turmas')

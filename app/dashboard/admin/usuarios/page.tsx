@@ -1,14 +1,20 @@
 import { Users2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { exigirSessao } from '@/lib/auth'
 import CriarUsuarioForm from '@/components/Dashboard/CriarUsuarioForm'
 import UsuarioRow from '@/components/Dashboard/UsuarioRow'
 
 export default async function UsuariosPage() {
+  const sessao = await exigirSessao()
   const supabase = await createClient()
 
+  /* Os desativados continuam na lista, no fim e apagados. Sumir com eles
+     seria esconder da coordenação exatamente quem ela precisa encontrar
+     para reativar — e faria "desativar" parecer "excluir". */
   const { data: usuarios } = await supabase
     .from('users')
-    .select('id, name, email, role')
+    .select('id, name, email, role, ativo')
+    .order('ativo', { ascending: false })
     .order('name')
 
   // Em que turmas cada pessoa está — como aluno (matrícula) ou como
@@ -34,7 +40,9 @@ export default async function UsuariosPage() {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Usuários</h1>
-          <p className="text-gray-500 mt-1">Crie contas, redefina senhas e veja em que turmas cada pessoa está.</p>
+          <p className="text-gray-500 mt-1">
+            Crie contas, redefina senhas, e desative ou exclua quem saiu.
+          </p>
         </div>
       </div>
 
@@ -51,6 +59,8 @@ export default async function UsuariosPage() {
                 email={u.email}
                 role={u.role}
                 turmas={turmasPorPessoa.get(u.id) ?? []}
+                ativo={u.ativo !== false}
+                souEu={u.id === sessao.id}
               />
             ))}
           </ul>

@@ -78,6 +78,16 @@ export default function LoginForm() {
       })
 
       if (authError) {
+        /* Conta desativada pela coordenação: a suspensão volta daqui como
+           "user is banned", que não diz nada para quem está do outro lado
+           da tela. A pessoa precisa entender que não é senha errada, e com
+           quem falar — senão tenta cinco vezes e depois liga reclamando
+           que a plataforma quebrou. */
+        if (/banned/i.test(authError.message)) {
+          throw new Error(
+            'Este acesso está desativado. Se você acha que é engano, fale com a secretaria da escola.'
+          )
+        }
         throw new Error(
           authError.message === 'Invalid login credentials'
             ? 'E-mail ou senha incorretos. Confira e tente de novo.'

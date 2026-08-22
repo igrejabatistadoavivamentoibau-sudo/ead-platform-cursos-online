@@ -40,7 +40,15 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
       .from('turma_alunos')
       .select('id, aluno_id, users(id, name, email)')
       .eq('turma_id', id),
-    supabase.from('users').select('id, name').eq('role', 'aluno').order('name'),
+    /* Só quem está ativo aparece para ser matriculado. Quem foi desativado
+       saiu da escola; oferecê-lo numa lista de matrícula seria convidar ao
+       engano. Quem JÁ ESTÁ matriculado continua aparecendo na turma. */
+    supabase
+      .from('users')
+      .select('id, name')
+      .eq('role', 'aluno')
+      .eq('ativo', true)
+      .order('name'),
     supabase.from('encontros').select('id, titulo, data').eq('turma_id', id).order('data', { ascending: false }),
   ])
 
