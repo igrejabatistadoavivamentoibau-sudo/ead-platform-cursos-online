@@ -81,12 +81,20 @@ export function PageHeader({
  *      dá a altura;
  *   3. canto 2xl, que combina com o herói e com os cards de curso.
  */
-export const SUPERFICIE =
-  'rounded-2xl bg-white border border-brand-950/[0.07] shadow-[0_1px_2px_rgba(5,38,29,0.04),0_10px_24px_-20px_rgba(5,38,29,0.14)]'
+/**
+ * A receita mora em `app/globals.css`, na classe `.superficie` — a MESMA
+ * de `.card-alive`, para as duas nunca divergirem.
+ *
+ * O que ela faz, em uma frase: borda em degradê (mais clara em cima,
+ * mais fechada embaixo), um velado quase invisível por dentro, e a
+ * elevação saindo de UM número que interpola — `--elevacao`. Como só
+ * existe um valor animando, a sombra e o movimento não têm como sair de
+ * sincronia. E a borda acende onde o cursor está.
+ */
+export const SUPERFICIE = 'superficie'
 
 /** Levantar no hover: só para cartões clicáveis. */
-export const SUPERFICIE_HOVER =
-  'transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1 hover:border-brand-700/[0.16] hover:shadow-[0_2px_4px_rgba(5,38,29,0.04),0_26px_44px_-22px_rgba(9,64,47,0.34)]'
+export const SUPERFICIE_HOVER = 'card-clicavel'
 
 export function Card({
   children,
@@ -289,7 +297,11 @@ export function Indicador({
   destaque?: boolean
 }) {
   return (
-    <div className={`${SUPERFICIE} group relative overflow-hidden p-4 ${SUPERFICIE_HOVER}`}>
+    // Sem elevação no hover: um indicador não leva a lugar nenhum, e
+    // levantar seria prometer um clique que não existe. Quem responde à
+    // presença do cursor é o ícone e o fio dourado — o suficiente para a
+    // peça não parecer morta.
+    <div className={`${SUPERFICIE} group relative overflow-hidden p-4`}>
       {/* Fio dourado no topo, mesma assinatura dos cards de curso */}
       <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-accent-500/50 via-accent-500/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
       <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 text-brand-700 transition-colors duration-300 group-hover:border-brand-700 group-hover:bg-brand-700 group-hover:text-white">

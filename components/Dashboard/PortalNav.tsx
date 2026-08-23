@@ -90,17 +90,17 @@ function ItemLink({
       onClick={aoClicar}
       title={recolhido ? link.label : undefined}
       aria-current={active ? 'page' : undefined}
-      className={`group relative flex items-center rounded-lg text-[13px] transition-all duration-200 ${
+      className={`nav-item group relative flex items-center rounded-lg text-[13px] ${
         recolhido ? 'mx-auto h-9 w-9 justify-center' : 'gap-2.5 py-[7px] pl-2.5 pr-2'
       } ${
         active
-          ? 'bg-white/[0.08] font-semibold text-white'
-          : 'font-medium text-white/50 hover:bg-white/[0.05] hover:text-white/90'
+          ? 'nav-item-ativo font-semibold text-white'
+          : 'nav-item-inativo font-medium text-white/50 hover:text-white/90'
       }`}
     >
       {active && (
         <span
-          className={`absolute top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full ${acento.barra} ${
+          className={`nav-acento absolute top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full ${acento.barra} ${acento.texto} ${
             recolhido ? '-left-1.5' : '-left-2'
           }`}
         />
@@ -115,7 +115,7 @@ function ItemLink({
       {!recolhido && <span className="truncate">{link.label}</span>}
 
       {recolhido && (
-        <span className="pointer-events-none absolute left-full z-50 ml-2.5 whitespace-nowrap rounded-md bg-brand-950 px-2.5 py-1.5 text-[12px] font-medium text-white opacity-0 shadow-float ring-1 ring-white/10 transition-opacity duration-200 group-hover:opacity-100">
+        <span className="nav-dica pointer-events-none absolute left-full z-50 ml-2.5 whitespace-nowrap rounded-md bg-brand-950 px-2.5 py-1.5 text-[12px] font-medium text-white opacity-0 shadow-float ring-1 ring-white/10 group-hover:opacity-100">
           {link.label}
         </span>
       )}
@@ -365,7 +365,7 @@ export default function PortalNav({
   return (
     <>
       {/* ===================== CELULAR ===================== */}
-      <div className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-white/[0.07] bg-brand-950 px-4 md:hidden">
+      <div className="nav-superficie sticky top-0 z-50 flex h-14 items-center justify-between border-b border-white/[0.07] px-4 md:hidden">
         <Link href={links[0]?.href ?? '/'} className="flex items-center gap-2.5">
           <Image src="/ibau-marca-clara.png" alt="" width={30} height={26} className="h-6 w-auto" />
           <span className="text-[13px] font-semibold text-white">{titulo}</span>
@@ -391,7 +391,7 @@ export default function PortalNav({
           onClick={() => setMobileOpen(false)}
         />
         <nav
-          className={`absolute bottom-0 left-0 top-14 flex w-[266px] flex-col bg-brand-950 transition-transform duration-300 ease-out ${
+          className={`nav-superficie absolute bottom-0 left-0 top-14 flex w-[266px] flex-col transition-transform duration-300 ease-out ${
             mobileOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
@@ -424,13 +424,12 @@ export default function PortalNav({
           `html[data-nav-recolhida]` no globals.css). Nada pisca, nada some. */}
       <aside
         data-nav-lateral=""
-        className={`sticky top-0 hidden h-screen shrink-0 flex-col bg-gradient-to-b from-brand-900 via-brand-950 to-brand-950 transition-[width] duration-300 ease-out md:flex ${
+        className={`nav-superficie sticky top-0 hidden h-screen shrink-0 flex-col transition-[width] duration-300 ease-out md:flex ${
           collapsed ? 'w-[62px]' : 'w-[236px]'
         }`}
       >
         {/* Fio de luz na borda direita: separa do conteúdo sem virar uma
             linha dura de 1px cinza atravessando a tela inteira. */}
-        <span className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-white/[0.14] via-white/[0.06] to-transparent" />
 
         {/* --- Topo: marca --- */}
         <div

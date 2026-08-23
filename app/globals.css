@@ -199,65 +199,149 @@ aside[data-nav-lateral] * {
 }
 
 /* ============================================================
-   CLASSES UTILITÁRIAS DE MOVIMENTO
-   Usadas nos cards para que nada fique "duro como pedra".
+   O MATERIAL DA PLATAFORMA
+
+   Cartão e superfície partilham UMA receita. O que muda em relação à
+   versão anterior não é "mais efeito" — é o cartão passar a se comportar
+   como uma peça física, e não como um retângulo com sombra.
+
+   Três coisas fazem esse trabalho, e nenhuma delas aparece sozinha:
+
+   1. A BORDA NÃO TEM UMA COR SÓ. Ela é um degradê: mais clara em cima,
+      mais escura embaixo. É assim que a luz cai sobre qualquer objeto
+      real numa mesa, e é o detalhe que separa "desenhado" de "pousado".
+      Uma borda de cor única sempre parece adesivo.
+
+   2. O INTERIOR TEM UM VELADO. Do branco puro no topo até um verde
+      quase imperceptível no pé. Sem isso o cartão é uma chapa; com isso
+      ele tem volume. A dose é baixíssima de propósito — se der para
+      apontar a cor, está forte demais.
+
+   3. A ELEVAÇÃO É UM NÚMERO, NÃO UMA LISTA DE VALORES. `--elevacao` vai
+      de 0 a 1 e dela saem, por cálculo, a altura da peça, o raio da
+      sombra, a opacidade e a cor. Como só existe UM valor animando, é
+      impossível a sombra e o movimento saírem de sincronia — que é o
+      defeito clássico de quem anima quatro propriedades de uma vez.
+      Isso só é possível porque `@property` registra a variável com
+      tipo; sem o registro, o navegador não sabe interpolar `0 → 1`.
+
+   E o movimento usa uma MOLA, não uma curva de aceleração. A peça
+   ultrapassa o ponto final por um fio de cabelo e volta, como massa de
+   verdade responderia. `linear()` descreve isso em CSS puro — antes
+   dele, só com JavaScript.
    ============================================================ */
 
-/* O CARTÃO VIVO.
-   A versão anterior era um anel de 1px com uma sombra curta e cinza. O
-   resultado era uma peça *desenhada* sobre a tela em vez de *pousada*
-   nela — foi exatamente isso que a escola chamou de card "seco e duro".
+@property --elevacao {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
 
-   Agora são duas sombras trabalhando juntas: uma de contato (1px, quase
-   invisível, que ancora a peça no fundo) e uma longa e muito difusa, que
-   é quem cria a sensação de altura. No hover a peça sobe 4px e a sombra
-   ganha o verde da marca: a luz muda de cor junto com a elevação, como
-   aconteceria de verdade sobre uma mesa. O movimento continua discreto —
-   quem precisa aparecer é o conteúdo, não o efeito. */
-.card-alive {
+/* Onde o cursor está, dentro da peça, e o quanto a luz dele conta. */
+@property --luz-x { syntax: '<percentage>'; inherits: false; initial-value: 50%; }
+@property --luz-y { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+@property --luz   { syntax: '<number>';     inherits: false; initial-value: 0; }
+
+:root {
+  --raio-card: 1rem;
+
+  /* A mola. Chega a 1.013 por volta dos 40% do caminho e assenta —
+     ultrapassagem de pouco mais de 1%, que se sente e não se vê. */
+  --mola: linear(
+    0, 0.0033, 0.0132 2.7%, 0.0533 5.5%, 0.1189, 0.2069 11.1%, 0.3145,
+    0.4392 16.7%, 0.5697, 0.6947 22.3%, 0.8033, 0.8896 27.9%, 0.9506,
+    0.9884 33.5%, 1.0068, 1.0129 39.1%, 1.0113, 1.0064 44.7%, 1.0016,
+    0.9985 50.3%, 0.9974, 0.9979 55.9%, 0.9992, 1.0001 61.5%, 1.0006,
+    1.0006 67.1%, 1.0003, 1.0001 72.7%, 1
+  );
+}
+
+.card-alive,
+.superficie {
+  --elevacao: 0;
   position: relative;
-  background: #fff;
-  border-radius: 1rem;
-  box-shadow: 0 1px 2px rgba(5, 38, 29, 0.04), 0 10px 24px -20px rgba(5, 38, 29, 0.14);
-  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-              border-color 0.3s ease;
-  border: 1px solid rgba(5, 38, 29, 0.07);
+  border-radius: var(--raio-card);
+
+  /* A borda é transparente e quem a pinta é a camada `border-box` do
+     fundo. É o único jeito, em CSS, de ter borda em degradê de 1px sem
+     desenhar uma caixa a mais por baixo. */
+  border: 1px solid transparent;
+  background:
+    /* miolo: branco no topo, um sopro de verde no pé */
+    linear-gradient(180deg, #fff, color-mix(in oklab, var(--brand-50) 42%, #fff)) padding-box,
+    /* a luz do cursor, correndo pela borda (ver components/Sistema/LuzQueSegue) */
+    radial-gradient(
+      16rem 16rem at var(--luz-x) var(--luz-y),
+      color-mix(in oklab, var(--brand-500) calc(60% * var(--luz)), transparent),
+      transparent 68%
+    ) border-box,
+    /* a borda de base: mais clara em cima, mais fechada embaixo */
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--brand-950) 6%, transparent),
+      color-mix(in oklab, var(--brand-950) 9%, transparent) 45%,
+      color-mix(in oklab, var(--brand-950) 13%, transparent)
+    ) border-box;
+
+  box-shadow:
+    /* contato: ancora a peça no fundo */
+    0 1px 2px rgb(5 38 29 / calc(0.045 + 0.015 * var(--elevacao))),
+    /* meia-sombra: dá a espessura */
+    0 calc(2px + 8px * var(--elevacao)) calc(6px + 16px * var(--elevacao))
+      calc(-4px - 4px * var(--elevacao)) rgb(9 64 47 / calc(0.05 + 0.07 * var(--elevacao))),
+    /* sombra longa: dá a ALTURA, e é a que muda de verdade no hover */
+    0 calc(10px + 24px * var(--elevacao)) calc(22px + 42px * var(--elevacao))
+      calc(-14px - 8px * var(--elevacao)) rgb(9 64 47 / calc(0.16 + 0.14 * var(--elevacao)));
+
+  transform: translateY(calc(var(--elevacao) * -4px));
+  transition:
+    --elevacao 460ms var(--mola),
+    transform 460ms var(--mola),
+    --luz 260ms ease-out;
 }
 
 /* SÓ LEVANTA O QUE SE PODE CLICAR.
-   Este é o refino que mais muda a sensação da plataforma, e nasceu de um
-   erro meu: a regra de hover valia para TODO `.card-alive`, e a classe é
-   usada tanto em cartão-link quanto em painel de formulário. O resultado
-   era um formulário que pulava 4px quando o mouse passava por cima a
-   caminho de outra coisa — movimento sem causa, e movimento sem causa lê
-   como instabilidade, não como capricho.
+   Elevação é promessa de que algo acontece se você clicar. Onde não há
+   clique, não há promessa — e um formulário que pula quando o mouse passa
+   a caminho de outra coisa lê como instabilidade, não como capricho.
 
-   Elevação é promessa de que algo vai acontecer se você clicar. Onde não
-   há clique, não há promessa: a peça fica parada, e o hover só aquece a
-   borda de leve, o suficiente para a peça não parecer morta.
-
-   Os seletores cobrem os três jeitos de o cartão ser clicável na
-   plataforma (link, botão, rótulo de escolha) e deixam `.card-clicavel`
-   para o caso em que o clique está numa `div` com `onClick`. */
+   `:has(> a)` cobre o caso do cartão que não é link mas embrulha um: o
+   seletor de pai, que até pouco tempo não existia em CSS e obrigava a
+   marcar a classe na mão em cada tela. */
 :where(a, button, label).card-alive:hover,
-.card-alive.card-clicavel:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 2px 4px rgba(5, 38, 29, 0.04), 0 26px 44px -22px rgba(9, 64, 47, 0.34);
-  border-color: rgba(9, 64, 47, 0.16);
+.card-alive.card-clicavel:hover,
+.card-alive:has(> a:hover),
+:where(a, button, label).superficie:hover,
+.superficie.card-clicavel:hover {
+  --elevacao: 1;
 }
 
-/* Painel parado: nenhuma elevação, só a borda respondendo à presença. */
-.card-alive:not(:where(a, button, label)):not(.card-clicavel):hover {
-  border-color: rgba(9, 64, 47, 0.13);
-}
-
-/* Um cartão clicável também precisa reagir ao TECLADO, e não só ao mouse.
-   Quem navega por tabulação recebia a moldura de foco e mais nada. */
+/* Quem chega pelo teclado recebe a mesma elevação — antes recebia só a
+   moldura de foco, e o cartão continuava colado na tela. */
 :where(a, button, label).card-alive:focus-visible,
-.card-alive.card-clicavel:focus-within {
-  border-color: rgba(9, 64, 47, 0.2);
-  box-shadow: 0 2px 4px rgba(5, 38, 29, 0.04), 0 20px 36px -22px rgba(9, 64, 47, 0.3);
+.card-alive.card-clicavel:focus-within,
+:where(a, button, label).superficie:focus-visible {
+  --elevacao: 0.7;
+}
+
+/* Painel parado: fica onde está. A borda apenas fecha um tom, o
+   suficiente para a peça não parecer morta sob o cursor. */
+.card-alive:not(:where(a, button, label)):not(.card-clicavel):not(:has(> a:hover)):hover {
+  --elevacao: 0.14;
+}
+
+/* Sem `@property`, `--elevacao` não interpola e o cartão saltaria de 0
+   para 1 num quadro só. Nos navegadores que não registram a variável,
+   este bloco devolve a versão anterior — sombra fixa e transição de
+   sombra. Ninguém vê tela quebrada; vê a plataforma de antes. */
+@supports not (background: paint(x)) {
+  @supports not (transition: --elevacao 1s) {
+    .card-alive,
+    .superficie {
+      transition: box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1),
+                  transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+  }
 }
 
 /* ============================================================
@@ -330,23 +414,32 @@ aside[data-nav-lateral] * {
 
 .campo-select:disabled { cursor: not-allowed; }
 
-/* Brilho que atravessa o card no hover — quase imperceptível de propósito:
-   percebe-se o movimento da luz, não o "flash" branco. */
+/* O CLARÃO QUE ATRAVESSA — só em cartão que leva a algum lugar.
+
+   Continua discreto: percebe-se o movimento da luz, não um "flash"
+   branco. A diferença é que agora ele acompanha a mola do cartão, então
+   a luz e a elevação são o mesmo gesto. */
 .card-sheen::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.28) 50%, transparent 65%);
+  background: linear-gradient(
+    115deg,
+    transparent 34%,
+    color-mix(in oklab, #fff 82%, transparent) 50%,
+    transparent 66%
+  );
   opacity: 0;
-  transform: translateX(-60%);
-  transition: opacity 0.4s ease, transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateX(-62%);
+  transition: opacity 0.35s ease, transform 0.9s var(--mola);
   pointer-events: none;
 }
 
-.card-sheen:hover::after {
+.card-sheen:hover::after,
+.card-sheen:focus-visible::after {
   opacity: 1;
-  transform: translateX(60%);
+  transform: translateX(62%);
 }
 
 /* Ícone que "respira" no hover. Sem rotação: girar ícone dá ar de brinquedo. */
@@ -498,6 +591,157 @@ aside[data-nav-lateral] * {
   border-color: rgba(18, 128, 90, 0.35);
 }
 
+
+/* ============================================================
+   A BARRA LATERAL: DE ESCURA A PROFUNDA
+
+   Ela já era bonita. O que faltava para parecer cara é o que falta em
+   quase toda superfície escura de interface, e não é cor: é MATÉRIA.
+
+   1. GRÃO. Um degradê escuro puro, num monitor comum, mostra faixas —
+      o navegador não tem tons suficientes entre um verde e outro quase
+      iguais, e o olho enxerga os degraus. Uma película de ruído
+      quase invisível (5% de opacidade) quebra os degraus e, de brinde,
+      dá textura: a diferença entre olhar uma tinta e olhar um papel.
+      O ruído é gerado pelo próprio SVG, sem baixar imagem nenhuma.
+
+   2. AURORA. Três clarões enormes e desfocados — verde no alto à
+      esquerda, um fio dourado à direita, verde de novo no pé — em cima
+      do degradê de base. É o que impede a barra de ser um retângulo de
+      cor chapada. Eles derivam devagar (34 s por ciclo), num movimento
+      que ninguém percebe olhando e que só se nota quando some.
+
+   3. TUDO ISSO É FUNDO, NÃO CAMADA. Nenhum `::before`, nenhum
+      `z-index`, nenhum elemento novo: são camadas de `background-image`
+      empilhadas na própria barra, misturadas com `background-blend-mode`.
+      Um pseudo-elemento por cima exigiria empurrar todo o conteúdo do
+      menu para uma camada acima — e é assim que menu deixa de receber
+      clique sem ninguém entender por quê.
+   ============================================================ */
+
+.nav-superficie {
+  position: relative;
+  background-color: var(--brand-950);
+  background-image:
+    /* 1. GRÃO, em `soft-light` e não em `overlay`.
+          `overlay` CLAREIA o que está por baixo — foi o que lavou o verde
+          e deixou a barra com aparência suja. `soft-light` mexe só na
+          textura e mantém a cor onde ela estava. */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)' opacity='0.42'/%3E%3C/svg%3E"),
+    /* 2. UM clarão só, e do verde SATURADO da marca — não de um verde
+          claro. Ele aprofunda a cor no alto em vez de desbotá-la. */
+    radial-gradient(72% 30% at 24% 0%, color-mix(in oklab, var(--brand-500) 20%, transparent), transparent 76%),
+    /* 3. O degradê de base, um tom mais fechado no pé do que antes. */
+    linear-gradient(180deg, var(--brand-900), var(--brand-950) 52%, #031710);
+  background-blend-mode: soft-light, overlay, normal;
+  background-size: 200px 200px, 150% 100%, 100% 100%;
+  background-position: 0 0, 0% 0%, 0 0;
+  background-repeat: repeat, no-repeat, no-repeat;
+  animation: aurora-deriva 40s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-deriva {
+  from { background-position: 0 0, 0% 0%,  0 0; }
+  to   { background-position: 0 0, 18% 4%, 0 0; }
+}
+
+/* Fio de luz na aresta direita: mais forte no topo, some no pé. É o que
+   separa a barra do conteúdo sem uma linha dura de 1px.
+
+   Só na barra do computador: na faixa do topo do celular, um fio na
+   direita não separa nada — separaria a barra da borda da tela. */
+aside.nav-superficie::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, #fff 18%, transparent),
+    color-mix(in oklab, #fff 7%, transparent) 40%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------
+   O ITEM DO MENU
+
+   O item ativo era um bloco `bg-white/8`: um retângulo cinza-esverdeado
+   liso. Agora é uma peça de vidro — degradê que se apaga para a direita,
+   fio de luz na aresta de cima e uma sombra interna curta embaixo. Três
+   detalhes de 1px que, juntos, tiram o ar de "div com fundo".
+   ------------------------------------------------------------ */
+.nav-item {
+  position: relative;
+  border: 1px solid transparent;
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+}
+
+.nav-item-inativo:hover {
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in oklab, #fff 7%, transparent),
+    color-mix(in oklab, #fff 2%, transparent) 65%,
+    transparent
+  );
+}
+
+.nav-item-ativo {
+  /* `background`, e não `background-image`: as palavras `padding-box` e
+     `border-box` só existem no atalho. Escritas em `background-image` a
+     declaração inteira é INVÁLIDA e o navegador a joga fora calado — o
+     item ativo voltava a ser um bloco chapado e nada avisava. Foi o teste
+     que leu a propriedade computada e pegou. */
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklab, #fff 13%, transparent),
+      color-mix(in oklab, #fff 5%, transparent) 58%,
+      transparent
+    ) padding-box,
+    linear-gradient(
+      100deg,
+      color-mix(in oklab, #fff 24%, transparent),
+      color-mix(in oklab, #fff 6%, transparent) 45%,
+      transparent 75%
+    ) border-box;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, #fff 10%, transparent),
+    0 8px 18px -14px rgb(0 0 0 / 0.9);
+}
+
+/* A BARRA DE ACENTO ACESA.
+   Ela marcava o item ativo e era só um retângulo de 3px. Agora tem halo:
+   o brilho passa dela para o fundo, como uma luz acesa passaria. É o
+   único ponto de cor saturada da barra inteira — por isso pode brilhar
+   sem virar enfeite. */
+.nav-acento {
+  box-shadow:
+    0 0 10px 0 currentColor,
+    0 0 3px 0 color-mix(in oklab, #fff 60%, transparent);
+}
+
+/* A dica que aparece com a barra recolhida.
+
+   Antes ela só acendia a opacidade, e um balão que aparece parado no
+   lugar parece um erro de desenho. Agora chega deslizando 4px a partir
+   do item que a gerou — com a mesma mola dos cartões, para o gesto ser o
+   mesmo em toda a plataforma.
+
+   `translate` como propriedade própria, e não dentro de `transform`:
+   assim ela anima sozinha, sem brigar com nenhum `transform` que o
+   Tailwind ponha no mesmo elemento. */
+.nav-dica {
+  translate: -4px 0;
+  transition: opacity 180ms ease, translate 220ms var(--mola);
+}
+
+.group:hover > .nav-dica,
+.group:focus-visible > .nav-dica {
+  translate: 0 0;
+}
 
 /* A LARGURA DA BARRA LATERAL ANTES DA HIDRATAÇÃO
 
