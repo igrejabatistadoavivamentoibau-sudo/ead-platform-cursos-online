@@ -41,6 +41,12 @@ const ALUNO: PerfilDePortal = {
 
     { href: '/dashboard/aluno/notas', label: 'Minhas notas', icone: 'GraduationCap', grupo: 'Desempenho' },
     { href: '/dashboard/aluno/presencas', label: 'Minhas presenças', icone: 'ClipboardCheck', grupo: 'Desempenho' },
+
+    /* A loja fica num grupo próprio, e não junto dos estudos: comprar um
+       livro não é estudar, e misturar as duas coisas faria o menu de quem
+       só quer assistir aula ficar mais longo sem motivo. */
+    { href: '/dashboard/aluno/loja', label: 'Loja IBAU', icone: 'ShoppingBag', grupo: 'Loja' },
+    { href: '/dashboard/aluno/pedidos', label: 'Meus pedidos', icone: 'Receipt', grupo: 'Loja' },
   ],
 }
 
@@ -83,6 +89,9 @@ const ADMIN: PerfilDePortal = {
     { href: '/dashboard/admin/repetentes', label: 'Repete o módulo', icone: 'RotateCcw', grupo: 'Pessoas' },
     { href: '/dashboard/admin/usuarios', label: 'Usuários', icone: 'Users2', grupo: 'Pessoas' },
     { href: '/dashboard/admin/permissoes', label: 'Permissões', icone: 'ShieldCheck', grupo: 'Pessoas' },
+
+    { href: '/dashboard/admin/loja', label: 'Loja e pagamentos', icone: 'ShoppingBag', grupo: 'Loja' },
+    { href: '/dashboard/admin/pedidos', label: 'Pedidos', icone: 'Receipt', grupo: 'Loja' },
 
     { href: '/dashboard/admin/site', label: 'Página inicial', icone: 'LayoutTemplate', grupo: 'Site' },
     { href: '/dashboard/admin/lumi', label: 'LUMI', icone: 'Sparkles', grupo: 'Site' },

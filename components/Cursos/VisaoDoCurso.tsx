@@ -6,6 +6,7 @@ import AulaTrancada, { type SituacaoDoPedido } from '@/components/Aulas/AulaTran
 import { lerJanela } from '@/lib/janelaDaAtividade'
 import ResumoAula from '@/components/Aulas/ResumoAula'
 import CadernoDaAula from '@/components/Caderno/CadernoDaAula'
+import MateriaisDaAula, { type MaterialNaTela } from '@/components/Materiais/MateriaisDaAula'
 import { corDoCurso, urlDaCapa, NIVEL_LABEL, type Curso } from '@/lib/cursos'
 import type { EstadoDoModulo } from '@/lib/modulosDoAluno'
 import { urlDoVideo } from '@/lib/video'
@@ -80,6 +81,7 @@ export default function VisaoDoCurso({
   resumo,
   janelas,
   modulos,
+  materiais = [],
 }: {
   curso: Curso
   aulas: AulaDoCurso[]
@@ -97,6 +99,11 @@ export default function VisaoDoCurso({
    * antigo — uma lista só —, o que continua certo para curso de um módulo.
    */
   modulos?: ModuloNaTela[]
+  /**
+   * O material de apoio da aula aberta. A turma presencial pediu vídeo E
+   * material; o vídeo já existia, isto é a outra metade.
+   */
+  materiais?: MaterialNaTela[]
 }) {
   const cor = corDoCurso(curso.cor)
   const capa = urlDaCapa(curso.capa_path)
@@ -252,6 +259,11 @@ export default function VisaoDoCurso({
               <p className="text-gray-500 mt-2 leading-relaxed">{aulaAtual.descricao}</p>
             )}
           </div>
+
+          {/* O material de apoio vem logo abaixo da aula e ANTES do caderno:
+              é conteúdo da aula, não anotação de quem assiste. Quem chegou
+              aqui para pegar a apostila encontra sem rolar a tela inteira. */}
+          <MateriaisDaAula materiais={materiais} />
 
           {/* O caderno vem ANTES do resumo de propósito. São coisas
               diferentes e a ordem ensina isso: primeiro a pessoa anota para

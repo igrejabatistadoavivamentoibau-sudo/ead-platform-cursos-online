@@ -9,6 +9,7 @@ import VisaoDoCurso, {
   type JanelaDaAula,
   type ModuloNaTela,
 } from '@/components/Cursos/VisaoDoCurso'
+import type { MaterialNaTela } from '@/components/Materiais/MateriaisDaAula'
 import {
   modulosDoAluno,
   aulaParaAbrir,
@@ -212,12 +213,32 @@ export default async function CursoDoAlunoPage({
     if (a.moduloId && !abertos.has(a.moduloId)) janelas.delete(a.id)
   }
 
-  const { data: resumo } = await supabase
-    .from('resumos_aula')
-    .select('texto, feedback')
-    .eq('aula_id', atual.id)
-    .eq('aluno_id', sessao.id)
-    .maybeSingle()
+  /* O resumo e o material da aula aberta saem JUNTOS: nenhum dos dois
+     depende do outro, e pedir um de cada vez seria uma ida à rede a mais
+     na frente da pessoa. */
+  const [{ data: resumo }, { data: materiaisBanco }] = await Promise.all([
+    supabase
+      .from('resumos_aula')
+      .select('texto, feedback')
+      .eq('aula_id', atual.id)
+      .eq('aluno_id', sessao.id)
+      .maybeSingle(),
+    supabase
+      .from('materiais')
+      .select('id, titulo, descricao, tipo, formato, tamanho')
+      .eq('aula_id', atual.id)
+      .eq('publicado', true)
+      .order('ordem', { ascending: true }),
+  ])
+
+  const materiais: MaterialNaTela[] = (materiaisBanco ?? []).map((m) => ({
+    id: m.id as string,
+    titulo: m.titulo as string,
+    descricao: (m.descricao as string) ?? null,
+    tipo: m.tipo as 'arquivo' | 'link',
+    formato: (m.formato as string) ?? null,
+    tamanho: m.tamanho === null ? null : Number(m.tamanho),
+  }))
 
   return (
     <div className="p-5 sm:p-8">
@@ -235,6 +256,7 @@ export default async function CursoDoAlunoPage({
         aulaAtual={atual}
         progressoPorAula={progressoPorAula}
         janelas={janelas}
+        materiais={materiais}
         hrefAula={(aulaId) => `/dashboard/aluno/cursos/${id}?aula=${aulaId}`}
         resumo={
           resumo

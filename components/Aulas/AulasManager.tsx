@@ -27,6 +27,8 @@ import {
   removerAula,
 } from '@/app/dashboard/admin/actions'
 import { analisarVideo, miniaturaDoVideo } from '@/lib/video'
+import GerenciarMateriais from '@/components/Materiais/GerenciarMateriais'
+import type { MaterialNaTela } from '@/components/Materiais/MateriaisDaAula'
 
 export interface AulaItem {
   id: string
@@ -38,6 +40,8 @@ export interface AulaItem {
   publicada: boolean
   concluidas?: number
   modulo_id?: string | null
+  /** Material de apoio já anexado a esta aula. */
+  materiais?: MaterialNaTela[]
 }
 
 /** Os módulos do curso, para a aula nova saber onde entrar. */
@@ -575,6 +579,16 @@ export default function AulasManager({
                         </button>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* O material de apoio fica DENTRO da linha da aula, e não
+                    numa tela à parte: é conteúdo daquela aula, e separar as
+                    duas coisas faria o professor abrir dois lugares para
+                    montar uma aula só. */}
+                {!emEdicao && (
+                  <div className="border-t border-gray-100 p-4 sm:p-5">
+                    <GerenciarMateriais aulaId={aula.id} materiais={aula.materiais ?? []} />
                   </div>
                 )}
               </div>

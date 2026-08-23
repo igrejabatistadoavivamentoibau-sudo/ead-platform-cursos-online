@@ -5,6 +5,7 @@ import Voltar from '@/components/ui/Voltar'
 import { createClient } from '@/lib/supabase/server'
 import { exigirPermissao } from '@/lib/auth'
 import AulasManager, { type AulaItem } from '@/components/Aulas/AulasManager'
+import type { MaterialNaTela } from '@/components/Materiais/MateriaisDaAula'
 import AulaAvulsaForm from '@/components/Aulas/AulaAvulsaForm'
 import { MODALIDADE, type ModalidadeCurso } from '@/lib/cursos'
 import { Selo } from '@/components/ui'
@@ -80,9 +81,47 @@ export default async function CursoProfessorPage({
     concluidasPorAula.set(p.aula_id, (concluidasPorAula.get(p.aula_id) ?? 0) + 1)
   }
 
+  /* O material de apoio de cada aula. Uma consulta só para todas as aulas,
+     e não uma por aula: numa tela com 20 aulas isso seriam 20 idas à rede
+     em fila só para desenhar a lista. */
+  const { data: materiaisBanco } = idsAulas.length
+    ? await supabase
+        .from('materiais')
+        .select('id, aula_id, titulo, descricao, tipo, formato, tamanho')
+        .in('aula_id', idsAulas)
+        .order('ordem', { ascending: true })
+    : {
+        data: [] as {
+          id: string
+          aula_id: string
+          titulo: string
+          descricao: string | null
+          tipo: string
+          formato: string | null
+          tamanho: number | null
+        }[],
+      }
+
+  const materiaisPorAula = new Map<string, MaterialNaTela[]>()
+  for (const m of materiaisBanco ?? []) {
+    const k = m.aula_id as string
+    materiaisPorAula.set(k, [
+      ...(materiaisPorAula.get(k) ?? []),
+      {
+        id: m.id as string,
+        titulo: m.titulo as string,
+        descricao: (m.descricao as string) ?? null,
+        tipo: m.tipo as 'arquivo' | 'link',
+        formato: (m.formato as string) ?? null,
+        tamanho: m.tamanho === null ? null : Number(m.tamanho),
+      },
+    ])
+  }
+
   const lista: AulaItem[] = (aulas ?? []).map((a) => ({
     ...a,
     concluidas: concluidasPorAula.get(a.id) ?? 0,
+    materiais: materiaisPorAula.get(a.id as string) ?? [],
   }))
 
   const modalidade = MODALIDADE[(curso.modalidade as ModalidadeCurso) ?? 'ead']
