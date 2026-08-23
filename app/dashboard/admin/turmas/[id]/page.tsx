@@ -59,17 +59,32 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
 
   /* Todos os módulos de todos os cursos, para o seletor. São poucos por
      natureza (um curso tem 2 a 5 etapas), então uma consulta só resolve —
-     e o agrupamento por curso acontece na tela. */
-  const { data: modulosBanco } = await supabase
-    .from('modulos')
-    .select('id, nome, ordem, cursos(titulo)')
-    .order('ordem', { ascending: true })
+     e a separação curso → módulo acontece na tela.
+
+     A contagem de aulas vem junto porque ela muda a decisão: ligar a turma
+     num módulo vazio não dá erro nenhum, só faz a sala inteira entrar e
+     não encontrar conteúdo. O número aparece no cartão ANTES do clique. */
+  const [{ data: modulosBanco }, { data: aulasDosModulos }] = await Promise.all([
+    supabase
+      .from('modulos')
+      .select('id, nome, ordem, curso_id, cursos!modulos_curso_id_fkey(titulo)')
+      .order('ordem', { ascending: true }),
+    supabase.from('aulas').select('modulo_id').not('modulo_id', 'is', null),
+  ])
+
+  const aulasPorModulo = new Map<string, number>()
+  for (const a of aulasDosModulos ?? []) {
+    const k = a.modulo_id as string
+    aulasPorModulo.set(k, (aulasPorModulo.get(k) ?? 0) + 1)
+  }
 
   const modulosEscolhiveis: ModuloEscolhivel[] = (modulosBanco ?? []).map((m) => ({
     id: m.id as string,
     nome: m.nome as string,
     ordem: Number(m.ordem),
+    cursoId: (m.curso_id as string) ?? '',
     cursoTitulo: (m.cursos as unknown as { titulo?: string } | null)?.titulo ?? 'Sem curso',
+    aulas: aulasPorModulo.get(m.id as string) ?? 0,
   }))
 
   const matriculados = (matriculas ?? []).map((m) => {

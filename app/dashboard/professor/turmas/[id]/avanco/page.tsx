@@ -15,7 +15,7 @@ export default async function AvancoDaTurmaPage({
 
   const { data: turma } = await supabase
     .from('turmas')
-    .select('id, nome, professor_id, curso_id, cursos(titulo)')
+    .select('id, nome, professor_id, curso_id, modulo_id, cursos(titulo), modulos!turmas_modulo_id_fkey(nome, ordem)')
     .eq('id', id)
     .single()
 
@@ -25,6 +25,7 @@ export default async function AvancoDaTurmaPage({
   }
 
   const curso = turma.cursos as unknown as { titulo?: string } | null
+  const modulo = turma.modulos as unknown as { nome?: string; ordem?: number } | null
 
   const [{ data: matriculas }, { data: aulas }] = await Promise.all([
     supabase
@@ -32,14 +33,25 @@ export default async function AvancoDaTurmaPage({
       .select('aluno_id, users(id, name, email)')
       .eq('turma_id', id)
       .eq('status', 'ativo'),
-    turma.curso_id
+    /* AS AULAS DO MÓDULO DESTA TURMA. O avanço é uma grade aluno × aula:
+       trazer o curso inteiro colocaria nela as aulas dos outros módulos, e
+       toda a turma apareceria com um rastro de colunas vazias em conteúdo
+       que não é dela — parecendo atraso onde não há atraso nenhum. */
+    turma.modulo_id
       ? supabase
           .from('aulas')
           .select('id, numero, titulo')
-          .eq('curso_id', turma.curso_id)
+          .eq('modulo_id', turma.modulo_id)
           .eq('publicada', true)
           .order('numero', { ascending: true })
-      : Promise.resolve({ data: [] as { id: string; numero: number; titulo: string }[] }),
+      : turma.curso_id
+        ? supabase
+            .from('aulas')
+            .select('id, numero, titulo')
+            .eq('curso_id', turma.curso_id)
+            .eq('publicada', true)
+            .order('numero', { ascending: true })
+        : Promise.resolve({ data: [] as { id: string; numero: number; titulo: string }[] }),
   ])
 
   const alunos = (matriculas ?? [])
@@ -103,6 +115,7 @@ export default async function AvancoDaTurmaPage({
         <p className="text-gray-500 mt-1.5">
           {turma.nome}
           {curso?.titulo ? ` — ${curso.titulo}` : ''}
+          {modulo?.nome ? ` · ${modulo.ordem}. ${modulo.nome}` : ''}
         </p>
       </div>
 
@@ -123,14 +136,17 @@ export default async function AvancoDaTurmaPage({
         ))}
       </div>
 
-      {!turma.curso_id ? (
+      {!turma.curso_id && !turma.modulo_id ? (
         <div className="card-alive p-12 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-brand-700">
             <BookOpenText className="h-7 w-7" strokeWidth={1.75} />
           </div>
-          <p className="text-gray-800 font-medium">Esta turma ainda não está ligada a um curso.</p>
+          <p className="text-gray-800 font-medium">
+            Esta turma ainda não está ligada a um curso-módulo.
+          </p>
           <p className="text-sm text-gray-500 mt-1">
-            A administração precisa escolher o curso da turma para as aulas aparecerem aqui.
+            As aulas vêm do módulo. A coordenação precisa escolher o módulo da turma para o avanço
+            aparecer aqui.
           </p>
         </div>
       ) : alunos.length === 0 || listaAulas.length === 0 ? (
@@ -141,7 +157,7 @@ export default async function AvancoDaTurmaPage({
           <p className="text-gray-800 font-medium">
             {alunos.length === 0
               ? 'Nenhum aluno matriculado nesta turma.'
-              : 'Nenhuma aula publicada neste curso ainda.'}
+              : 'Nenhuma aula publicada no módulo desta turma ainda.'}
           </p>
         </div>
       ) : (

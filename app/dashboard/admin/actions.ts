@@ -41,7 +41,8 @@ export async function criarTurma(input: {
   /** O módulo a que esta turma pertence. É ele que traz o curso junto. */
   modulo_id?: string
   modalidade?: 'presencial' | 'ead'
-}) {
+}): Promise<Resultado> {
+  return tentar(async () => {
   await requireAdmin()
   const admin = createAdminClient()
 
@@ -60,6 +61,7 @@ export async function criarTurma(input: {
 
   if (error) throw new Error(error.message)
   revalidatePath('/dashboard/admin/turmas')
+  })
 }
 
 /**
@@ -73,22 +75,24 @@ export async function criarTurma(input: {
 export async function definirModuloDaTurma(
   turmaId: string,
   input: { modulo_id: string | null; modalidade?: 'presencial' | 'ead' }
-) {
-  await requireAdmin()
-  const admin = createAdminClient()
+): Promise<Resultado> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
 
-  const { error } = await admin
-    .from('turmas')
-    .update({
-      modulo_id: input.modulo_id,
-      ...(input.modalidade ? { modalidade: input.modalidade } : {}),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', turmaId)
-  if (error) throw new Error(error.message)
+    const { error } = await admin
+      .from('turmas')
+      .update({
+        modulo_id: input.modulo_id,
+        ...(input.modalidade ? { modalidade: input.modalidade } : {}),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', turmaId)
+    if (error) throw new Error(error.message)
 
-  revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
-  revalidatePath('/dashboard/admin/turmas')
+    revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
+    revalidatePath('/dashboard/admin/turmas')
+  })
 }
 
 export async function iniciarTurma(turmaId: string) {
@@ -433,6 +437,31 @@ export type Resultado<T = unknown> = ({ ok: true } & (T extends object ? T : obj
 
 const motivo = (e: unknown, padrao: string) =>
   e instanceof Error && e.message ? e.message : padrao
+
+/**
+ * Embrulha uma ação inteira e devolve o motivo em vez de lançá-lo.
+ *
+ * Existe para não reescrever quinze funções no estilo vai-e-vem de
+ * `if (error) return { ok: false }`. O corpo continua escrito de forma
+ * direta, com `throw` onde a regra é violada; o que muda é o que atravessa
+ * a fronteira do servidor para o navegador — que passa a ser dado, e não
+ * exceção. Exceção o Next apaga em produção; dado atravessa.
+ *
+ * Cuidado deliberado: `redirect()` e `notFound()` do Next funcionam
+ * LANÇANDO. Nenhuma ação embrulhada aqui os usa, e nenhuma deve passar a
+ * usar — o desvio viraria uma mensagem de erro na tela.
+ */
+async function tentar<T extends object = Record<string, never>>(
+  corpo: () => Promise<T | void>,
+  padrao = 'Não consegui salvar. Tente de novo.'
+): Promise<Resultado<T>> {
+  try {
+    const extra = await corpo()
+    return { ok: true, ...(extra ?? {}) } as Resultado<T>
+  } catch (e) {
+    return { ok: false, erro: motivo(e, padrao) }
+  }
+}
 
 export async function definirAtivoDoUsuario(
   userId: string,
@@ -857,32 +886,35 @@ export async function criarAula(input: {
   descricao?: string
   video_url?: string
   duracao_minutos?: number
-}) {
-  const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
-  await garantirAcessoAoCurso(input.curso_id, user.id, role)
-  const admin = createAdminClient()
+}): Promise<Resultado> {
+  return tentar(async () => {
+    const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
+    await garantirAcessoAoCurso(input.curso_id, user.id, role)
+    const admin = createAdminClient()
 
-  const moduloId = await moduloDaAula(admin, input.curso_id, input.modulo_id)
+    const moduloId = await moduloDaAula(admin, input.curso_id, input.modulo_id)
 
-  const { error } = await admin.from('aulas').insert({
-    curso_id: input.curso_id,
-    modulo_id: moduloId,
-    numero: await proximoNumeroDaAula(admin, moduloId),
-    titulo: input.titulo,
-    descricao: input.descricao || null,
-    video_url: input.video_url || null,
-    duracao_minutos: input.duracao_minutos || null,
+    const { error } = await admin.from('aulas').insert({
+      curso_id: input.curso_id,
+      modulo_id: moduloId,
+      numero: await proximoNumeroDaAula(admin, moduloId),
+      titulo: input.titulo,
+      descricao: input.descricao || null,
+      video_url: input.video_url || null,
+      duracao_minutos: input.duracao_minutos || null,
+    })
+
+    if (error) throw new Error(error.message)
+    revalidarAulas(input.curso_id)
   })
-
-  if (error) throw new Error(error.message)
-  revalidarAulas(input.curso_id)
 }
 
 export async function atualizarAula(
   aulaId: string,
   cursoId: string,
   input: { titulo?: string; descricao?: string; video_url?: string; duracao_minutos?: number }
-) {
+): Promise<Resultado> {
+  return tentar(async () => {
   const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
   await garantirAcessoAoCurso(cursoId, user.id, role)
   const admin = createAdminClient()
@@ -902,9 +934,15 @@ export async function atualizarAula(
 
   if (error) throw new Error(error.message)
   revalidarAulas(cursoId)
+  })
 }
 
-export async function publicarAula(aulaId: string, cursoId: string, publicada: boolean) {
+export async function publicarAula(
+  aulaId: string,
+  cursoId: string,
+  publicada: boolean
+): Promise<Resultado> {
+  return tentar(async () => {
   const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
   await garantirAcessoAoCurso(cursoId, user.id, role)
   const admin = createAdminClient()
@@ -916,10 +954,16 @@ export async function publicarAula(aulaId: string, cursoId: string, publicada: b
 
   if (error) throw new Error(error.message)
   revalidarAulas(cursoId)
+  })
 }
 
 /** Troca a aula de posição com a vizinha, renumerando as duas. */
-export async function moverAula(aulaId: string, cursoId: string, direcao: 'cima' | 'baixo') {
+export async function moverAula(
+  aulaId: string,
+  cursoId: string,
+  direcao: 'cima' | 'baixo'
+): Promise<Resultado> {
+  return tentar(async () => {
   const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
   await garantirAcessoAoCurso(cursoId, user.id, role)
   const admin = createAdminClient()
@@ -958,17 +1002,20 @@ export async function moverAula(aulaId: string, cursoId: string, direcao: 'cima'
   await admin.from('aulas').update({ numero: outra.numero }).eq('id', atual.id)
 
   revalidarAulas(cursoId)
+  })
 }
 
-export async function removerAula(aulaId: string, cursoId: string) {
-  const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
-  await garantirAcessoAoCurso(cursoId, user.id, role)
-  const admin = createAdminClient()
+export async function removerAula(aulaId: string, cursoId: string): Promise<Resultado> {
+  return tentar(async () => {
+    const { user, role } = await exigirPermissaoAction('gerenciar_aulas')
+    await garantirAcessoAoCurso(cursoId, user.id, role)
+    const admin = createAdminClient()
 
-  const { error } = await admin.from('aulas').delete().eq('id', aulaId)
-  if (error) throw new Error(error.message)
+    const { error } = await admin.from('aulas').delete().eq('id', aulaId)
+    if (error) throw new Error(error.message)
 
-  revalidarAulas(cursoId)
+    revalidarAulas(cursoId)
+  })
 }
 
 // ============ PERMISSÕES ============
@@ -1573,51 +1620,62 @@ export async function removerBlocoSite(id: string) {
    código a cada mudança é o que faz a plataforma virar um estorvo.
    ============================================================ */
 
-export async function criarModulo(cursoId: string, input: { nome: string; descricao?: string }) {
-  await requireAdmin()
-  const admin = createAdminClient()
+export async function criarModulo(
+  cursoId: string,
+  input: { nome: string; descricao?: string }
+): Promise<Resultado> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
 
-  const nome = input.nome?.trim()
-  if (!nome) throw new Error('Dê um nome para o módulo.')
+    const nome = input.nome?.trim()
+    if (!nome) throw new Error('Dê um nome para o módulo.')
 
-  const { data: ultimo } = await admin
-    .from('modulos')
-    .select('ordem')
-    .eq('curso_id', cursoId)
-    .order('ordem', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+    const { data: ultimo } = await admin
+      .from('modulos')
+      .select('ordem')
+      .eq('curso_id', cursoId)
+      .order('ordem', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-  const { error } = await admin.from('modulos').insert({
-    curso_id: cursoId,
-    nome,
-    descricao: input.descricao?.trim() || null,
-    ordem: (ultimo?.ordem ?? 0) + 1,
+    const { error } = await admin.from('modulos').insert({
+      curso_id: cursoId,
+      nome,
+      descricao: input.descricao?.trim() || null,
+      ordem: (ultimo?.ordem ?? 0) + 1,
+    })
+    if (error) throw new Error(error.message)
+
+    revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
   })
-  if (error) throw new Error(error.message)
-
-  revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
 }
 
 export async function renomearModulo(
   moduloId: string,
   cursoId: string,
   input: { nome: string; descricao?: string }
-) {
-  await requireAdmin()
-  const admin = createAdminClient()
+): Promise<Resultado> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
 
-  const nome = input.nome?.trim()
-  if (!nome) throw new Error('Dê um nome para o módulo.')
+    const nome = input.nome?.trim()
+    if (!nome) throw new Error('Dê um nome para o módulo.')
 
-  const { error } = await admin
-    .from('modulos')
-    .update({ nome, descricao: input.descricao?.trim() || null, updated_at: new Date().toISOString() })
-    .eq('id', moduloId)
-    .eq('curso_id', cursoId)
-  if (error) throw new Error(error.message)
+    const { error } = await admin
+      .from('modulos')
+      .update({
+        nome,
+        descricao: input.descricao?.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', moduloId)
+      .eq('curso_id', cursoId)
+    if (error) throw new Error(error.message)
 
-  revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+    revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+  })
 }
 
 /**
@@ -1628,7 +1686,12 @@ export async function renomearModulo(
  * isso a troca é sempre com o vizinho, uma casa por vez, e não um campo
  * numérico livre onde é fácil digitar 7 sem querer e reescrever o curso.
  */
-export async function moverModulo(moduloId: string, cursoId: string, direcao: 'cima' | 'baixo') {
+export async function moverModulo(
+  moduloId: string,
+  cursoId: string,
+  direcao: 'cima' | 'baixo'
+): Promise<Resultado> {
+  return tentar(async () => {
   await requireAdmin()
   const admin = createAdminClient()
 
@@ -1655,6 +1718,7 @@ export async function moverModulo(moduloId: string, cursoId: string, direcao: 'c
   await admin.from('modulos').update({ ordem: b.ordem }).eq('id', a.id)
 
   revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+  })
 }
 
 /**
@@ -1666,7 +1730,8 @@ export async function moverModulo(moduloId: string, cursoId: string, direcao: 'c
  * turma pendurada, a função recusa e diz quantas são, em vez de deixar
  * um rastro de turmas órfãs que ninguém entende depois.
  */
-export async function removerModulo(moduloId: string, cursoId: string) {
+export async function removerModulo(moduloId: string, cursoId: string): Promise<Resultado> {
+  return tentar(async () => {
   await requireAdmin()
   const admin = createAdminClient()
 
@@ -1690,10 +1755,16 @@ export async function removerModulo(moduloId: string, cursoId: string) {
   if (error) throw new Error(error.message)
 
   revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+  })
 }
 
 /** Move uma aula para outro módulo do mesmo curso. */
-export async function moverAulaDeModulo(aulaId: string, cursoId: string, moduloId: string) {
+export async function moverAulaDeModulo(
+  aulaId: string,
+  cursoId: string,
+  moduloId: string
+): Promise<Resultado> {
+  return tentar(async () => {
   await requireAdmin()
   const admin = createAdminClient()
 
@@ -1720,9 +1791,15 @@ export async function moverAulaDeModulo(aulaId: string, cursoId: string, moduloI
 
   const { error } = await admin
     .from('aulas')
-    .update({ modulo_id: moduloId, numero: (ultima?.numero ?? 0) + 1, updated_at: new Date().toISOString() })
+    .update({
+      modulo_id: moduloId,
+      numero: (ultima?.numero ?? 0) + 1,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', aulaId)
   if (error) throw new Error(error.message)
 
   revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+  revalidatePath(`/dashboard/professor/cursos/${cursoId}`)
+  })
 }

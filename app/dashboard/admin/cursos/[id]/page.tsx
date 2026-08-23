@@ -7,10 +7,9 @@ import { createClient } from '@/lib/supabase/server'
 import { exigirSessao } from '@/lib/auth'
 import CursoForm from '@/components/Cursos/CursoForm'
 import CursoAcoes from '@/components/Cursos/CursoAcoes'
-import AulasManager, { type AulaItem } from '@/components/Aulas/AulasManager'
+import type { AulaItem } from '@/components/Aulas/LinhaDaAula'
 import type { MaterialNaTela } from '@/components/Materiais/MateriaisDaAula'
-import AulaAvulsaForm from '@/components/Aulas/AulaAvulsaForm'
-import ModulosDoCurso, { type ModuloItem } from '@/components/Cursos/ModulosDoCurso'
+import ConteudoDoCurso, { type ModuloComAulas } from '@/components/Cursos/ConteudoDoCurso'
 import {
   corDoCurso,
   urlDaCapa,
@@ -46,30 +45,14 @@ export default async function CursoDetalhePage({
       .order('ordem', { ascending: true }),
   ])
 
-  /* Os módulos com o que está pendurado em cada um. O número de turmas
-     importa na tela: apagar um módulo com turma dentro é recusado, e a
-     pessoa precisa ver isso ANTES de tentar. */
+  /* Quantas turmas estão penduradas em cada módulo. O número importa na
+     tela: apagar um módulo com turma dentro é recusado, e a pessoa precisa
+     ver isso ANTES de tentar. */
   const turmasPorModulo = new Map<string, number>()
   for (const t of turmas ?? []) {
     const k = (t.modulo_id as string) ?? ''
     if (k) turmasPorModulo.set(k, (turmasPorModulo.get(k) ?? 0) + 1)
   }
-
-  const listaDeModulos: ModuloItem[] = (modulos ?? []).map((m) => ({
-    id: m.id as string,
-    nome: m.nome as string,
-    descricao: (m.descricao as string) ?? null,
-    ordem: Number(m.ordem),
-    aulas: (aulas ?? [])
-      .filter((a) => a.modulo_id === m.id)
-      .map((a) => ({
-        id: a.id as string,
-        numero: Number(a.numero),
-        titulo: a.titulo as string,
-        publicada: a.publicada as boolean,
-      })),
-    turmas: turmasPorModulo.get(m.id as string) ?? 0,
-  }))
 
   const idsTurmas = (turmas ?? []).map((t) => t.id)
   const idsAulas = (aulas ?? []).map((a) => a.id)
@@ -136,6 +119,26 @@ export default async function CursoDetalhePage({
     concluidas: concluidasPorAula.get(a.id) ?? 0,
     materiais: materiaisPorAula.get(a.id as string) ?? [],
   }))
+
+  /* A árvore que a tela desenha: módulo → suas aulas, em ordem. É montada
+     aqui, no servidor, e não no navegador, porque é a mesma agrupação que
+     o aluno enxerga — a tela de quem monta e a de quem estuda passam a
+     descrever a mesma coisa. */
+  const arvore: ModuloComAulas[] = (modulos ?? []).map((m) => ({
+    id: m.id as string,
+    nome: m.nome as string,
+    descricao: (m.descricao as string) ?? null,
+    ordem: Number(m.ordem),
+    turmas: turmasPorModulo.get(m.id as string) ?? 0,
+    aulas: lista
+      .filter((a) => a.modulo_id === m.id)
+      .sort((a, b) => a.numero - b.numero),
+  }))
+
+  /* Aulas de antes de os módulos existirem. O gatilho do banco impede que
+     nasçam novas, mas as antigas precisam ser ENCONTRÁVEIS — aula fora de
+     módulo é aula que nenhum aluno vê. */
+  const semModulo = lista.filter((a) => !a.modulo_id)
 
   const cor = corDoCurso(curso.cor)
   const capa = urlDaCapa(curso.capa_path)
@@ -251,23 +254,13 @@ export default async function CursoDetalhePage({
         </div>
       )}
 
-      {/* ---------- Aulas ---------- */}
-      <h2 className="font-bold text-gray-900 mb-4">Vídeo aulas do curso</h2>
-      <div className="mb-5">
-        <AulaAvulsaForm cursoId={curso.id} modulos={listaDeModulos} />
-      </div>
-      {/* Os módulos vêm ANTES da lista de aulas de propósito: é a
-          estrutura que explica a lista. Quem chega aqui para organizar o
-          curso precisa ver primeiro em quantas etapas ele se divide. */}
-      <div className="mb-8">
-        <ModulosDoCurso cursoId={curso.id} modulos={listaDeModulos} />
-      </div>
-
-      <AulasManager
+      {/* ---------- Módulos e vídeo aulas, numa árvore só ---------- */}
+      <ConteudoDoCurso
         cursoId={curso.id}
-        aulas={lista}
+        modulos={arvore}
+        semModulo={semModulo}
         totalAlunos={totalAlunos}
-        modulos={listaDeModulos}
+        podeEditarModulos
       />
 
       {/* ---------- Editar dados ---------- */}

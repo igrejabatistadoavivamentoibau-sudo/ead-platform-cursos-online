@@ -24,7 +24,7 @@ export default async function AulasDaTurmaPage({ params }: { params: Promise<{ i
 
   const { data: turma } = await supabase
     .from('turmas')
-    .select('id, nome, curso_id, professor_id, cursos(titulo, modalidade)')
+    .select('id, nome, curso_id, modulo_id, modalidade, professor_id, modulos!turmas_modulo_id_fkey(nome, ordem)')
     .eq('id', id)
     .single()
 
@@ -33,10 +33,14 @@ export default async function AulasDaTurmaPage({ params }: { params: Promise<{ i
     redirect('/dashboard/professor')
   }
 
-  const curso = turma.cursos as unknown as { titulo?: string; modalidade?: string } | null
-  const presencial = curso?.modalidade === 'presencial'
+  /* A modalidade é da TURMA, e não do curso. Enquanto vinha do curso, uma
+     turma presencial dentro de um curso marcado como EAD recebia presença
+     automática por vídeo assistido — a frequência daquela sala saía errada
+     e ninguém via. */
+  const presencial = turma.modalidade === 'presencial'
+  const modulo = turma.modulos as unknown as { nome?: string; ordem?: number } | null
 
-  if (!turma.curso_id) {
+  if (!turma.curso_id && !turma.modulo_id) {
     return (
       <div className="p-5 sm:p-8">
         <PageHeader
@@ -47,18 +51,24 @@ export default async function AulasDaTurmaPage({ params }: { params: Promise<{ i
         <AbasTurma turmaId={id} atual="aulas" presencial={presencial} />
         <EstadoVazio
           icone="BookOpenText"
-          titulo="Esta turma ainda não tem curso"
-          descricao="As aulas vêm do curso. Defina o curso da turma para poder marcar as datas aqui."
+          titulo="Esta turma ainda não está ligada a um módulo"
+          descricao="As aulas vêm do módulo do curso. Peça à coordenação para ligar esta turma a um curso-módulo — é o que traz o conteúdo para cá."
         />
       </div>
     )
   }
 
   const [{ data: aulas }, { data: pedidos }] = await Promise.all([
-    supabase
-      .from('aulas')
-      .select('id, numero, titulo')
-      .eq('curso_id', turma.curso_id)
+    /* AS AULAS DO MÓDULO DESTA TURMA — não do curso inteiro.
+       Buscar por curso trazia as aulas de TODOS os módulos misturadas numa
+       fila só: a turma de primeiro módulo via, na mesma lista, as aulas do
+       segundo e do terceiro, e a numeração recomeça a cada módulo, então
+       apareciam duas "Aula 1" seguidas. Turma antiga, ainda sem módulo,
+       continua caindo no curso inteiro — é tudo o que se sabe dela. */
+    (turma.modulo_id
+      ? supabase.from('aulas').select('id, numero, titulo').eq('modulo_id', turma.modulo_id)
+      : supabase.from('aulas').select('id, numero, titulo').eq('curso_id', turma.curso_id)
+    )
       .eq('publicada', true)
       .order('numero', { ascending: true }),
     supabase
@@ -142,7 +152,11 @@ export default async function AulasDaTurmaPage({ params }: { params: Promise<{ i
       <PageHeader
         voltar={{ href: '/dashboard/professor', label: 'Minhas turmas' }}
         titulo="Aulas da turma"
-        descricao="Marque quando cada aula abre e fecha para esta turma, e responda a quem pediu liberação."
+        descricao={
+          modulo?.nome
+            ? `Estas são as aulas de ${modulo.ordem}. ${modulo.nome} — o módulo desta turma. Marque quando cada uma abre e fecha, e responda a quem pediu liberação.`
+            : 'Marque quando cada aula abre e fecha para esta turma, e responda a quem pediu liberação.'
+        }
         selo={<Selo tom="neutro">{turma.nome}</Selo>}
       />
 

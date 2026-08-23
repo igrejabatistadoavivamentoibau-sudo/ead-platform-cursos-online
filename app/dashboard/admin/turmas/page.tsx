@@ -1,7 +1,8 @@
 import Link from 'next/link'
-import { Users2, ArrowRight, GraduationCap } from 'lucide-react'
+import { Users2, ArrowRight, GraduationCap, Layers, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import CriarTurmaForm from '@/components/Dashboard/CriarTurmaForm'
+import type { ModuloEscolhivel } from '@/components/Dashboard/ModuloDaTurma'
 import { exigirDados, indicePorId } from '@/lib/consulta'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -22,10 +23,10 @@ export default async function TurmasPage() {
   // Sem join embutido: o nome do professor vem de uma consulta própria.
   // Ver o porquê em lib/consulta.ts — entre turmas e users existe mais de um
   // caminho possível, e o join embutido falhava silenciosamente.
-  const [resTurmas, resProfessores] = await Promise.all([
+  const [resTurmas, resProfessores, resModulos, resAulas] = await Promise.all([
     supabase
       .from('turmas')
-      .select('id, nome, descricao, status, data_inicio, professor_id')
+      .select('id, nome, descricao, status, data_inicio, professor_id, modulo_id')
       .order('created_at', { ascending: false }),
     // Professor desativado não pode ser escolhido para uma turma nova.
     supabase
@@ -34,11 +35,37 @@ export default async function TurmasPage() {
       .eq('role', 'professor')
       .eq('ativo', true)
       .order('name'),
+    /* Os módulos existentes, para a turma já NASCER ligada a um deles.
+       Antes a turma nascia solta e o vínculo era um segundo passo dentro
+       da turma — quem não voltasse lá deixava a turma para sempre sem
+       conteúdo, e isso não dá erro em lugar nenhum. */
+    supabase
+      .from('modulos')
+      .select('id, nome, ordem, curso_id, cursos!modulos_curso_id_fkey(titulo)')
+      .order('ordem', { ascending: true }),
+    supabase.from('aulas').select('modulo_id').not('modulo_id', 'is', null),
   ])
 
   const turmas = exigirDados(resTurmas, 'as turmas')
   const professores = exigirDados(resProfessores, 'os professores')
   const nomePorId = indicePorId(professores)
+
+  const aulasPorModulo = new Map<string, number>()
+  for (const a of resAulas.data ?? []) {
+    const k = a.modulo_id as string
+    aulasPorModulo.set(k, (aulasPorModulo.get(k) ?? 0) + 1)
+  }
+
+  const modulosEscolhiveis: ModuloEscolhivel[] = (resModulos.data ?? []).map((m) => ({
+    id: m.id as string,
+    nome: m.nome as string,
+    ordem: Number(m.ordem),
+    cursoId: (m.curso_id as string) ?? '',
+    cursoTitulo: (m.cursos as unknown as { titulo?: string } | null)?.titulo ?? 'Sem curso',
+    aulas: aulasPorModulo.get(m.id as string) ?? 0,
+  }))
+
+  const moduloPorId = new Map(modulosEscolhiveis.map((m) => [m.id, m]))
 
   // Conta matrículas por turma
   const matriculas = exigirDados(
@@ -60,7 +87,7 @@ export default async function TurmasPage() {
       </div>
 
       <div className="mb-2">
-        <CriarTurmaForm professores={professores ?? []} />
+        <CriarTurmaForm professores={professores ?? []} modulos={modulosEscolhiveis} />
       </div>
 
       {turmas && turmas.length > 0 ? (
@@ -69,6 +96,11 @@ export default async function TurmasPage() {
             const professorNome = turma.professor_id
               ? nomePorId.get(turma.professor_id)?.name
               : undefined
+            /* A que curso-módulo esta turma pertence, no próprio cartão.
+               Sem isso, "Turma 2026.2" e "Turma 2026.2 noite" na mesma
+               lista são indistinguíveis — e a turma que ficou sem módulo
+               parece igual às outras até alguém abrir. */
+            const mod = turma.modulo_id ? moduloPorId.get(turma.modulo_id as string) : undefined
             return (
               <Link
                 key={turma.id}
@@ -90,6 +122,21 @@ export default async function TurmasPage() {
                     {STATUS_LABEL[turma.status]}
                   </span>
                 </div>
+                {mod ? (
+                  <p className="mb-3 flex items-start gap-1.5 text-[12.5px] leading-snug text-gray-500">
+                    <Layers className="mt-px h-3.5 w-3.5 shrink-0 text-brand-600" strokeWidth={2.2} />
+                    <span className="min-w-0">
+                      <span className="font-semibold text-gray-700">{mod.cursoTitulo}</span>
+                      {' · '}
+                      {mod.ordem}. {mod.nome}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="mb-3 flex items-center gap-1.5 text-[12.5px] font-medium text-amber-700">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+                    Sem módulo — esta turma não tem aulas
+                  </p>
+                )}
                 {turma.descricao && (
                   <p className="text-sm text-gray-500 mb-4 line-clamp-2">{turma.descricao}</p>
                 )}

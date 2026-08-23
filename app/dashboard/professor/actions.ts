@@ -379,6 +379,31 @@ export async function corrigirEntrega(
   revalidatePath('/dashboard/aluno/notas')
 }
 
+/* ============================================================
+   ERRO LANÇADO DE SERVER ACTION NÃO CHEGA NA TELA EM PRODUÇÃO
+
+   O Next apaga a mensagem e entrega "An error occurred in the Server
+   Components render". Em desenvolvimento tudo parece certo — a frase
+   aparece —, e é por isso que passa despercebido. Então estas duas
+   DEVOLVEM o motivo: mensagem é dado, e dado atravessa.
+   ============================================================ */
+
+export type ResultadoDeAula<T = unknown> =
+  | ({ ok: true } & (T extends object ? T : object))
+  | { ok: false; erro: string }
+
+async function tentarAula<T extends object = Record<string, never>>(
+  corpo: () => Promise<T | void>,
+  padrao = 'Não consegui concluir. Tente de novo.'
+): Promise<ResultadoDeAula<T>> {
+  try {
+    const extra = await corpo()
+    return { ok: true, ...(extra ?? {}) } as ResultadoDeAula<T>
+  } catch (e) {
+    return { ok: false, erro: e instanceof Error && e.message ? e.message : padrao }
+  }
+}
+
 // ==================== AULA AVULSA (vídeo enviado) ====================
 
 /**
@@ -395,7 +420,11 @@ export async function corrigirEntrega(
  * ficar. O navegador envia direto para o armazenamento. Além de funcionar,
  * é mais rápido: o vídeo faz um salto a menos.
  */
-export async function autorizarEnvioDeVideo(cursoId: string, nomeArquivo: string) {
+export async function autorizarEnvioDeVideo(
+  cursoId: string,
+  nomeArquivo: string
+): Promise<ResultadoDeAula<{ videoPath: string }>> {
+  return tentarAula<{ videoPath: string }>(async () => {
   const { userId, role } = await exigir('gerenciar_aulas')
   const admin = createAdminClient()
 
@@ -412,6 +441,7 @@ export async function autorizarEnvioDeVideo(cursoId: string, nomeArquivo: string
 
   const ext = (nomeArquivo.split('.').pop() ?? 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '')
   return { videoPath: `${cursoId}/${crypto.randomUUID()}.${ext || 'mp4'}` }
+  })
 }
 
 /**
@@ -426,7 +456,8 @@ export async function registrarAulaEnviada(dados: {
   titulo: string
   descricao?: string
   videoPath: string
-}) {
+}): Promise<ResultadoDeAula> {
+  return tentarAula(async () => {
   const { userId, role } = await exigir('gerenciar_aulas')
   const admin = createAdminClient()
 
@@ -506,6 +537,7 @@ export async function registrarAulaEnviada(dados: {
 
   revalidatePath(`/dashboard/professor/cursos/${cursoId}`)
   revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+  })
 }
 
 // ==================== AULAS DENTRO DA TURMA ====================

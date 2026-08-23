@@ -11,6 +11,7 @@ import {
   Video,
   TrendingUp,
   BookOpenText,
+  Layers,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import ParaCorrigir, { type EntregaPendente } from '@/components/Turma/ParaCorrigir'
@@ -71,7 +72,9 @@ export default async function ProfessorHome() {
   // Admin enxerga todas as turmas; professor, apenas as suas.
   const consultaTurmas = supabase
     .from('turmas')
-    .select('id, nome, descricao, status, curso_id, cursos(titulo, modalidade)')
+    .select(
+      'id, nome, descricao, status, curso_id, modulo_id, cursos(titulo, modalidade), modulos!turmas_modulo_id_fkey(nome, ordem)'
+    )
     .order('created_at', { ascending: false })
 
   const { data: turmas } =
@@ -95,12 +98,14 @@ export default async function ProfessorHome() {
         ? supabase.from('encontros').select('turma_id').in('turma_id', ids)
         : Promise.resolve({ data: [] as { turma_id: string }[] }),
       (() => {
-        // Aulas agora pertencem ao curso, então contamos por curso e depois
-        // mapeamos de volta para cada turma.
-        const cursoIds = [...new Set((turmas ?? []).map((t) => t.curso_id).filter(Boolean))]
-        return cursoIds.length
-          ? supabase.from('aulas').select('curso_id').in('curso_id', cursoIds as string[])
-          : Promise.resolve({ data: [] as { curso_id: string }[] })
+        /* A aula pertence ao MÓDULO, e a turma também — então a contagem é
+           por módulo. Contar por curso dizia "24 aulas" numa turma de
+           primeiro módulo que tem 8: o número somava as três etapas do
+           curso e o professor abria esperando um conteúdo que não é dele. */
+        const moduloIds = [...new Set((turmas ?? []).map((t) => t.modulo_id).filter(Boolean))]
+        return moduloIds.length
+          ? supabase.from('aulas').select('modulo_id').in('modulo_id', moduloIds as string[])
+          : Promise.resolve({ data: [] as { modulo_id: string }[] })
       })(),
       ids.length
         ? supabase.from('atividades').select('id, titulo, turma_id').in('turma_id', ids)
@@ -116,12 +121,12 @@ export default async function ProfessorHome() {
   const alunosPorTurma = contar(matriculas)
   const encontrosPorTurma = contar(encontros)
 
-  const aulasPorCurso = new Map<string, number>()
-  for (const a of (aulas ?? []) as { curso_id: string }[]) {
-    aulasPorCurso.set(a.curso_id, (aulasPorCurso.get(a.curso_id) ?? 0) + 1)
+  const aulasPorModulo = new Map<string, number>()
+  for (const a of (aulas ?? []) as { modulo_id: string }[]) {
+    aulasPorModulo.set(a.modulo_id, (aulasPorModulo.get(a.modulo_id) ?? 0) + 1)
   }
-  const aulasDaTurma = (cursoId: string | null) =>
-    cursoId ? (aulasPorCurso.get(cursoId) ?? 0) : 0
+  const aulasDaTurma = (moduloId: string | null) =>
+    moduloId ? (aulasPorModulo.get(moduloId) ?? 0) : 0
 
   /* ---------- O que está esperando correção ----------
      As atividades já vieram na leva acima. Aqui sobram as entregas sem
@@ -266,6 +271,10 @@ export default async function ProfessorHome() {
                   titulo?: string
                   modalidade?: ModalidadeCurso
                 } | null
+                const mod = turma.modulos as unknown as {
+                  nome?: string
+                  ordem?: number
+                } | null
                 if (!c?.titulo) {
                   return (
                     <p className="text-xs text-amber-700 bg-amber-50 ring-1 ring-amber-200 rounded-full px-2.5 py-1 inline-block mb-3">
@@ -280,6 +289,15 @@ export default async function ProfessorHome() {
                       <BookOpenText className="h-3.5 w-3.5" strokeWidth={2} />
                       {c.titulo}
                     </span>
+                    {/* O módulo ao lado do curso: é ele que diz QUAIS aulas
+                        esta turma tem. Duas turmas do mesmo curso em etapas
+                        diferentes ficavam idênticas neste cartão. */}
+                    {mod?.nome && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                        <Layers className="h-3.5 w-3.5" strokeWidth={2} />
+                        {mod.ordem}. {mod.nome}
+                      </span>
+                    )}
                     <Selo tom={m.tom} icone={m.icone}>
                       {m.label}
                     </Selo>
@@ -308,7 +326,7 @@ export default async function ProfessorHome() {
                 <span className="flex items-center gap-1.5">
                   <Video className="h-4 w-4 text-brand-600" strokeWidth={2} />
                   <span className="font-semibold text-gray-700 tabular-nums">
-                    {aulasDaTurma(turma.curso_id)}
+                    {aulasDaTurma(turma.modulo_id as string | null)}
                   </span>
                   aulas
                 </span>

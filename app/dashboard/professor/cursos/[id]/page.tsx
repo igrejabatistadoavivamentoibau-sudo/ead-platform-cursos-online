@@ -4,9 +4,9 @@ import { BookOpenText, Users2, Eye } from 'lucide-react'
 import Voltar from '@/components/ui/Voltar'
 import { createClient } from '@/lib/supabase/server'
 import { exigirPermissao } from '@/lib/auth'
-import AulasManager, { type AulaItem } from '@/components/Aulas/AulasManager'
+import type { AulaItem } from '@/components/Aulas/LinhaDaAula'
 import type { MaterialNaTela } from '@/components/Materiais/MateriaisDaAula'
-import AulaAvulsaForm from '@/components/Aulas/AulaAvulsaForm'
+import ConteudoDoCurso, { type ModuloComAulas } from '@/components/Cursos/ConteudoDoCurso'
 import { MODALIDADE, type ModalidadeCurso } from '@/lib/cursos'
 import { Selo } from '@/components/ui'
 
@@ -43,22 +43,22 @@ export default async function CursoProfessorPage({
       .select('id, numero, titulo, descricao, video_url, duracao_minutos, publicada, modulo_id')
       .eq('curso_id', id)
       .order('numero', { ascending: true }),
-    supabase.from('turmas').select('id').eq('curso_id', id),
-    /* Os módulos entram aqui só para a aula nova saber onde nascer. O
+    supabase.from('turmas').select('id, modulo_id').eq('curso_id', id),
+    /* Os módulos são a forma da tela: a aula mora dentro de um deles. O
        professor não reorganiza módulos — isso é da coordenação —, mas ele
        CRIA aula, e aula sem módulo é aula que o aluno nunca vê. */
     supabase
       .from('modulos')
-      .select('id, nome, ordem')
+      .select('id, nome, descricao, ordem')
       .eq('curso_id', id)
       .order('ordem', { ascending: true }),
   ])
 
-  const listaDeModulos = (modulos ?? []).map((m) => ({
-    id: m.id as string,
-    nome: m.nome as string,
-    ordem: Number(m.ordem),
-  }))
+  const turmasPorModulo = new Map<string, number>()
+  for (const t of turmas ?? []) {
+    const k = (t.modulo_id as string) ?? ''
+    if (k) turmasPorModulo.set(k, (turmasPorModulo.get(k) ?? 0) + 1)
+  }
 
   const idsTurmas = (turmas ?? []).map((t) => t.id)
   const idsAulas = (aulas ?? []).map((a) => a.id)
@@ -124,6 +124,17 @@ export default async function CursoProfessorPage({
     materiais: materiaisPorAula.get(a.id as string) ?? [],
   }))
 
+  const arvore: ModuloComAulas[] = (modulos ?? []).map((m) => ({
+    id: m.id as string,
+    nome: m.nome as string,
+    descricao: (m.descricao as string) ?? null,
+    ordem: Number(m.ordem),
+    turmas: turmasPorModulo.get(m.id as string) ?? 0,
+    aulas: lista.filter((a) => a.modulo_id === m.id).sort((a, b) => a.numero - b.numero),
+  }))
+
+  const semModulo = lista.filter((a) => !a.modulo_id)
+
   const modalidade = MODALIDADE[(curso.modalidade as ModalidadeCurso) ?? 'ead']
 
   return (
@@ -170,18 +181,15 @@ export default async function CursoProfessorPage({
         </Link>
       </div>
 
-      {/* Aula gravada enviada direto para a plataforma — pensado para o
-          presencial, mas disponível em qualquer curso: nem todo professor
-          quer depender do YouTube. */}
-      <div className="mb-5">
-        <AulaAvulsaForm cursoId={id} modulos={listaDeModulos} />
-      </div>
-
-      <AulasManager
+      {/* Módulo → suas aulas. O botão de nova aula e o de aula gravada
+          ficam DENTRO da seção do módulo: é assim que o professor sabe
+          onde a aula vai parar sem preencher um campo "módulo". */}
+      <ConteudoDoCurso
         cursoId={id}
-        aulas={lista}
+        modulos={arvore}
+        semModulo={semModulo}
         totalAlunos={matriculas?.length ?? 0}
-        modulos={listaDeModulos}
+        podeEditarModulos={false}
       />
     </div>
   )

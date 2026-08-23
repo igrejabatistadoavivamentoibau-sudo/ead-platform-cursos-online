@@ -99,7 +99,12 @@ export default function AulaAvulsaForm({
       } = await supabase.auth.getSession()
       if (!session) throw new Error('Sua sessão expirou. Entre de novo.')
 
-      const { videoPath } = await autorizarEnvioDeVideo(cursoId, arquivo.name)
+      /* As duas ações DEVOLVEM o motivo em vez de lançá-lo: exceção de
+         Server Action o Next apaga em produção, e "Este curso não está
+         sob sua responsabilidade" chegaria como um parágrafo em inglês. */
+      const autorizacao = await autorizarEnvioDeVideo(cursoId, arquivo.name)
+      if (!autorizacao.ok) throw new Error(autorizacao.erro)
+      const { videoPath } = autorizacao
 
       await subirArquivo(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/aulas/${videoPath}`,
@@ -107,7 +112,14 @@ export default function AulaAvulsaForm({
         arquivo
       )
 
-      await registrarAulaEnviada({ cursoId, moduloId, titulo, descricao, videoPath })
+      const registro = await registrarAulaEnviada({
+        cursoId,
+        moduloId,
+        titulo,
+        descricao,
+        videoPath,
+      })
+      if (!registro.ok) throw new Error(registro.erro)
 
       formRef.current?.reset()
       setArquivo(null)
