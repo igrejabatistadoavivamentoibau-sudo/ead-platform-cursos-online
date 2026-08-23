@@ -173,7 +173,7 @@ export default function AulaAvulsaForm({
               aula. Com um módulo só, não há decisão a tomar. */}
           {escolheModulo && (
             <Campo label="Módulo">
-              <select name="modulo_id" disabled={enviando} className={CAMPO} defaultValue={emOrdem[0]?.id}>
+              <select name="modulo_id" disabled={enviando} className={`${CAMPO} campo-select`} defaultValue={emOrdem[0]?.id}>
                 {emOrdem.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.nome}

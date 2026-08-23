@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, X, AlertTriangle, Video, Check, Users, Monitor } from 'lucide-react'
 import { criarTurma } from '@/app/dashboard/admin/actions'
-import { Selecao } from '@/components/ui'
+import { Alerta, Selecao } from '@/components/ui'
 import type { ModuloEscolhivel } from '@/components/Dashboard/ModuloDaTurma'
 
 interface Professor {
@@ -12,8 +12,12 @@ interface Professor {
   name: string
 }
 
-const CAMPO =
-  'w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500'
+/* A receita do campo mora em app/globals.css, numa definição só. Existiam
+   seis cópias quase iguais espalhadas pelo projeto, cada uma com um raio ou
+   um anel de foco levemente diferente — ninguém aponta a diferença olhando
+   uma tela por vez, e é justamente isso que dá a sensação de "feito à mão"
+   no conjunto. */
+const CAMPO = 'campo'
 
 /* ============================================================
    NOVA TURMA — JÁ NASCENDO DENTRO DE UM CURSO-MÓDULO
@@ -135,7 +139,7 @@ export default function CriarTurmaForm({
                   setCurso(e.target.value)
                   setModulo('')
                 }}
-                className={CAMPO}
+                className={`${CAMPO} campo-select`}
               >
                 {cursos.map(([id, titulo]) => (
                   <option key={id} value={id}>
@@ -296,10 +300,9 @@ export default function CriarTurmaForm({
       </div>
 
       {erro && (
-        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <AlertTriangle className="mt-px h-[18px] w-[18px] shrink-0" strokeWidth={2.25} />
-          {erro}
-        </div>
+        <div className="mt-4">
+            <Alerta>{erro}</Alerta>
+          </div>
       )}
 
       <div className="mt-5 flex gap-3">

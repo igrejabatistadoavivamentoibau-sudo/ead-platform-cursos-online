@@ -98,7 +98,7 @@ export default function ColocarEmTurma({
           <select
             value={escolhida}
             onChange={(e) => setEscolhida(e.target.value)}
-            className={CAMPO}
+            className={`${CAMPO} campo-select`}
           >
             <option value="">Escolher turma…</option>
             {turmas.map((t) => (

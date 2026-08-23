@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { statusDoAviso } from '@/lib/pagamentos/asaas'
+import { statusDoAviso, tokenDoAviso } from '@/lib/pagamentos/asaas'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,11 +11,13 @@ export const dynamic = 'force-dynamic'
    provedor é que avisa, por uma requisição para este endereço. Este
    arquivo é o que transforma esse aviso em "pedido pago".
 
-   Ele já está pronto e ainda não recebe nada — falta a chave do Asaas e o
-   cadastro deste endereço lá. Quando chegar a hora:
+   A senha que ele confere vem do COFRE do banco (migração 026), gravada
+   quando a coordenação colou a chave em Loja e pagamentos. Ela é sorteada
+   pelo servidor, nunca digitada por ninguém, e a própria plataforma
+   cadastra este endereço no Asaas na hora de ligar. A variável de
+   ambiente ASAAS_WEBHOOK_TOKEN continua valendo como segunda opção.
 
      endereço:  https://<o-site>/api/pagamentos/asaas/webhook
-     variável:  ASAAS_WEBHOOK_TOKEN  (a mesma senha cadastrada no Asaas)
 
    TRÊS CUIDADOS QUE PARECEM EXAGERO E NÃO SÃO
    ------------------------------------------------------------
@@ -34,7 +36,9 @@ export const dynamic = 'force-dynamic'
    ============================================================ */
 
 export async function POST(request: NextRequest) {
-  const esperado = process.env.ASAAS_WEBHOOK_TOKEN ?? ''
+  /* A senha sai do cofre (migração 026), e cai na variável de ambiente
+     só se não houver chave guardada pela tela. */
+  const esperado = await tokenDoAviso()
 
   // Sem senha configurada, o endereço não aceita nada. Fechado é melhor
   // que aberto "só até configurarem".

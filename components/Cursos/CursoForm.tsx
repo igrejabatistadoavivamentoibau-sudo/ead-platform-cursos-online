@@ -15,8 +15,12 @@ import {
 } from '@/lib/cursos'
 import { Selecao } from '@/components/ui'
 
-const CAMPO =
-  'w-full px-3.5 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-[15px] transition-all focus:outline-none focus:bg-white focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500'
+/* A receita do campo mora em app/globals.css, numa definição só. Existiam
+   seis cópias quase iguais espalhadas pelo projeto, cada uma com um raio ou
+   um anel de foco levemente diferente — ninguém aponta a diferença olhando
+   uma tela por vez, e é justamente isso que dá a sensação de "feito à mão"
+   no conjunto. */
+const CAMPO = 'campo'
 
 export default function CursoForm({ curso }: { curso?: Curso }) {
   const editando = !!curso
@@ -68,7 +72,7 @@ export default function CursoForm({ curso }: { curso?: Curso }) {
       <button
         type="button"
         onClick={() => setAberto(true)}
-        className="group inline-flex items-center gap-2 bg-gradient-to-br from-brand-600 to-brand-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:shadow-glow active:scale-[0.98]"
+        className="group inline-flex items-center gap-2 bg-brand-700 hover:bg-brand-800 active:bg-brand-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm active:scale-[0.98]"
       >
         <Plus
           className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90"
@@ -305,7 +309,7 @@ export default function CursoForm({ curso }: { curso?: Curso }) {
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex items-center gap-2 bg-gradient-to-br from-brand-600 to-brand-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:shadow-glow transition-all disabled:opacity-50"
+          className="inline-flex items-center gap-2 bg-brand-700 hover:bg-brand-800 active:bg-brand-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all disabled:opacity-50"
         >
           <Check className="h-4 w-4" strokeWidth={2.5} />
           {isPending ? 'Salvando...' : editando ? 'Salvar alterações' : 'Criar curso'}

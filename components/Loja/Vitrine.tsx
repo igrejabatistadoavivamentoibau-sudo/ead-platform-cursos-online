@@ -180,7 +180,7 @@ export default function Vitrine({
                   <button
                     type="button"
                     onClick={() => mudar(p.id, 1)}
-                    className="w-full rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 py-2.5 text-[13.5px] font-semibold text-white transition-all hover:shadow-glow active:scale-[0.98]"
+                    className="w-full rounded-xl bg-brand-700 hover:bg-brand-800 active:bg-brand-900 py-2.5 text-[13.5px] font-semibold text-white transition-all shadow-sm active:scale-[0.98]"
                   >
                     Adicionar
                   </button>
@@ -318,7 +318,7 @@ export default function Vitrine({
                 type="button"
                 onClick={finalizar}
                 disabled={!escolhida || isPending}
-                className="group mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 py-3 text-[14px] font-semibold text-white transition-all hover:shadow-glow active:scale-[0.98] disabled:opacity-40 disabled:hover:shadow-none"
+                className="group mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-700 hover:bg-brand-800 active:bg-brand-900 py-3 text-[14px] font-semibold text-white transition-all shadow-sm active:scale-[0.98] disabled:opacity-40 disabled:hover:shadow-none"
               >
                 {isPending ? 'Fechando pedido...' : 'Finalizar pedido'}
                 {!isPending && (

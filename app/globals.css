@@ -83,10 +83,48 @@ body {
 }
 
 /* Títulos usam a fonte display, com tracking levemente fechado —
-   detalhe pequeno que separa um layout amador de um profissional. */
+   detalhe pequeno que separa um layout amador de um profissional.
+
+   `text-wrap: balance` é o acabamento que mais rende por linha de código
+   nesta folha: quando um título quebra em duas linhas, o navegador reparte
+   as palavras em partes parecidas em vez de encher a primeira e deixar uma
+   palavra órfã embaixo. Título de duas linhas existe em quase toda tela —
+   e a órfã é justamente o que faz um layout parecer descuidado. */
 h1, h2, h3, h4 {
   font-family: var(--font-display);
   letter-spacing: -0.021em;
+  text-wrap: balance;
+}
+
+/* No texto corrido o equilíbrio é outro: `pretty` não reparte as linhas
+   todas, só evita que a ÚLTIMA fique com uma palavra sozinha. */
+p, li {
+  text-wrap: pretty;
+}
+
+/* CAIXAS DE MARCAR E BOTÕES DE ESCOLHA NA COR DA MARCA.
+   Sem isto, o navegador desenha todos em azul de sistema — e o azul da
+   Microsoft no meio de uma plataforma verde é aquele detalhe que ninguém
+   consegue nomear e todo mundo percebe. Uma linha resolve os dois. */
+input[type='checkbox'],
+input[type='radio'],
+progress,
+input[type='range'] {
+  accent-color: var(--brand-600);
+}
+
+/* O cursor de digitação também é da marca. Some gente nunca vai reparar;
+   quem repara, repara em toda tela onde se digita. */
+input,
+textarea,
+[contenteditable] {
+  caret-color: var(--brand-600);
+}
+
+/* Nada desabilitado finge ser clicável. */
+:where(button, a, input, select, textarea):disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
 }
 
 /* RÓTULOS MICRO (aqueles títulos maiúsculos e espaçados das seções).
@@ -130,6 +168,34 @@ h1, h2, h3, h4 {
     border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover { background: rgba(5, 38, 29, 0.26); background-clip: content-box; }
+
+  /* A MESMA BARRA, MAS DENTRO DA BARRA LATERAL ESCURA.
+     A regra acima pinta o cursor de rolagem num verde muito escuro e
+     translúcido — ótimo sobre o branco do conteúdo, e praticamente
+     invisível sobre o verde-escuro do menu. Quem tem muitos cursos
+     cadastrados rola aquela lista sem nenhuma pista de onde está. */
+  aside[data-nav-lateral] ::-webkit-scrollbar-thumb,
+  aside[data-nav-lateral]::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+    background-clip: content-box;
+  }
+  aside[data-nav-lateral] ::-webkit-scrollbar-thumb:hover,
+  aside[data-nav-lateral]::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+    background-clip: content-box;
+  }
+}
+
+/* O Firefox não entende `::-webkit-scrollbar`. Sem estas duas linhas, ele
+   continuava desenhando a barra cinza larga do sistema — a plataforma
+   ficava com dois acabamentos diferentes conforme o navegador. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(5, 38, 29, 0.18) transparent;
+}
+aside[data-nav-lateral],
+aside[data-nav-lateral] * {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 /* ============================================================
@@ -157,14 +223,112 @@ h1, h2, h3, h4 {
               box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
               border-color 0.3s ease;
   border: 1px solid rgba(5, 38, 29, 0.07);
-  will-change: transform;
 }
 
-.card-alive:hover {
+/* SÓ LEVANTA O QUE SE PODE CLICAR.
+   Este é o refino que mais muda a sensação da plataforma, e nasceu de um
+   erro meu: a regra de hover valia para TODO `.card-alive`, e a classe é
+   usada tanto em cartão-link quanto em painel de formulário. O resultado
+   era um formulário que pulava 4px quando o mouse passava por cima a
+   caminho de outra coisa — movimento sem causa, e movimento sem causa lê
+   como instabilidade, não como capricho.
+
+   Elevação é promessa de que algo vai acontecer se você clicar. Onde não
+   há clique, não há promessa: a peça fica parada, e o hover só aquece a
+   borda de leve, o suficiente para a peça não parecer morta.
+
+   Os seletores cobrem os três jeitos de o cartão ser clicável na
+   plataforma (link, botão, rótulo de escolha) e deixam `.card-clicavel`
+   para o caso em que o clique está numa `div` com `onClick`. */
+:where(a, button, label).card-alive:hover,
+.card-alive.card-clicavel:hover {
   transform: translateY(-4px);
   box-shadow: 0 2px 4px rgba(5, 38, 29, 0.04), 0 26px 44px -22px rgba(9, 64, 47, 0.34);
   border-color: rgba(9, 64, 47, 0.16);
 }
+
+/* Painel parado: nenhuma elevação, só a borda respondendo à presença. */
+.card-alive:not(:where(a, button, label)):not(.card-clicavel):hover {
+  border-color: rgba(9, 64, 47, 0.13);
+}
+
+/* Um cartão clicável também precisa reagir ao TECLADO, e não só ao mouse.
+   Quem navega por tabulação recebia a moldura de foco e mais nada. */
+:where(a, button, label).card-alive:focus-visible,
+.card-alive.card-clicavel:focus-within {
+  border-color: rgba(9, 64, 47, 0.2);
+  box-shadow: 0 2px 4px rgba(5, 38, 29, 0.04), 0 20px 36px -22px rgba(9, 64, 47, 0.3);
+}
+
+/* ============================================================
+   O CAMPO DE FORMULÁRIO, UMA DEFINIÇÃO SÓ
+
+   Existiam SEIS cópias quase iguais desta receita espalhadas pelo projeto,
+   cada uma com um raio, um tamanho de fonte ou um anel de foco levemente
+   diferente. Ninguém consegue apontar a diferença olhando uma tela por
+   vez; o efeito aparece no conjunto, como aquela sensação de "feito à
+   mão" que nenhuma tela isolada explica.
+
+   Agora é uma classe. Mudar o foco de todos os campos da plataforma passou
+   a ser mudar quatro linhas aqui.
+   ============================================================ */
+.campo {
+  width: 100%;
+  border-radius: 0.625rem;
+  border: 1px solid rgb(229 231 235);
+  /* `background-color`, e não o atalho `background`: o atalho zera o
+     `background-image`, e é ele que desenha a seta do `.campo-select`.
+     Com o atalho, a seta sumia no foco. */
+  background-color: rgba(249, 250, 251, 0.6);
+  padding: 0.625rem 0.875rem;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--foreground);
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.campo::placeholder { color: rgb(156 163 175); }
+
+.campo:hover:not(:focus):not(:disabled) { border-color: rgb(209 213 219); }
+
+.campo:focus {
+  outline: none;
+  background-color: #fff;
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 4px rgba(31, 160, 111, 0.1);
+}
+
+.campo:disabled { opacity: 0.55; }
+
+/* Campo com problema: a moldura vermelha vem da classe, não de cada tela. */
+.campo[aria-invalid='true'] {
+  border-color: rgb(252 165 165);
+  background-color: rgb(254 242 242);
+}
+.campo[aria-invalid='true']:focus {
+  border-color: rgb(239 68 68);
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+}
+
+/* A LISTA SUSPENSA DESENHADA POR NÓS.
+   `<select>` cru é pintado pelo sistema operacional: a seta do Windows não
+   se parece com a do macOS, nenhuma das duas se parece com o resto desta
+   plataforma, e a altura muda de máquina para máquina. Aqui a seta é
+   nossa, em SVG, e o campo passa a ter exatamente a mesma altura e o mesmo
+   foco de um campo de texto ao lado — que é o que faz uma linha de
+   formulário parecer alinhada de verdade. */
+.campo-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 16px 16px;
+  cursor: pointer;
+}
+
+.campo-select:disabled { cursor: not-allowed; }
 
 /* Brilho que atravessa o card no hover — quase imperceptível de propósito:
    percebe-se o movimento da luz, não o "flash" branco. */

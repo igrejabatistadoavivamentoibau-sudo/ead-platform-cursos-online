@@ -252,7 +252,7 @@ export default function ConcluirTurma({
                       <select
                         value={l.situacao}
                         onChange={(e) => mudar(a.alunoId, 'situacao', e.target.value)}
-                        className="h-9 rounded-lg border border-gray-200 bg-gray-50/60 px-2.5 text-[13px] focus:border-brand-500 focus:bg-white focus:outline-none"
+                        className="campo campo-select h-9 py-0 text-[13px]"
                       >
                         <option value="aprovado">Aprovado</option>
                         <option value="reprovado">Reprovado — repete</option>

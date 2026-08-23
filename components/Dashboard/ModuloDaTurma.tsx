@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Layers, Check, Monitor, Users, Video, ArrowRight, AlertTriangle } from 'lucide-react'
 import { definirModuloDaTurma } from '@/app/dashboard/admin/actions'
+import { Alerta } from '@/components/ui'
 
 export interface ModuloEscolhivel {
   id: string
@@ -16,8 +17,12 @@ export interface ModuloEscolhivel {
   aulas: number
 }
 
-const CAMPO =
-  'w-full px-3.5 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-[15px] transition-all focus:outline-none focus:bg-white focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500'
+/* A receita do campo mora em app/globals.css, numa definição só. Existiam
+   seis cópias quase iguais espalhadas pelo projeto, cada uma com um raio ou
+   um anel de foco levemente diferente — ninguém aponta a diferença olhando
+   uma tela por vez, e é justamente isso que dá a sensação de "feito à mão"
+   no conjunto. */
+const CAMPO = 'campo'
 
 /* ============================================================
    A QUE CURSO-MÓDULO ESTA TURMA PERTENCE
@@ -125,7 +130,7 @@ export default function ModuloDaTurma({
           value={curso}
           disabled={isPending}
           onChange={(e) => setCurso(e.target.value)}
-          className={CAMPO}
+          className={`${CAMPO} campo-select`}
         >
           {cursos.length === 0 && <option value="">Nenhum curso com módulos ainda</option>}
           {cursos.map(([id, titulo]) => (
@@ -296,10 +301,9 @@ export default function ModuloDaTurma({
       )}
 
       {erro && (
-        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <AlertTriangle className="mt-px h-[18px] w-[18px] shrink-0" strokeWidth={2.25} />
-          {erro}
-        </div>
+        <div className="mt-3">
+            <Alerta>{erro}</Alerta>
+          </div>
       )}
     </div>
   )

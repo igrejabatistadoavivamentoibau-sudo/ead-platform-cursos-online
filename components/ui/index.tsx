@@ -353,8 +353,20 @@ export function Abas({
 
 /* -------------------------- Campo de form ------------------------ */
 
-export const CAMPO =
-  'w-full rounded-lg border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[14px] transition-all placeholder:text-gray-400 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/10 disabled:opacity-50'
+/**
+ * A receita mora em `app/globals.css`, na classe `.campo`.
+ *
+ * A constante continua exportada porque metade do projeto a importa, e
+ * trocar tudo de uma vez só criaria risco sem ganho. O que mudou é o dono
+ * da aparência: era uma cadeia de utilitários repetida em seis arquivos
+ * com valores levemente diferentes; agora é uma definição só, e mexer no
+ * foco de todos os campos da plataforma é mexer em quatro linhas de CSS.
+ *
+ * Num `<select>`, some `campo-select` à classe: ele troca a seta pintada
+ * pelo sistema operacional pela nossa, e iguala a altura à de um campo de
+ * texto ao lado.
+ */
+export const CAMPO = 'campo'
 
 export function Campo({
   label,

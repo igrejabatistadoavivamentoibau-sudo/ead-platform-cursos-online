@@ -166,7 +166,7 @@ export async function fecharPedido(
   revalidatePath('/dashboard/admin/pedidos')
   revalidatePath('/dashboard/aluno/loja')
 
-  if (!pagamentoLigado()) {
+  if (!(await pagamentoLigado())) {
     return { ok: true, pedidoId, url: null, aguardandoChave: true }
   }
 

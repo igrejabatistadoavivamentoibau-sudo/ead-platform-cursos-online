@@ -145,7 +145,7 @@ export default function ProdutosManager({ produtos }: { produtos: ProdutoNaTela[
             onChange={(e) =>
               setForm({ ...form, categoria: e.target.value as ProdutoNaTela['categoria'] })
             }
-            className={CAMPO}
+            className={`${CAMPO} campo-select`}
           >
             {CATEGORIAS.map((c) => (
               <option key={c.valor} value={c.valor}>
@@ -236,7 +236,7 @@ export default function ProdutosManager({ produtos }: { produtos: ProdutoNaTela[
               setForm(VAZIO)
               setErro(null)
             }}
-            className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-glow active:scale-[0.98]"
+            className="group inline-flex items-center gap-2 rounded-xl bg-brand-700 hover:bg-brand-800 active:bg-brand-900 px-5 py-2.5 text-sm font-semibold text-white transition-all shadow-sm active:scale-[0.98]"
           >
             <Plus
               className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90"

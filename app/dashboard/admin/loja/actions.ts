@@ -1,9 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { centavosDoTexto } from '@/lib/precos'
+import { conferirChave, registrarAviso, type Ambiente } from '@/lib/pagamentos/asaas'
 
 /* ============================================================
    A LOJA, DO LADO DE QUEM ADMINISTRA
@@ -341,5 +343,111 @@ export async function cancelarPedido(pedidoId: string): Promise<Resultado> {
   if (error) return { ok: false, erro: error.message }
   revalidatePath('/dashboard/admin/pedidos')
   revalidatePath('/dashboard/aluno/pedidos')
+  return { ok: true }
+}
+
+/* ============================================================
+   LIGAR A COBRANÇA ON-LINE — A CHAVE COLADA NA PRÓPRIA PLATAFORMA
+
+   Antes, ligar o Asaas queria dizer: a coordenação manda a chave da conta
+   bancária da igreja por mensagem, alguém coloca num painel de fora. Chave
+   que anda por conversa fica na conversa — no histórico do aplicativo, no
+   backup do aparelho, em toda cópia por onde a conversa passou. E chave do
+   Asaas movimenta dinheiro de verdade.
+
+   Agora ela é colada aqui, e a plataforma faz os quatro passos sozinha:
+
+     1. CONFERE a chave com o Asaas antes de guardar. Guardar sem conferir
+        faria a tela dizer "ligado" com uma chave errada, e o erro só
+        apareceria na primeira compra de um aluno.
+     2. SORTEIA a senha do aviso de pagamento. Ninguém precisa inventar,
+        digitar nem guardar essa senha em lugar nenhum.
+     3. CADASTRA o aviso lá, pela API do Asaas, apontando para o endereço
+        desta plataforma — em vez de mandar alguém procurar o menu certo no
+        painel deles.
+     4. GUARDA no cofre cifrado do banco (migração 026).
+
+   E devolve para a tela só o que ela precisa mostrar. A chave não volta.
+   ============================================================ */
+
+export interface LigacaoFeita {
+  conta: string
+  ambiente: Ambiente
+  avisoRegistrado: boolean
+  /** Preenchidos SÓ quando o cadastro automático do aviso falhou. */
+  avisoUrl?: string
+  avisoToken?: string
+  avisoMotivo?: string
+}
+
+export async function ligarAsaas(
+  chave: string,
+  ambiente: Ambiente
+): Promise<Resultado<LigacaoFeita>> {
+  const quem = await exigirAdmin()
+  if (!quem) return SEM_PERMISSAO
+
+  const limpa = (chave ?? '').trim()
+  if (!limpa) return { ok: false, erro: 'Cole a chave da API do Asaas.' }
+  if (limpa.length < 20) {
+    return {
+      ok: false,
+      erro: 'Isso parece curto demais para ser a chave. Copie a linha inteira que o Asaas mostrou.',
+    }
+  }
+
+  const conferida = await conferirChave(limpa, ambiente)
+  if (!conferida.ok) return { ok: false, erro: conferida.erro }
+
+  /* A senha do aviso é sorteada aqui e nunca mostrada. `randomUUID` usa o
+     gerador criptográfico do sistema — uma senha "fácil de digitar" não
+     precisa existir, porque ninguém vai digitá-la. */
+  const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, '')
+
+  /* O endereço do aviso sai do domínio por onde esta página está sendo
+     acessada. Escrever o domínio no código quebraria em qualquer troca de
+     endereço, e ninguém lembraria de vir corrigir aqui. */
+  const cabecalhos = await headers()
+  const host = cabecalhos.get('x-forwarded-host') ?? cabecalhos.get('host') ?? ''
+  const protocolo = host.startsWith('localhost') ? 'http' : 'https'
+  const url = `${protocolo}://${host}/api/pagamentos/asaas/webhook`
+
+  const aviso = await registrarAviso(limpa, ambiente, url, token)
+
+  const admin = createAdminClient()
+  const { error } = await admin.rpc('pagamento_asaas_salvar', {
+    p_chave: limpa,
+    p_ambiente: ambiente,
+    p_webhook_token: token,
+    p_conta_nome: conferida.nome,
+    p_conta_email: conferida.email,
+    p_webhook_id: aviso.ok ? aviso.webhookId : null,
+    p_usuario: quem.id,
+  })
+  if (error) return { ok: false, erro: `Não consegui guardar a chave: ${error.message}` }
+
+  revalidatePath('/dashboard/admin/loja')
+  revalidatePath('/dashboard/aluno/loja')
+
+  return {
+    ok: true,
+    conta: conferida.nome,
+    ambiente,
+    avisoRegistrado: aviso.ok,
+    /* Só quando o cadastro automático falhou. Enquanto der certo, esta
+       senha não passa nem perto do navegador. */
+    ...(aviso.ok ? {} : { avisoUrl: url, avisoToken: token, avisoMotivo: aviso.erro }),
+  }
+}
+
+export async function desligarAsaas(): Promise<Resultado> {
+  if (!(await exigirAdmin())) return SEM_PERMISSAO
+
+  const admin = createAdminClient()
+  const { error } = await admin.rpc('pagamento_asaas_desligar')
+  if (error) return { ok: false, erro: error.message }
+
+  revalidatePath('/dashboard/admin/loja')
+  revalidatePath('/dashboard/aluno/loja')
   return { ok: true }
 }

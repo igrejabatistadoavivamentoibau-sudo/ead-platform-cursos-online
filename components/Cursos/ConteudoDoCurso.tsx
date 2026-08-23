@@ -26,6 +26,7 @@ import {
 import LinhaDaAula, { type AulaItem } from '@/components/Aulas/LinhaDaAula'
 import NovaAula from '@/components/Aulas/NovaAula'
 import AulaAvulsaForm from '@/components/Aulas/AulaAvulsaForm'
+import { Alerta } from '@/components/ui'
 
 export interface ModuloComAulas {
   id: string
@@ -37,8 +38,12 @@ export interface ModuloComAulas {
   aulas: AulaItem[]
 }
 
-const CAMPO =
-  'w-full px-3.5 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-[15px] transition-all focus:outline-none focus:bg-white focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500'
+/* A receita do campo mora em app/globals.css, numa definição só. Existiam
+   seis cópias quase iguais espalhadas pelo projeto, cada uma com um raio ou
+   um anel de foco levemente diferente — ninguém aponta a diferença olhando
+   uma tela por vez, e é justamente isso que dá a sensação de "feito à mão"
+   no conjunto. */
+const CAMPO = 'campo'
 
 const VAZIO = { nome: '', descricao: '' }
 
@@ -233,10 +238,7 @@ export default function ConteudoDoCurso({
       </div>
 
       {erro && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <AlertTriangle className="mt-px h-[18px] w-[18px] shrink-0" strokeWidth={2.25} />
-          {erro}
-        </div>
+        <Alerta>{erro}</Alerta>
       )}
 
       {termo && (
@@ -302,7 +304,7 @@ export default function ConteudoDoCurso({
             <button
               type="submit"
               disabled={isPending}
-              className="rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-glow disabled:opacity-50"
+              className="rounded-xl bg-brand-700 hover:bg-brand-800 active:bg-brand-900 px-5 py-2.5 text-sm font-semibold text-white transition-all shadow-sm disabled:opacity-50"
             >
               {isPending ? 'Salvando...' : 'Salvar'}
             </button>

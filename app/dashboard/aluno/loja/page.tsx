@@ -63,7 +63,7 @@ export default async function LojaDoAlunoPage() {
         titulo="Loja IBAU"
         descricao="Livros, apostilas e materiais da escola. A retirada é na secretaria da igreja."
       />
-      <Vitrine produtos={lista} politica={regra} pagamentoLigado={pagamentoLigado()} />
+      <Vitrine produtos={lista} politica={regra} pagamentoLigado={await pagamentoLigado()} />
     </div>
   )
 }
