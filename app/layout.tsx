@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/plus-jakarta-sans";
 // As caligrafias da assinatura eletrônica. Vêm empacotadas com o site em
@@ -13,6 +13,36 @@ import AbreOCofre from "@/components/Sistema/AbreOCofre";
 export const metadata: Metadata = {
   title: "Escola de Líderes IBAU",
   description: "Plataforma de ensino para a Escola de Líderes da Igreja Batista do Avivamento — IBAU",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Escola IBAU",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+/* ============================================================
+   A PLATAFORMA NO CELULAR
+
+   `viewportFit: 'cover'` mais o `safe-area` no CSS: sem isso, num iPhone
+   com entalhe, a barra de baixo do sistema come o rodapé da tela — e é
+   sempre o botão de enviar que fica embaixo dela.
+
+   `maximumScale` NÃO é limitado de propósito. Travar o zoom é a maneira
+   mais rápida de deixar a plataforma inutilizável para quem enxerga mal, e
+   numa escola de igreja isso é boa parte das pessoas. O preço de deixar
+   livre é o iOS dar zoom sozinho ao focar um campo com fonte menor que
+   16px — resolvido no CSS, aumentando a fonte dos campos no celular, e não
+   proibindo o zoom.
+
+   `themeColor` pinta a barra do navegador com o verde da marca quando a
+   plataforma é aberta ou instalada no telefone.
+   ============================================================ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#05261d",
 };
 
 interface LayoutProps {

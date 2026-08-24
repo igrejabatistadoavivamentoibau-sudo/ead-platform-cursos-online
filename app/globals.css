@@ -127,6 +127,34 @@ textarea,
   cursor: not-allowed;
 }
 
+/* ============================================================
+   O CELULAR
+
+   Duas regras, e as duas nascem de defeito observado em telefone:
+
+   1. CAMPO COM 16px NO CELULAR. Abaixo disso o iOS dá zoom sozinho ao
+      focar um campo — a tela salta, a pessoa perde o lugar e precisa
+      pinçar de volta a cada campo do formulário. A saída comum é proibir
+      o zoom no `viewport`, e é a saída errada: quem enxerga mal fica sem
+      poder ampliar nada. Aumentar a fonte resolve os dois lados.
+
+   2. ÁREA SEGURA. Em telefone com entalhe, a barra do sistema fica por
+      cima do rodapé da página. Quem paga o preço é sempre o último botão
+      da tela — que costuma ser o de enviar.
+   ============================================================ */
+@media (max-width: 640px) {
+  .campo,
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* RÓTULOS MICRO (aqueles títulos maiúsculos e espaçados das seções).
    Detalhe que quase ninguém nomeia mas todo mundo sente: quando se abre
    muito o espaço ENTRE LETRAS, o espaço entre PALAVRAS precisa crescer

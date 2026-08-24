@@ -1,0 +1,26 @@
+{
+  "name": "Escola de Líderes IBAU",
+  "short_name": "Escola IBAU",
+  "description": "Plataforma de ensino da Escola de Líderes da Igreja Batista do Avivamento",
+  "lang": "pt-BR",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05261d",
+  "theme_color": "#05261d",
+  "icons": [
+    {
+      "src": "/ibau-marca.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/ibau-marca-clara.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
