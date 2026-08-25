@@ -284,10 +284,22 @@ aside[data-nav-lateral] * {
   );
 }
 
+/* O `position` sai do bloco e vai para a camada `components` — mesma
+   armadilha explicada em `.nav-superficie`, lá embaixo: regra fora de
+   camada derruba o utilitário do componente sem avisar. Hoje nenhum
+   cartão pede posição diferente, então isto não muda nada na tela;
+   existe para o dia em que alguém escrever `card-alive absolute` e passar
+   uma tarde procurando por que não funciona. */
+@layer components {
+  .card-alive,
+  .superficie {
+    position: relative;
+  }
+}
+
 .card-alive,
 .superficie {
   --elevacao: 0;
-  position: relative;
   border-radius: var(--raio-card);
 
   /* A borda é transparente e quem a pinta é a camada `border-box` do
@@ -647,8 +659,46 @@ aside[data-nav-lateral] * {
       clique sem ninguém entender por quê.
    ============================================================ */
 
+/* ------------------------------------------------------------
+   O `position` VAI SOZINHO, E DENTRO DE `:where()`. LEIA ANTES DE MEXER.
+
+   Era aqui a causa da faixa branca no pé da barra lateral: a barra pedia
+   `sticky` no componente, este bloco dizia `relative`, e ESTE ganhava.
+   Sem `sticky`, a barra rolava junto com a página: o topo dela saía por
+   cima e sobrava um vão branco embaixo, do tamanho exato da rolagem. Em
+   toda tela do painel.
+
+   Por que este ganhava, sendo os dois uma classe só: no Tailwind 4 os
+   utilitários moram numa CAMADA (`@layer utilities`), e CSS escrito fora
+   de camada nenhuma — como todo este arquivo — vence qualquer camada, dê
+   no que der a ordem e a especificidade. Ou seja: regra solta aqui
+   derruba, em silêncio, o utilitário de mesmo nome escrito no componente.
+
+   Três lugares usam esta classe e os três estavam quebrados pelo mesmo
+   motivo: a barra do computador (`sticky`), a faixa do topo do celular
+   (`sticky` — rolava para fora e levava junto o botão do menu) e a gaveta
+   do celular (`absolute`, que virava um bloco de 913px numa tela de 780,
+   deixando o rodapé de sair da conta fora do alcance).
+
+   A PRIMEIRA TENTATIVA DE CONSERTO NÃO FUNCIONOU, e o porquê é a parte
+   que vale guardar: envolvi o seletor em `:where()`, que zera a
+   especificidade. Não adiantou nada. Camada vem ANTES de especificidade
+   na conta do navegador — uma regra fora de camada ganha de uma regra
+   dentro de camada mesmo valendo zero. Foi preciso medir de novo para
+   ver que continuava `relative`.
+
+   O remédio é pôr a regra na camada `components`, que perde para
+   `utilities` por definição. E não apagar a linha: o fio de luz da
+   aresta (`::after`) precisa de um ancestral posicionado, e quem usar
+   esta classe sem declarar posição continua atendido.
+   ------------------------------------------------------------ */
+@layer components {
+  .nav-superficie {
+    position: relative;
+  }
+}
+
 .nav-superficie {
-  position: relative;
   background-color: var(--brand-950);
   background-image:
     /* 1. GRÃO, em `soft-light` e não em `overlay`.
@@ -701,8 +751,14 @@ aside.nav-superficie::after {
    fio de luz na aresta de cima e uma sombra interna curta embaixo. Três
    detalhes de 1px que, juntos, tiram o ar de "div com fundo".
    ------------------------------------------------------------ */
+/* Mesma armadilha de `.nav-superficie` — ver a explicação lá. */
+@layer components {
+  .nav-item {
+    position: relative;
+  }
+}
+
 .nav-item {
-  position: relative;
   border: 1px solid transparent;
   transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
 }
