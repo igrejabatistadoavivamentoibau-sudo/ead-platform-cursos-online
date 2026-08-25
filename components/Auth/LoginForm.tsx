@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { destinoDoLogin } from '@/lib/destinoDoLogin'
@@ -13,10 +13,12 @@ import {
   Presentation,
   Users,
   AlertCircle,
+  CheckCircle2,
   Loader2,
   ArrowRight,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { CHAVE_DO_EMAIL_DIGITADO } from '@/lib/nucleo/recuperacaoDeSenha'
 
 type UserRole = 'aluno' | 'professor' | 'admin'
 type Portal = 'aluno' | 'professor'
@@ -63,8 +65,38 @@ export default function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [senhaTrocada, setSenhaTrocada] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  /* Quem acabou de criar uma senha nova volta para cá. Sem este recado, a
+     tela de entrar aparece igualzinha à de antes e a pessoa fica em
+     dúvida se a troca funcionou — e é essa dúvida que faz ela pedir outro
+     link de recuperação.
+
+     Lido do endereço depois da montagem, e não por `useSearchParams`: essa
+     leitura obrigaria esta tela a ser desenhada na hora, a cada visita,
+     por causa de um aviso. É o mesmo caminho que o `?proximo=` já usa
+     logo abaixo. */
+  useEffect(() => {
+    try {
+      const busca = new URLSearchParams(window.location.search)
+      if (busca.get('senha') === 'alterada') setSenhaTrocada(true)
+    } catch {
+      /* endereço estranho: só não mostra o recado */
+    }
+  }, [])
+
+  /* O e-mail já digitado espera na memória da aba para a tela de
+     recuperação não pedir de novo. Fica FORA do endereço de propósito —
+     ver `CHAVE_DO_EMAIL_DIGITADO`. */
+  const guardarEmailDigitado = () => {
+    try {
+      if (email.trim()) window.sessionStorage.setItem(CHAVE_DO_EMAIL_DIGITADO, email.trim())
+    } catch {
+      /* armazenamento bloqueado: a pessoa digita de novo, e pronto */
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -180,6 +212,19 @@ export default function LoginForm() {
 
   return (
     <div className="w-full">
+      {senhaTrocada && (
+        <div
+          role="status"
+          data-teste="senha-alterada"
+          className="mb-5 flex items-start gap-2.5 rounded-xl bg-brand-50 px-3.5 py-3 text-sm leading-snug text-brand-800 ring-1 ring-brand-200 animate-float-in"
+        >
+          <CheckCircle2 className="mt-px h-[18px] w-[18px] shrink-0" strokeWidth={2.25} />
+          <span>
+            <strong className="font-semibold">Senha alterada.</strong> Entre agora com a senha nova.
+          </span>
+        </div>
+      )}
+
       {/* ===== Seletor de portal =====
           Cada portal tem cor própria (azul para aluno, roxo para professor),
           as mesmas usadas dentro do sistema. Assim a pessoa reconhece de
@@ -264,8 +309,13 @@ export default function LoginForm() {
             <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
               Senha
             </label>
+            {/* Este link existia e não levava a lugar nenhum (`href="#"`).
+                Agora é a porta da recuperação — no mesmo lugar em que já
+                estava, porque é onde a pessoa procura. */}
             <Link
-              href="#"
+              href="/auth/esqueci-senha"
+              onClick={guardarEmailDigitado}
+              data-teste="esqueci-senha"
               className="text-sm text-brand-700 hover:text-brand-800 font-medium transition-colors"
             >
               Esqueceu sua senha?

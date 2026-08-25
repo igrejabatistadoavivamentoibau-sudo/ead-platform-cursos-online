@@ -8,6 +8,7 @@ import "@fontsource/great-vibes";
 import "@fontsource/dancing-script";
 import "./globals.css";
 import { GUARDIAO_DA_TELA } from "@/lib/guardiaoDaTela";
+import { PORTEIRO_DO_LINK } from "@/lib/porteiroDoLink";
 import AbreOCofre from "@/components/Sistema/AbreOCofre";
 
 export const metadata: Metadata = {
@@ -59,6 +60,15 @@ export default function RootLayout({ children }: LayoutProps) {
           falha do arquivo de estilo acontecer. Ver lib/guardiaoDaTela.ts.
         */}
         <script dangerouslySetInnerHTML={{ __html: GUARDIAO_DA_TELA }} />
+        {/*
+          O PORTEIRO DO LINK DE RECUPERAÇÃO.
+          Reconhece, em QUALQUER página, o retorno do link de "esqueci minha
+          senha", tira a chave da barra de endereço e leva a pessoa para a
+          tela de nova senha. Precisa rodar antes de qualquer módulo carregar,
+          senão o cliente do Supabase consome o endereço primeiro e não sobra
+          nada para a tela. Ver lib/porteiroDoLink.ts.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: PORTEIRO_DO_LINK }} />
       </head>
       <body className="min-h-full flex flex-col bg-white text-gray-900 font-sans antialiased">
         {/*
