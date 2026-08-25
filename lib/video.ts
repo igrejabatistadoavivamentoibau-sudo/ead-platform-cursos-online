@@ -80,6 +80,21 @@ export function analisarVideo(url: string | null | undefined): VideoInfo {
     }
   }
 
+  /* O endereço da PRÓPRIA PLATAFORMA para um arquivo guardado aqui
+     dentro (ver enderecoDoVideo e app/api/aulas/[id]/video).
+
+     Sem este ramo, o vídeo enviado direto parava de tocar no dia em que a
+     área de armazenamento virou privada: o endereço novo não termina em
+     .mp4, cairia em "desconhecido" e o player mostraria "link não
+     reconhecido" no lugar da aula. Foi o teste que pegou, não a leitura.
+
+     Ele continua sendo do tipo `arquivo` de propósito: é o que mantém o
+     player HTML5, a contagem de tempo assistido e a conclusão automática
+     funcionando exatamente como antes. */
+  if (/^\/api\/aulas\/[^/]+\/video$/.test(limpa)) {
+    return { tipo: 'arquivo', url: limpa, embed: limpa }
+  }
+
   if (/\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(limpa)) {
     return { tipo: 'arquivo', url: limpa, embed: limpa }
   }
@@ -162,8 +177,27 @@ export const PERCENTUAL_CONCLUSAO = 95
  */
 export const COBERTURA_MINIMA = 90
 
-/** URL pública de um vídeo enviado direto para a plataforma. */
-export function urlDoVideo(videoPath: string | null | undefined): string | null {
-  if (!videoPath) return null
-  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/aulas/${videoPath}`
+/**
+ * O endereço de um vídeo enviado direto para a plataforma.
+ *
+ * ANTES esta função montava o endereço PÚBLICO do armazenamento — aquele
+ * que abria para qualquer pessoa, sem login e sem prazo. Era o buraco que
+ * a auditoria encontrou.
+ *
+ * Agora ela devolve o endereço de uma porta da própria plataforma. Quem
+ * bate lá é conferido (quem é, se está matriculado, se o módulo está
+ * aberto, se o prazo da aula está valendo) e só então recebe um desvio
+ * para um endereço assinado com hora para morrer. Ver
+ * `app/api/aulas/[id]/video/route.ts`.
+ *
+ * REPARE QUE O PARÂMETRO MUDOU: era o caminho do arquivo, agora é o id da
+ * aula. É de propósito — o caminho do arquivo não diz de quem é a aula, e
+ * sem saber de qual aula se trata não há como conferir permissão nenhuma.
+ *
+ * Vídeo de fora (YouTube, Vimeo, Drive, OneDrive) não passa por aqui:
+ * aquele link é do provedor e continua indo direto para o player.
+ */
+export function enderecoDoVideo(aulaId: string | null | undefined): string | null {
+  if (!aulaId) return null
+  return `/api/aulas/${aulaId}/video`
 }

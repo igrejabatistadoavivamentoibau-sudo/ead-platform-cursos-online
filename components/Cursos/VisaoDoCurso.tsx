@@ -9,7 +9,7 @@ import CadernoDaAula from '@/components/Caderno/CadernoDaAula'
 import MateriaisDaAula, { type MaterialNaTela } from '@/components/Materiais/MateriaisDaAula'
 import { corDoCurso, urlDaCapa, NIVEL_LABEL, type Curso } from '@/lib/cursos'
 import type { EstadoDoModulo } from '@/lib/modulosDoAluno'
-import { urlDoVideo } from '@/lib/video'
+import { enderecoDoVideo } from '@/lib/video'
 
 export interface AulaDoCurso {
   id: string
@@ -234,7 +234,13 @@ export default function VisaoDoCurso({
             <VideoPlayer
               key={aulaAtual.id}
               aulaId={aulaAtual.id}
-              videoUrl={urlDoVideo(aulaAtual.video_path) ?? aulaAtual.video_url}
+              /* Arquivo guardado na plataforma passa pela porta que confere
+                  permissão; link de fora vai direto, como sempre foi. */
+              videoUrl={
+                aulaAtual.video_path
+                  ? enderecoDoVideo(aulaAtual.id)
+                  : aulaAtual.video_url
+              }
               titulo={aulaAtual.titulo}
               concluidaInicial={progressoAtual?.concluida ?? false}
               percentualInicial={progressoAtual?.percentual ?? 0}
