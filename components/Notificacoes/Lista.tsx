@@ -1,5 +1,16 @@
 import Link from 'next/link'
-import { Megaphone, Sparkles, Bell, UserCheck, GraduationCap, RefreshCw } from 'lucide-react'
+import {
+  Megaphone,
+  Sparkles,
+  Bell,
+  UserCheck,
+  GraduationCap,
+  RefreshCw,
+  ClipboardList,
+  AlarmClock,
+  PlayCircle,
+  ShoppingBag,
+} from 'lucide-react'
 import { EstadoVazio, Card } from '@/components/ui'
 
 export interface NotificacaoItem {
@@ -12,12 +23,28 @@ export interface NotificacaoItem {
   created_at: string
 }
 
+/* ============================================================
+   O TIPO DECIDE O ÍCONE E A COR
+
+   Numa lista de vinte recados, a pessoa não lê: ela varre. O que faz a
+   varredura funcionar é o assunto ter forma e cor próprias antes de
+   qualquer palavra ser lida — dá para achar "a nota" sem ler nada.
+
+   Os quatro últimos chegaram com a migração 028, junto com os gatilhos
+   que faltavam. Tipo sem entrada aqui não quebra nada (cai no sino
+   cinza), mas entra na lista como "mais um recado igual aos outros" — e
+   aí a varredura para de funcionar.
+   ============================================================ */
 const ICONE: Record<string, typeof Bell> = {
   aviso_turma: Megaphone,
   novidade: Sparkles,
   inscricao: UserCheck,
   nota: GraduationCap,
   atualizacao: RefreshCw,
+  atividade: ClipboardList,
+  prazo: AlarmClock,
+  aula: PlayCircle,
+  pedido: ShoppingBag,
   geral: Bell,
 }
 
@@ -27,6 +54,13 @@ const COR: Record<string, string> = {
   inscricao: 'bg-sky-50 text-sky-600',
   nota: 'bg-violet-50 text-violet-600',
   atualizacao: 'bg-gray-100 text-gray-500',
+  atividade: 'bg-indigo-50 text-indigo-600',
+  /* O único vermelho da central, e é de propósito: prazo é a única coisa
+     aqui que a pessoa perde se não olhar hoje. Se tudo fosse urgente,
+     nada seria. */
+  prazo: 'bg-red-50 text-red-600',
+  aula: 'bg-emerald-50 text-emerald-600',
+  pedido: 'bg-teal-50 text-teal-600',
   geral: 'bg-gray-100 text-gray-500',
 }
 
