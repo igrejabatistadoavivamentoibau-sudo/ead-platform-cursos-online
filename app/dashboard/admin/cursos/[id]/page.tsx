@@ -10,6 +10,7 @@ import CursoAcoes from '@/components/Cursos/CursoAcoes'
 import type { AulaItem } from '@/components/Aulas/LinhaDaAula'
 import type { MaterialNaTela } from '@/components/Materiais/MateriaisDaAula'
 import ConteudoDoCurso, { type ModuloComAulas } from '@/components/Cursos/ConteudoDoCurso'
+import MatrizCurricular from '@/components/Cursos/MatrizCurricular'
 import {
   corDoCurso,
   urlDaCapa,
@@ -31,10 +32,11 @@ export default async function CursoDetalhePage({
   const { data: curso } = await supabase.from('cursos').select('*').eq('id', id).single()
   if (!curso) notFound()
 
-  const [{ data: aulas }, { data: turmas }, { data: modulos }] = await Promise.all([
+  const [{ data: aulas }, { data: turmas }, { data: modulos }, { data: disciplinas }] =
+    await Promise.all([
     supabase
       .from('aulas')
-      .select('id, numero, titulo, descricao, video_url, duracao_minutos, publicada, modulo_id')
+      .select('id, numero, titulo, descricao, video_url, duracao_minutos, publicada, modulo_id, disciplina_id')
       .eq('curso_id', id)
       .order('numero', { ascending: true }),
     supabase.from('turmas').select('id, nome, status, modulo_id').eq('curso_id', id),
@@ -42,6 +44,15 @@ export default async function CursoDetalhePage({
       .from('modulos')
       .select('id, nome, descricao, ordem')
       .eq('curso_id', id)
+      .order('ordem', { ascending: true }),
+    /* As matérias de cada módulo. Uma consulta só para o curso inteiro, e
+       não uma por módulo — a mesma economia do material de apoio logo
+       abaixo. O vínculo explícito evita o embed ambíguo que já deixou uma
+       caixa vazia neste projeto. */
+    supabase
+      .from('disciplinas')
+      .select('id, nome, ordem, padrao, modulo_id, modulos!disciplinas_modulo_id_fkey!inner(curso_id)')
+      .eq('modulos.curso_id', id)
       .order('ordem', { ascending: true }),
   ])
 
@@ -124,16 +135,29 @@ export default async function CursoDetalhePage({
      aqui, no servidor, e não no navegador, porque é a mesma agrupação que
      o aluno enxerga — a tela de quem monta e a de quem estuda passam a
      descrever a mesma coisa. */
-  const arvore: ModuloComAulas[] = (modulos ?? []).map((m) => ({
-    id: m.id as string,
-    nome: m.nome as string,
-    descricao: (m.descricao as string) ?? null,
-    ordem: Number(m.ordem),
-    turmas: turmasPorModulo.get(m.id as string) ?? 0,
-    aulas: lista
+  const arvore: ModuloComAulas[] = (modulos ?? []).map((m) => {
+    const doModulo = lista
       .filter((a) => a.modulo_id === m.id)
-      .sort((a, b) => a.numero - b.numero),
-  }))
+      .sort((a, b) => a.numero - b.numero)
+
+    return {
+      id: m.id as string,
+      nome: m.nome as string,
+      descricao: (m.descricao as string) ?? null,
+      ordem: Number(m.ordem),
+      turmas: turmasPorModulo.get(m.id as string) ?? 0,
+      disciplinas: (disciplinas ?? [])
+        .filter((d) => d.modulo_id === m.id)
+        .map((d) => ({
+          id: d.id as string,
+          nome: d.nome as string,
+          ordem: Number(d.ordem),
+          padrao: Boolean(d.padrao),
+          aulas: doModulo.filter((a) => a.disciplina_id === d.id),
+        })),
+      aulas: doModulo,
+    }
+  })
 
   /* Aulas de antes de os módulos existirem. O gatilho do banco impede que
      nasçam novas, mas as antigas precisam ser ENCONTRÁVEIS — aula fora de
@@ -253,6 +277,15 @@ export default async function CursoDetalhePage({
           </div>
         </div>
       )}
+
+      {/* ---------- A matriz curricular, montada de uma vez ----------
+           Vem ANTES da árvore de propósito: num curso vazio, montar a
+           estrutura é o próximo passo, e ele não pode estar embaixo de uma
+           lista de nada. Num curso que já tem conteúdo, é um botão
+           fechado que não atrapalha. */}
+      <div className="mb-5">
+        <MatrizCurricular cursoId={curso.id} cursoVazio={lista.length === 0} />
+      </div>
 
       {/* ---------- Módulos e vídeo aulas, numa árvore só ---------- */}
       <ConteudoDoCurso

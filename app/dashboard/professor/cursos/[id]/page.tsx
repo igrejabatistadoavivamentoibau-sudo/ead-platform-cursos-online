@@ -37,10 +37,11 @@ export default async function CursoProfessorPage({
     if (!count) redirect('/dashboard/professor')
   }
 
-  const [{ data: aulas }, { data: turmas }, { data: modulos }] = await Promise.all([
+  const [{ data: aulas }, { data: turmas }, { data: modulos }, { data: disciplinas }] =
+    await Promise.all([
     supabase
       .from('aulas')
-      .select('id, numero, titulo, descricao, video_url, duracao_minutos, publicada, modulo_id')
+      .select('id, numero, titulo, descricao, video_url, duracao_minutos, publicada, modulo_id, disciplina_id')
       .eq('curso_id', id)
       .order('numero', { ascending: true }),
     supabase.from('turmas').select('id, modulo_id').eq('curso_id', id),
@@ -51,6 +52,12 @@ export default async function CursoProfessorPage({
       .from('modulos')
       .select('id, nome, descricao, ordem')
       .eq('curso_id', id)
+      .order('ordem', { ascending: true }),
+    /* As matérias de cada módulo, numa consulta só para o curso inteiro. */
+    supabase
+      .from('disciplinas')
+      .select('id, nome, ordem, padrao, modulo_id, modulos!disciplinas_modulo_id_fkey!inner(curso_id)')
+      .eq('modulos.curso_id', id)
       .order('ordem', { ascending: true }),
   ])
 
@@ -124,14 +131,29 @@ export default async function CursoProfessorPage({
     materiais: materiaisPorAula.get(a.id as string) ?? [],
   }))
 
-  const arvore: ModuloComAulas[] = (modulos ?? []).map((m) => ({
-    id: m.id as string,
-    nome: m.nome as string,
-    descricao: (m.descricao as string) ?? null,
-    ordem: Number(m.ordem),
-    turmas: turmasPorModulo.get(m.id as string) ?? 0,
-    aulas: lista.filter((a) => a.modulo_id === m.id).sort((a, b) => a.numero - b.numero),
-  }))
+  const arvore: ModuloComAulas[] = (modulos ?? []).map((m) => {
+    const doModulo = lista
+      .filter((a) => a.modulo_id === m.id)
+      .sort((a, b) => a.numero - b.numero)
+
+    return {
+      id: m.id as string,
+      nome: m.nome as string,
+      descricao: (m.descricao as string) ?? null,
+      ordem: Number(m.ordem),
+      turmas: turmasPorModulo.get(m.id as string) ?? 0,
+      disciplinas: (disciplinas ?? [])
+        .filter((d) => d.modulo_id === m.id)
+        .map((d) => ({
+          id: d.id as string,
+          nome: d.nome as string,
+          ordem: Number(d.ordem),
+          padrao: Boolean(d.padrao),
+          aulas: doModulo.filter((a) => a.disciplina_id === d.id),
+        })),
+      aulas: doModulo,
+    }
+  })
 
   const semModulo = lista.filter((a) => !a.modulo_id)
 

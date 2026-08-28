@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { CheckCircle2, Clock, Trophy, Lock, Video, EyeOff, Layers, Check } from 'lucide-react'
@@ -21,6 +22,12 @@ export interface AulaDoCurso {
   duracao_minutos: number | null
   /** Só vem preenchido na pré-visualização, para marcar rascunhos. */
   publicada?: boolean
+  /**
+   * A matéria a que a aula pertence (migração 030). Vem só quando o
+   * módulo está de fato dividido: num curso simples, mostrar "Conteúdo do
+   * módulo" em cima de cada bloco seria um rótulo que não informa nada.
+   */
+  disciplina?: { id: string; nome: string } | null
 }
 
 export interface ProgressoAula {
@@ -359,15 +366,38 @@ export default function VisaoDoCurso({
 
               {g.aberto && g.aulas.length > 0 && (
           <div className="card-alive divide-y divide-gray-100 overflow-hidden">
-            {g.aulas.map((a) => {
+            {g.aulas.map((a, indiceNaLista) => {
+              /* O NOME DA MATÉRIA ENTRA COMO UMA FAIXA, e só quando muda.
+                 Repetir "Bibliologia" em cada uma das dez linhas encheria
+                 a lista de uma informação que o olho já sabe; escrevê-la
+                 uma vez, no alto do bloco, é o que faz o aluno entender
+                 que aquelas dez aulas são de uma matéria e as próximas
+                 dez, de outra.
+
+                 Só aparece quando o módulo tem mais de uma matéria — num
+                 curso simples, seria um rótulo dizendo o óbvio. */
+              const anterior = indiceNaLista > 0 ? g.aulas[indiceNaLista - 1] : null
+              const materias = new Set(
+                g.aulas.map((x) => x.disciplina?.id).filter(Boolean) as string[]
+              )
+              const abreMateria =
+                materias.size > 1 &&
+                !!a.disciplina &&
+                a.disciplina.id !== anterior?.disciplina?.id
+
               const p = progressoPorAula.get(a.id)
               const ativa = a.id === aulaAtual.id
               const rascunho = a.publicada === false
               const tranca = janelaDe(a.id)
 
               return (
+                <Fragment key={a.id}>
+                  {abreMateria && (
+                    <p className="bg-gray-50/80 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.1em] text-brand-700">
+                      {a.disciplina!.nome}
+                    </p>
+                  )}
                 <Link
-                  key={a.id}
                   href={hrefAula(a.id)}
                   scroll={false}
                   className={`flex items-center gap-3 px-4 py-3.5 transition-colors ${
@@ -434,6 +464,7 @@ export default function VisaoDoCurso({
                     <Lock className="h-3.5 w-3.5 shrink-0 text-gray-300" strokeWidth={2.25} />
                   )}
                 </Link>
+                </Fragment>
               )
             })}
           </div>

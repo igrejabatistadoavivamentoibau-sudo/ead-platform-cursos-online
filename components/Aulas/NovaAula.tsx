@@ -33,11 +33,17 @@ const VAZIO = { titulo: '', descricao: '', video_url: '', duracao: '' }
 export default function NovaAula({
   cursoId,
   moduloId,
+  disciplinaId,
   moduloNome,
   proximoNumero,
 }: {
   cursoId: string
   moduloId: string
+  /* Quando a aula nasce dentro de uma disciplina, é ela que manda — o
+     módulo sai espelhado no banco. Sem isto, a aula criada dentro de
+     "Bibliologia" cairia na disciplina automática do módulo, que é
+     exatamente o "fica tudo misturado" que esta entrega veio resolver. */
+  disciplinaId?: string
   moduloNome: string
   proximoNumero: number
 }) {
@@ -55,7 +61,7 @@ export default function NovaAula({
     startTransition(async () => {
       const r = await criarAula({
         curso_id: cursoId,
-        modulo_id: moduloId,
+        ...(disciplinaId ? { disciplina_id: disciplinaId } : { modulo_id: moduloId }),
         titulo: form.titulo,
         descricao: form.descricao || undefined,
         video_url: form.video_url || undefined,

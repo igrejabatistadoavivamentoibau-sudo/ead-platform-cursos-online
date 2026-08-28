@@ -40,6 +40,8 @@ export interface AulaItem {
   publicada: boolean
   concluidas?: number
   modulo_id?: string | null
+  /** Em qual matéria ela mora. Espelha o módulo (ver migração 030). */
+  disciplina_id?: string | null
   /** Material de apoio já anexado a esta aula. */
   materiais?: MaterialNaTela[]
 }

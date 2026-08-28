@@ -45,16 +45,28 @@ export default async function CursoDoAlunoPage({
 
      Agora a tela é montada a partir dos módulos, e a ordem das aulas é
      "ordem do módulo, depois número dentro dele". */
-  const [{ data: modulos }, { data: aulas }, { data: progressos }, { data: minhasTurmas }] =
-    await Promise.all([
+  const [
+    { data: modulos },
+    { data: disciplinas },
+    { data: aulas },
+    { data: progressos },
+    { data: minhasTurmas },
+  ] = await Promise.all([
       supabase
         .from('modulos')
         .select('id, nome, descricao, ordem')
         .eq('curso_id', id)
         .order('ordem', { ascending: true }),
+      /* As matérias, para a lista de aulas poder dizer de qual delas é
+         cada bloco. Uma consulta só para o curso inteiro. */
+      supabase
+        .from('disciplinas')
+        .select('id, nome, ordem, padrao, modulo_id, modulos!disciplinas_modulo_id_fkey!inner(curso_id)')
+        .eq('modulos.curso_id', id)
+        .order('ordem', { ascending: true }),
       supabase
         .from('aulas')
-        .select('id, numero, titulo, descricao, video_url, video_path, duracao_minutos, modulo_id')
+        .select('id, numero, titulo, descricao, video_url, video_path, duracao_minutos, modulo_id, disciplina_id')
         .eq('curso_id', id)
         .eq('publicada', true)
         .order('numero', { ascending: true }),
@@ -100,9 +112,19 @@ export default async function CursoDoAlunoPage({
     ])
   )
 
+  /* O nome da matéria vem junto com a aula — a tela só decide MOSTRAR
+     quando o módulo tem mais de uma (ver VisaoDoCurso). A disciplina
+     automática, que existe em todo módulo, não vira rótulo: seria uma
+     faixa escrita "Conteúdo do módulo" em cima do conteúdo do módulo. */
+  const nomeDaDisciplina = new Map<string, { id: string; nome: string }>()
+  for (const d of disciplinas ?? []) {
+    if (!d.padrao) nomeDaDisciplina.set(d.id as string, { id: d.id as string, nome: d.nome as string })
+  }
+
   const todasAsAulas = (aulas ?? []).map((a) => ({
     ...(a as unknown as AulaDoCurso),
     moduloId: (a.modulo_id as string) ?? null,
+    disciplina: nomeDaDisciplina.get(a.disciplina_id as string) ?? null,
   }))
 
   const gruposDeModulo: ModuloNaTela[] = estadoDosModulos.map((m) => ({

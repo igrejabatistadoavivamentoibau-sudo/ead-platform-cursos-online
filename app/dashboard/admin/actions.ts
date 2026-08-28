@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolverPermissoes, type ChavePermissao, type UserRole } from '@/lib/permissoes'
+import { lerMatriz, conferirMatriz } from '@/lib/nucleo/matrizCurricular'
 
 /**
  * Confirma, a partir da sessão (cookies), que quem está chamando a action
@@ -882,6 +883,8 @@ async function proximoNumeroDaAula(
 export async function criarAula(input: {
   curso_id: string
   modulo_id?: string
+  /** Onde a aula vai morar de verdade. Quando vem, manda nela. */
+  disciplina_id?: string
   titulo: string
   descricao?: string
   video_url?: string
@@ -892,12 +895,21 @@ export async function criarAula(input: {
     await garantirAcessoAoCurso(input.curso_id, user.id, role)
     const admin = createAdminClient()
 
-    const moduloId = await moduloDaAula(admin, input.curso_id, input.modulo_id)
+    const moduloId = input.disciplina_id
+      ? undefined
+      : await moduloDaAula(admin, input.curso_id, input.modulo_id)
 
+    /* O NÚMERO NÃO É MAIS CALCULADO AQUI, e isso é uma correção.
+       A conta antiga era "o maior número deste MÓDULO mais um" — com
+       disciplinas, a segunda matéria começaria na aula 11. Quem numera
+       agora é o gatilho `aula_entra_numa_disciplina` (migração 030), que
+       conta dentro da disciplina. Uma regra, um lugar: a versão anterior
+       tinha a mesma conta escrita aqui e no banco, e duas cópias de uma
+       conta divergem no dia em que alguém corrige só uma. */
     const { error } = await admin.from('aulas').insert({
       curso_id: input.curso_id,
-      modulo_id: moduloId,
-      numero: await proximoNumeroDaAula(admin, moduloId),
+      ...(moduloId ? { modulo_id: moduloId } : {}),
+      ...(input.disciplina_id ? { disciplina_id: input.disciplina_id } : {}),
       titulo: input.titulo,
       descricao: input.descricao || null,
       video_url: input.video_url || null,
@@ -1801,5 +1813,313 @@ export async function moverAulaDeModulo(
 
   revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
   revalidatePath(`/dashboard/professor/cursos/${cursoId}`)
+  })
+}
+
+/* ============================================================
+   A MATRIZ CURRICULAR
+
+   Módulo → disciplina → aula, montada de uma vez a partir do texto que a
+   coordenação escreve (ver lib/nucleo/matrizCurricular.ts, onde mora a
+   leitura e onde ela é testada).
+
+   AQUI NÃO SE DECIDE NADA sobre o que é módulo, disciplina ou aula: isso
+   já veio pronto e conferido. Aqui só se grava, na ordem certa, e se
+   devolve o que foi criado.
+   ============================================================ */
+
+export async function criarDisciplina(
+  cursoId: string,
+  moduloId: string,
+  input: { nome: string; descricao?: string }
+): Promise<Resultado> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
+
+    const nome = input.nome?.trim()
+    if (!nome) throw new Error('Dê um nome para a disciplina.')
+
+    const { data: ultima } = await admin
+      .from('disciplinas')
+      .select('ordem')
+      .eq('modulo_id', moduloId)
+      .order('ordem', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const { error } = await admin.from('disciplinas').insert({
+      modulo_id: moduloId,
+      nome,
+      descricao: input.descricao?.trim() || null,
+      ordem: (ultima?.ordem ?? 0) + 1,
+    })
+    if (error) throw new Error(error.message)
+    revalidarAulas(cursoId)
+  })
+}
+
+export async function renomearDisciplina(
+  disciplinaId: string,
+  cursoId: string,
+  input: { nome: string; descricao?: string }
+): Promise<Resultado> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
+
+    const nome = input.nome?.trim()
+    if (!nome) throw new Error('Dê um nome para a disciplina.')
+
+    /* Dar nome próprio à disciplina automática tira a marca de "padrão":
+       a partir daí ela é uma matéria de verdade, e a tela passa a mostrar
+       o degrau. É a pessoa dizendo, com o gesto, que o curso tem
+       disciplinas. */
+    const { error } = await admin
+      .from('disciplinas')
+      .update({
+        nome,
+        descricao: input.descricao?.trim() || null,
+        padrao: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', disciplinaId)
+    if (error) throw new Error(error.message)
+    revalidarAulas(cursoId)
+  })
+}
+
+export async function moverDisciplina(
+  disciplinaId: string,
+  cursoId: string,
+  direcao: 'cima' | 'baixo'
+): Promise<Resultado> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
+
+    const { data: atual } = await admin
+      .from('disciplinas')
+      .select('id, modulo_id, ordem')
+      .eq('id', disciplinaId)
+      .maybeSingle()
+    if (!atual) throw new Error('Disciplina não encontrada.')
+
+    /* A troca é DENTRO do módulo. Ordenar pelo curso inteiro faria a
+       primeira disciplina de um módulo trocar de lugar com a última do
+       módulo anterior — foi exatamente o vício que `moverAula` tinha
+       antes da entrega dos módulos. */
+    const { data: irmas } = await admin
+      .from('disciplinas')
+      .select('id, ordem')
+      .eq('modulo_id', atual.modulo_id)
+      .order('ordem', { ascending: true })
+
+    const lista = irmas ?? []
+    const i = lista.findIndex((d) => d.id === disciplinaId)
+    const j = direcao === 'cima' ? i - 1 : i + 1
+    if (i < 0 || j < 0 || j >= lista.length) return
+
+    await admin.from('disciplinas').update({ ordem: lista[j].ordem }).eq('id', lista[i].id)
+    await admin.from('disciplinas').update({ ordem: lista[i].ordem }).eq('id', lista[j].id)
+    revalidarAulas(cursoId)
+  })
+}
+
+export async function removerDisciplina(
+  disciplinaId: string,
+  cursoId: string
+): Promise<Resultado> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
+
+    const { count } = await admin
+      .from('aulas')
+      .select('id', { count: 'exact', head: true })
+      .eq('disciplina_id', disciplinaId)
+
+    /* Apagar a disciplina leva as aulas dela junto (o banco faz isso em
+       cascata). Recusar quando há aula dentro é de propósito: um clique
+       não pode levar dez aulas com vídeo e material anexados. */
+    if ((count ?? 0) > 0) {
+      throw new Error(
+        `Esta disciplina tem ${count} ${count === 1 ? 'aula' : 'aulas'}. Mova ou apague as aulas antes.`
+      )
+    }
+
+    const { data: quantas } = await admin
+      .from('disciplinas')
+      .select('id, modulo_id')
+      .eq('id', disciplinaId)
+      .maybeSingle()
+    if (!quantas) throw new Error('Disciplina não encontrada.')
+
+    const { count: irmas } = await admin
+      .from('disciplinas')
+      .select('id', { count: 'exact', head: true })
+      .eq('modulo_id', quantas.modulo_id)
+
+    /* O módulo não pode ficar sem nenhuma: é ela que recebe a próxima
+       aula criada. */
+    if ((irmas ?? 0) <= 1) {
+      throw new Error('O módulo precisa de pelo menos uma disciplina.')
+    }
+
+    const { error } = await admin.from('disciplinas').delete().eq('id', disciplinaId)
+    if (error) throw new Error(error.message)
+    revalidarAulas(cursoId)
+  })
+}
+
+export async function moverAulaDeDisciplina(
+  aulaId: string,
+  cursoId: string,
+  disciplinaId: string
+): Promise<Resultado> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
+
+    /* Só o `disciplina_id` é gravado. O módulo e o número saem do gatilho
+       (030): ele espelha o módulo da disciplina nova e renumera a aula no
+       fim da fila de lá. Mandar os três daqui seria repetir, em
+       JavaScript, uma conta que o banco já faz — e as duas divergiriam. */
+    const { error } = await admin
+      .from('aulas')
+      .update({ disciplina_id: disciplinaId, updated_at: new Date().toISOString() })
+      .eq('id', aulaId)
+    if (error) throw new Error(error.message)
+    revalidarAulas(cursoId)
+  })
+}
+
+/**
+ * Cria a matriz inteira de uma vez.
+ *
+ * Devolve o que criou, para a tela poder dizer "3 módulos, 6 disciplinas
+ * e 60 aulas criados" em vez de só "pronto".
+ */
+export async function criarMatrizCurricular(
+  cursoId: string,
+  texto: string
+): Promise<Resultado<{ modulos: number; disciplinas: number; aulas: number }>> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
+
+    const matriz = lerMatriz(texto)
+    const conferida = conferirMatriz(matriz)
+    if (!conferida.ok) throw new Error(conferida.erro)
+
+    /* O CURSO RECÉM-CRIADO JÁ TEM UM "Módulo 1" VAZIO, posto pelo gatilho
+       da migração 022. Se a matriz começasse a criar módulos do zero, o
+       curso ficaria com um módulo fantasma na frente de tudo — e ela
+       teria de apagar na mão logo depois de montar a matriz.
+       Então o primeiro módulo da matriz REAPROVEITA aquele, quando ele
+       está vazio (sem aula e sem turma). */
+    const { data: existentes } = await admin
+      .from('modulos')
+      .select('id, nome, ordem')
+      .eq('curso_id', cursoId)
+      .order('ordem', { ascending: true })
+
+    let reaproveitar: string | null = null
+    if ((existentes ?? []).length === 1) {
+      const unico = existentes![0]
+      const [{ count: comAula }, { count: comTurma }] = await Promise.all([
+        admin.from('aulas').select('id', { count: 'exact', head: true }).eq('modulo_id', unico.id),
+        admin.from('turmas').select('id', { count: 'exact', head: true }).eq('modulo_id', unico.id),
+      ])
+      if ((comAula ?? 0) === 0 && (comTurma ?? 0) === 0) reaproveitar = unico.id
+    }
+
+    const jaTinha = (existentes ?? []).length
+    let ordem = reaproveitar ? 0 : jaTinha
+    let criouModulos = 0
+    let criouDisciplinas = 0
+    let criouAulas = 0
+
+    for (const m of matriz.modulos) {
+      ordem += 1
+      let moduloId: string
+
+      if (reaproveitar) {
+        const { error } = await admin
+          .from('modulos')
+          .update({ nome: m.nome, ordem, updated_at: new Date().toISOString() })
+          .eq('id', reaproveitar)
+        if (error) throw new Error(error.message)
+        moduloId = reaproveitar
+        reaproveitar = null
+      } else {
+        const { data, error } = await admin
+          .from('modulos')
+          .insert({ curso_id: cursoId, nome: m.nome, ordem })
+          .select('id')
+          .single()
+        if (error) throw new Error(error.message)
+        moduloId = data.id
+        criouModulos += 1
+      }
+
+      /* Todo módulo tem a sua disciplina automática (gatilho da 030).
+         Ela é quem recebe as aulas quando a matriz não separa matérias. */
+      const { data: padrao } = await admin
+        .from('disciplinas')
+        .select('id')
+        .eq('modulo_id', moduloId)
+        .eq('padrao', true)
+        .order('ordem', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+
+      let ordemDisc = 0
+      for (const d of m.disciplinas) {
+        ordemDisc += 1
+        let disciplinaId: string
+
+        if (d.nome === null) {
+          if (!padrao) throw new Error('O módulo ficou sem disciplina onde pôr as aulas.')
+          disciplinaId = padrao.id
+        } else {
+          const { data, error } = await admin
+            .from('disciplinas')
+            .insert({ modulo_id: moduloId, nome: d.nome, ordem: ordemDisc })
+            .select('id')
+            .single()
+          if (error) throw new Error(error.message)
+          disciplinaId = data.id
+          criouDisciplinas += 1
+        }
+
+        if (d.aulas.length === 0) continue
+
+        /* Todas as aulas de uma disciplina numa tacada só. Sessenta
+           inserções separadas seriam sessenta idas ao banco, e uma falha
+           no meio deixaria a matriz pela metade.
+
+           NASCEM COMO RASCUNHO (`publicada: false`) de propósito: a
+           estrutura existe para receber vídeo e material, e aula
+           publicada dispara o aviso da migração 028. Publicar sessenta
+           aulas vazias mandaria sessenta recados de "nova aula
+           disponível" para a escola inteira. */
+        const { error } = await admin.from('aulas').insert(
+          d.aulas.map((titulo, i) => ({
+            curso_id: cursoId,
+            disciplina_id: disciplinaId,
+            numero: i + 1,
+            titulo,
+            publicada: false,
+          }))
+        )
+        if (error) throw new Error(error.message)
+        criouAulas += d.aulas.length
+      }
+    }
+
+    revalidarAulas(cursoId)
+    revalidatePath('/dashboard/admin/cursos')
+    return { modulos: criouModulos + (jaTinha === 1 ? 1 : 0), disciplinas: criouDisciplinas, aulas: criouAulas }
   })
 }

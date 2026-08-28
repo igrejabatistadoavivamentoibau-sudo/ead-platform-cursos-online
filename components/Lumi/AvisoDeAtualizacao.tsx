@@ -153,11 +153,17 @@ export default function AvisoDeAtualizacao({ versaoDaPagina }: { versaoDaPagina:
      continua funcionando por causa do cofre (public/sw.js).
      ============================================================ */
 
+  /* O POSICIONAMENTO SAIU DAQUI, e é de propósito: quem coloca esta
+     pastilha no canto agora é `CantoDaLumi` (components/Lumi/Canto.tsx).
+     Antes ela se plantava sozinha em `bottom-4 right-4`, e o recado novo
+     da LUMI — que mora no mesmo canto — caía exatamente por cima dela. O
+     comportamento e a aparência da pastilha não mudaram em nada. */
+
   // O anúncio de chegada só aparece se não houver defasagem para resolver:
   // "atualize" e "você já está atualizado" juntos seriam contraditórios.
   if ((!temNova || dispensado) && chegouNaNova) {
     return (
-      <div className="fixed bottom-4 right-4 z-[60] animate-float-in">
+      <div className="animate-float-in">
         <div className="flex items-center gap-2.5 rounded-full bg-white/95 py-1.5 pl-1.5 pr-3 shadow-lg ring-1 ring-brand-950/10 backdrop-blur">
           <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full ring-1 ring-brand-500/25">
             <Image src="/lumi-avatar.png" alt="LUMI" fill sizes="28px" className="object-cover" />
@@ -182,7 +188,7 @@ export default function AvisoDeAtualizacao({ versaoDaPagina }: { versaoDaPagina:
   if (!temNova || dispensado) return null
 
   return (
-    <div className="fixed bottom-4 right-4 z-[60] animate-float-in">
+    <div className="animate-float-in">
       <div className="flex items-center gap-2 rounded-full bg-white/95 py-1.5 pl-1.5 pr-2 shadow-lg ring-1 ring-brand-950/10 backdrop-blur">
         <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full ring-1 ring-brand-500/25">
           <Image src="/lumi-avatar.png" alt="LUMI" fill sizes="28px" className="object-cover" />

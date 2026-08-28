@@ -15,6 +15,7 @@ import {
   Users2,
   AlertTriangle,
   CornerUpRight,
+  BookMarked,
 } from 'lucide-react'
 import {
   criarModulo,
@@ -22,11 +23,24 @@ import {
   moverModulo,
   removerModulo,
   moverAulaDeModulo,
+  criarDisciplina,
+  renomearDisciplina,
+  moverDisciplina,
+  removerDisciplina,
 } from '@/app/dashboard/admin/actions'
 import LinhaDaAula, { type AulaItem } from '@/components/Aulas/LinhaDaAula'
 import NovaAula from '@/components/Aulas/NovaAula'
 import AulaAvulsaForm from '@/components/Aulas/AulaAvulsaForm'
 import { Alerta } from '@/components/ui'
+
+export interface DisciplinaComAulas {
+  id: string
+  nome: string
+  ordem: number
+  /** Nasceu junto com o módulo. Enquanto for só ela, o degrau não aparece. */
+  padrao: boolean
+  aulas: AulaItem[]
+}
 
 export interface ModuloComAulas {
   id: string
@@ -35,7 +49,29 @@ export interface ModuloComAulas {
   ordem: number
   /** Quantas turmas estão penduradas neste módulo. */
   turmas: number
+  /** As matérias do módulo, em ordem. Sempre tem pelo menos uma. */
+  disciplinas: DisciplinaComAulas[]
+  /** Todas as aulas do módulo, planas. Serve para contagem e para a busca. */
   aulas: AulaItem[]
+}
+
+/* ------------------------------------------------------------------
+   QUANDO O DEGRAU DA DISCIPLINA APARECE
+
+   Um curso simples — módulo com dez aulas, sem matérias separadas — não
+   pode ganhar um nível a mais na tela só porque o banco tem espaço para
+   ele. Seria um clique extra para chegar em toda aula, em troca de nada.
+
+   Então: enquanto o módulo tiver só a disciplina automática, as aulas
+   ficam direto embaixo dele, como sempre foram. Assim que existe uma
+   segunda matéria — ou a pessoa dá nome à primeira — o degrau aparece.
+
+   A estrutura no banco é a mesma para os dois casos. O que muda é o que
+   se mostra.
+   ------------------------------------------------------------------ */
+export function mostrarDisciplinas(m: { disciplinas: DisciplinaComAulas[] }): boolean {
+  const d = m.disciplinas ?? []
+  return d.length > 1 || d.some((x) => !x.padrao)
 }
 
 /* A receita do campo mora em app/globals.css, numa definição só. Existiam
@@ -170,7 +206,11 @@ export default function ConteudoDoCurso({
 
   const encontrados = termo
     ? emOrdem
-        .map((m) => ({ ...m, aulas: m.aulas.filter(bate) }))
+        .map((m) => ({
+          ...m,
+          aulas: m.aulas.filter(bate),
+          disciplinas: (m.disciplinas ?? []).map((d) => ({ ...d, aulas: d.aulas.filter(bate) })),
+        }))
         .filter((m) => m.aulas.length > 0 || m.nome.toLowerCase().includes(termo))
     : emOrdem
 
@@ -478,44 +518,77 @@ export default function ConteudoDoCurso({
               {/* ----- As aulas do módulo ----- */}
               {aberto && (
                 <div className="space-y-3 border-t border-gray-100 bg-gray-50/40 p-4">
-                  {m.aulas.length === 0 ? (
-                    <p className="py-2 text-center text-[13px] text-gray-500">
-                      Nenhuma aula neste módulo ainda.
-                    </p>
+                  {mostrarDisciplinas(m) ? (
+                    /* ===== COM DISCIPLINAS =====
+                       Cada matéria é uma seção com as SUAS aulas e o SEU
+                       botão de adicionar. É este o "entro no módulo, na
+                       disciplina, e anexo o vídeo naquela aula": não há
+                       campo de escolher matéria, porque a matéria é o
+                       lugar onde a pessoa clicou. */
+                    <div className="space-y-4">
+                      {(m.disciplinas ?? [])
+                        .slice()
+                        .sort((a, b) => a.ordem - b.ordem)
+                        .map((d) => (
+                          <SecaoDaDisciplina
+                            key={d.id}
+                            cursoId={cursoId}
+                            modulo={m}
+                            disciplina={d}
+                            totalAlunos={totalAlunos}
+                            outros={outros}
+                            termo={termo}
+                            busca={busca}
+                            podeEditar={podeEditarModulos}
+                          />
+                        ))}
+                    </div>
                   ) : (
-                    m.aulas.map((a, j) => (
-                      <LinhaDaAula
-                        key={a.id}
-                        aula={a}
-                        cursoId={cursoId}
-                        totalAlunos={totalAlunos}
-                        podeSubir={j > 0 && !termo}
-                        podeDescer={j < m.aulas.length - 1 && !termo}
-                        outrosModulos={podeEditarModulos ? outros : []}
-                        destacar={busca}
-                      />
-                    ))
+                    /* ===== SEM DISCIPLINAS: como sempre foi ===== */
+                    <>
+                      {m.aulas.length === 0 ? (
+                        <p className="py-2 text-center text-[13px] text-gray-500">
+                          Nenhuma aula neste módulo ainda.
+                        </p>
+                      ) : (
+                        m.aulas.map((a, j) => (
+                          <LinhaDaAula
+                            key={a.id}
+                            aula={a}
+                            cursoId={cursoId}
+                            totalAlunos={totalAlunos}
+                            podeSubir={j > 0 && !termo}
+                            podeDescer={j < m.aulas.length - 1 && !termo}
+                            outrosModulos={podeEditarModulos ? outros : []}
+                            destacar={busca}
+                          />
+                        ))
+                      )}
+
+                      {!termo && (
+                        <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
+                          <div className="flex-1">
+                            <NovaAula
+                              cursoId={cursoId}
+                              moduloId={m.id}
+                              disciplinaId={m.disciplinas?.[0]?.id}
+                              moduloNome={m.nome}
+                              proximoNumero={
+                                m.aulas.reduce((max, a) => Math.max(max, a.numero), 0) + 1
+                              }
+                            />
+                          </div>
+                          <AulaAvulsaForm
+                            cursoId={cursoId}
+                            modulos={[{ id: m.id, nome: m.nome, ordem: m.ordem }]}
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
 
-                  {!termo && (
-                    <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
-                      <div className="flex-1">
-                        <NovaAula
-                          cursoId={cursoId}
-                          moduloId={m.id}
-                          moduloNome={m.nome}
-                          proximoNumero={
-                            m.aulas.reduce((max, a) => Math.max(max, a.numero), 0) + 1
-                          }
-                        />
-                      </div>
-                      {/* Aula gravada — o arquivo vai direto para o
-                          armazenamento, e nasce neste módulo. */}
-                      <AulaAvulsaForm
-                        cursoId={cursoId}
-                        modulos={[{ id: m.id, nome: m.nome, ordem: m.ordem }]}
-                      />
-                    </div>
+                  {!termo && podeEditarModulos && (
+                    <NovaDisciplina cursoId={cursoId} moduloId={m.id} moduloNome={m.nome} />
                   )}
                 </div>
               )}
@@ -578,6 +651,276 @@ export default function ConteudoDoCurso({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ============================================================
+   UMA DISCIPLINA DENTRO DO MÓDULO
+
+   Seção própria, com as suas aulas, a sua numeração (que recomeça em 1 —
+   ver a migração 030) e o seu botão de adicionar. O nome fica em cima e o
+   conteúdo recuado à esquerda por uma linha vertical: é o que faz o olho
+   entender, sem ler, que aquelas aulas pertencem àquela matéria.
+   ============================================================ */
+function SecaoDaDisciplina({
+  cursoId,
+  modulo,
+  disciplina,
+  totalAlunos,
+  outros,
+  termo,
+  busca,
+  podeEditar,
+}: {
+  cursoId: string
+  modulo: ModuloComAulas
+  disciplina: DisciplinaComAulas
+  totalAlunos: number
+  outros: { id: string; nome: string }[]
+  termo: string
+  busca: string
+  podeEditar: boolean
+}) {
+  const router = useRouter()
+  const [editando, setEditando] = useState(false)
+  const [nome, setNome] = useState(disciplina.nome)
+  const [erro, setErro] = useState<string | null>(null)
+  const [salvando, iniciar] = useTransition()
+
+  /* Uma transição POR DISCIPLINA, e não uma para a página inteira. Com um
+     estado só, renomear a segunda matéria desabilitaria os botões de
+     todas as outras — o mesmo motivo que fez cada linha de aula ter a
+     sua. */
+  const executar = (acao: () => Promise<{ ok: boolean; erro?: string }>) => {
+    setErro(null)
+    iniciar(async () => {
+      const r = await acao()
+      if (!r.ok) setErro(r.erro ?? 'Não consegui salvar.')
+      else {
+        setEditando(false)
+        router.refresh()
+      }
+    })
+  }
+
+  return (
+    <section className="rounded-xl bg-white ring-1 ring-gray-200/70">
+      <header className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-3.5 py-2.5">
+        <BookMarked className="h-4 w-4 shrink-0 text-brand-600" strokeWidth={2} />
+
+        {editando ? (
+          <input
+            autoFocus
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') executar(() => renomearDisciplina(disciplina.id, cursoId, { nome }))
+              if (e.key === 'Escape') {
+                setNome(disciplina.nome)
+                setEditando(false)
+              }
+            }}
+            className={`${CAMPO} h-8 flex-1 !py-1 text-[13.5px]`}
+          />
+        ) : (
+          <h4 className="min-w-0 flex-1 truncate text-[13.5px] font-bold text-gray-900">
+            {disciplina.nome}
+          </h4>
+        )}
+
+        <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-gray-500">
+          {disciplina.aulas.length} {disciplina.aulas.length === 1 ? 'aula' : 'aulas'}
+        </span>
+
+        {podeEditar && !termo && (
+          <span className="flex shrink-0 items-center gap-0.5">
+            {editando ? (
+              <button
+                type="button"
+                disabled={salvando}
+                onClick={() => executar(() => renomearDisciplina(disciplina.id, cursoId, { nome }))}
+                className="rounded-md px-2 py-1 text-[12px] font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50"
+              >
+                Salvar
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditando(true)}
+                aria-label={`Renomear ${disciplina.nome}`}
+                className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              >
+                <PenLine className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={salvando}
+              onClick={() => executar(() => moverDisciplina(disciplina.id, cursoId, 'cima'))}
+              aria-label="Subir disciplina"
+              className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={salvando}
+              onClick={() => executar(() => moverDisciplina(disciplina.id, cursoId, 'baixo'))}
+              aria-label="Descer disciplina"
+              className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={salvando}
+              onClick={() => executar(() => removerDisciplina(disciplina.id, cursoId))}
+              aria-label={`Apagar ${disciplina.nome}`}
+              className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </span>
+        )}
+      </header>
+
+      {erro && (
+        <div className="px-3.5 pt-3">
+          <Alerta>{erro}</Alerta>
+        </div>
+      )}
+
+      <div className="space-y-3 p-3.5">
+        {disciplina.aulas.length === 0 ? (
+          <p className="py-1 text-center text-[12.5px] text-gray-400">
+            Nenhuma aula em {disciplina.nome} ainda.
+          </p>
+        ) : (
+          disciplina.aulas
+            .slice()
+            .sort((a, b) => a.numero - b.numero)
+            .map((a, j) => (
+              <LinhaDaAula
+                key={a.id}
+                aula={a}
+                cursoId={cursoId}
+                totalAlunos={totalAlunos}
+                podeSubir={j > 0 && !termo}
+                podeDescer={j < disciplina.aulas.length - 1 && !termo}
+                outrosModulos={podeEditar ? outros : []}
+                destacar={busca}
+              />
+            ))
+        )}
+
+        {!termo && (
+          <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
+            <div className="flex-1">
+              <NovaAula
+                cursoId={cursoId}
+                moduloId={modulo.id}
+                disciplinaId={disciplina.id}
+                moduloNome={disciplina.nome}
+                proximoNumero={
+                  disciplina.aulas.reduce((max, a) => Math.max(max, a.numero), 0) + 1
+                }
+              />
+            </div>
+            <AulaAvulsaForm
+              cursoId={cursoId}
+              modulos={[{ id: modulo.id, nome: modulo.nome, ordem: modulo.ordem }]}
+            />
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/* ============================================================
+   ABRIR UMA DISCIPLINA NOVA
+
+   Fica no pé do módulo, e não num menu: dividir um módulo em matérias é
+   uma decisão que se toma OLHANDO para o que já está lá dentro.
+   ============================================================ */
+function NovaDisciplina({
+  cursoId,
+  moduloId,
+  moduloNome,
+}: {
+  cursoId: string
+  moduloId: string
+  moduloNome: string
+}) {
+  const router = useRouter()
+  const [aberto, setAberto] = useState(false)
+  const [nome, setNome] = useState('')
+  const [erro, setErro] = useState<string | null>(null)
+  const [salvando, iniciar] = useTransition()
+
+  if (!aberto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 py-2.5 text-[12.5px] font-medium text-gray-500 transition-colors hover:border-brand-400 hover:bg-brand-50/40 hover:text-brand-700"
+      >
+        <BookMarked className="h-3.5 w-3.5" />
+        Nova disciplina em {moduloNome}
+      </button>
+    )
+  }
+
+  return (
+    <div className="rounded-xl bg-white p-3.5 ring-1 ring-gray-200/70">
+      {erro && (
+        <div className="mb-2.5">
+          <Alerta>{erro}</Alerta>
+        </div>
+      )}
+      <label className="mb-1.5 block text-[12px] font-semibold text-gray-600">
+        Nome da disciplina
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <input
+          autoFocus
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          placeholder="Bibliologia, Homilética, Vida devocional..."
+          className={`${CAMPO} h-9 min-w-0 flex-1 !py-1.5 text-[13.5px]`}
+        />
+        <button
+          type="button"
+          disabled={salvando || !nome.trim()}
+          onClick={() => {
+            setErro(null)
+            iniciar(async () => {
+              const r = await criarDisciplina(cursoId, moduloId, { nome })
+              if (!r.ok) setErro(r.erro)
+              else {
+                setNome('')
+                setAberto(false)
+                router.refresh()
+              }
+            })
+          }}
+          className="h-9 shrink-0 rounded-lg bg-brand-700 px-3.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-50"
+        >
+          {salvando ? 'Criando...' : 'Criar'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setAberto(false)
+            setNome('')
+            setErro(null)
+          }}
+          className="h-9 shrink-0 rounded-lg px-3 text-[12.5px] font-medium text-gray-500 transition-colors hover:bg-gray-100"
+        >
+          Cancelar
+        </button>
+      </div>
     </div>
   )
 }
