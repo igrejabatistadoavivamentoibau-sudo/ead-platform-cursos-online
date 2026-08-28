@@ -166,6 +166,7 @@ export function lerMatriz(texto: string): MatrizLida {
      com 4, quanto o com tabulação — e quanto o que mistura os três,
      que é o que acontece quando se cola de dois lugares diferentes. */
   const pilha: number[] = []
+  let rotuloAvisado = false
 
   const moduloAtual = () => modulos[modulos.length - 1]
   const disciplinaAtual = () => {
@@ -203,6 +204,24 @@ export function lerMatriz(texto: string): MatrizLida {
 
     const nome = limparNome(bruta)
     if (!nome) continue
+
+    /* AVISAR QUANDO O RÓTULO SAIU.
+
+       A escola dela escreve "AULA 01 - A história que começou com Deus".
+       A limpeza tira o "AULA 01 - " de propósito (a plataforma numera
+       sozinha, e dois números na mesma linha brigam) — mas o nome que
+       nasce fica diferente do que ela digitou.
+
+       Ela vê o resultado na prévia de qualquer jeito. O aviso existe
+       para ela entender POR QUE ficou diferente, em vez de achar que a
+       plataforma comeu parte do nome. Uma vez só, por mais linhas que
+       tenham rótulo. */
+    if (nome !== bruta.trim().replace(/^[-*•–—·]\s+/, '') && !rotuloAvisado) {
+      rotuloAvisado = true
+      avisos.push(
+        'Tirei o "Módulo 1 -", "Aula 3 -" e a numeração da frente dos nomes: a plataforma já numera sozinha. Os nomes ficam como aparecem na prévia.'
+      )
+    }
 
     while (pilha.length > 0 && recuo < pilha[pilha.length - 1]) pilha.pop()
     if (pilha.length === 0 || recuo > pilha[pilha.length - 1]) pilha.push(recuo)
@@ -384,4 +403,222 @@ export function conferirMatriz(matriz: MatrizLida): Conferencia {
   }
 
   return { ok: true }
+}
+
+/* ==================================================================
+   A MATRIZ NUM CURSO QUE JÁ EXISTE
+
+   Pedido dela: *"os cursos já criados precisam ser editáveis para as
+   novas alterações também, não só os antigos."*
+
+   O PROBLEMA REAL, COM NOMES
+
+   O curso "Escola de Líderes" já tem o "Módulo 1 - CRER" com vinte aulas
+   soltas. A escola quer separar em Bibliologia e Teologia Própria. Ela
+   escreve a matriz nova e cola.
+
+   Se a matriz sempre criasse do zero, o resultado seria um SEGUNDO
+   "Módulo 1 - CRER" ao lado do primeiro: um com as vinte aulas antigas,
+   outro com as matérias novas e vinte aulas repetidas. Vinte turmas
+   apontando para o módulo errado, e ninguém entendendo por quê.
+
+   Então a matriz JUNTA PELO NOME. O que já existe é reaproveitado, o que
+   falta é criado, e a aula que já existe no módulo — mas na matéria
+   errada — é MOVIDA em vez de duplicada.
+
+   TRÊS DESTINOS, NÃO DOIS
+
+   É essa terceira possibilidade que faz a coisa funcionar num curso
+   antigo. "A origem das Escrituras" já existe no Módulo 1, dentro da
+   matéria automática. Na matriz nova ela aparece dentro de Bibliologia.
+   Não é aula nova (criar faria duas) e não é "já está certo" (ela está
+   noutro lugar): é uma aula que MUDA DE MATÉRIA, levando junto o vídeo, o
+   material de apoio e o progresso de quem já assistiu.
+
+   E TUDO ISSO APARECE ANTES
+
+   Juntar por nome sem mostrar o que vai acontecer seria pior do que
+   duplicar: pelo menos duplicata se vê. Por isso a comparação é feita
+   aqui, em memória, e a prévia marca cada linha com o seu destino.
+
+   NADA AQUI IMPORTA NADA — é o que deixa o teste compilar este arquivo
+   sozinho e provar caso a caso.
+   ================================================================== */
+
+/** A árvore do curso como ela está gravada hoje. */
+export interface EstruturaExistente {
+  modulos: {
+    nome: string
+    disciplinas: { nome: string; padrao: boolean; aulas: string[] }[]
+  }[]
+}
+
+/** O que vai acontecer com uma aula da matriz escrita. */
+export type DestinoDaAula =
+  /** Não existe em lugar nenhum deste módulo: nasce. */
+  | 'criar'
+  /** Já está exatamente onde a matriz manda: não se toca. */
+  | 'manter'
+  /** Existe no módulo, noutra matéria: muda de matéria, sem perder nada. */
+  | 'mover'
+
+export interface MatrizComparada {
+  modulos: {
+    nome: string
+    novo: boolean
+    /** Como ele se chama HOJE no curso, quando já existe. */
+    nomeAtual?: string
+    disciplinas: {
+      nome: string | null
+      novo: boolean
+      nomeAtual?: string
+      aulas: { titulo: string; destino: DestinoDaAula; de?: string }[]
+    }[]
+  }[]
+  criar: { modulos: number; disciplinas: number; aulas: number }
+  manter: { modulos: number; disciplinas: number; aulas: number }
+  mover: number
+}
+
+/**
+ * Dois nomes são "o mesmo" quando só diferem no que ninguém enxerga:
+ * espaço a mais, maiúscula, acento.
+ *
+ * IGNORAR ACENTO É DECISÃO, NÃO DESCUIDO. Quem digita a matriz no celular
+ * escreve "Homiletica"; criar uma segunda matéria por causa do acento
+ * seria um defeito difícil de entender depois — duas Homiléticas na tela,
+ * com as aulas divididas entre elas.
+ */
+export function mesmoNome(a: string | null, b: string | null): boolean {
+  const achatar = (t: string | null) =>
+    (t ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLowerCase()
+
+  const x = achatar(a)
+  const y = achatar(b)
+  if (x === y) return true
+
+  /* E TAMBÉM SEM O RÓTULO NA FRENTE — foi um teste com os dados REAIS da
+     escola que obrigou esta segunda comparação.
+
+     Os módulos dela chamam-se, no banco, "Módulo 1 - CRER" e "Módulo 2 -
+     VIVER". Quando ela escreve a matriz, escreve exatamente isso — e a
+     leitura, que tira rótulo repetido de propósito (senão o curso ganharia
+     um módulo chamado "1. Módulo 1 - CRER"), entrega "CRER".
+
+     "CRER" e "Módulo 1 - CRER" não batem como texto. Sem esta linha, colar
+     a matriz do curso dela criaria um módulo novo ao lado de cada um dos
+     que já existem — justamente o defeito que juntar por nome veio
+     resolver, e justamente no curso que ela usa. */
+  return achatar(limparNome(a ?? '')) === achatar(limparNome(b ?? ''))
+}
+
+export function compararComOQueExiste(
+  matriz: MatrizLida,
+  existente: EstruturaExistente
+): MatrizComparada {
+  const criar = { modulos: 0, disciplinas: 0, aulas: 0 }
+  const manter = { modulos: 0, disciplinas: 0, aulas: 0 }
+  let mover = 0
+
+  const modulos = matriz.modulos.map((m) => {
+    const jaExiste = existente.modulos.find((x) => mesmoNome(x.nome, m.nome))
+    if (jaExiste) manter.modulos += 1
+    else criar.modulos += 1
+
+    /* Uma aula existente só pode ser reclamada UMA vez. Sem isto, uma
+       matriz que repetisse o mesmo título em duas matérias do mesmo
+       módulo diria "mover" para as duas — e a segunda acabaria roubando
+       a aula da primeira, sem nunca ter sido criada. */
+    const jaUsadas = new Set<string>()
+
+    const disciplinas = m.disciplinas.map((d) => {
+      /* A matéria automática do módulo é o "sem matéria": ela casa com a
+         `padrao` de lá, e não com nenhum nome escrito. */
+      const dExiste = jaExiste
+        ? d.nome === null
+          ? jaExiste.disciplinas.find((x) => x.padrao)
+          : jaExiste.disciplinas.find((x) => mesmoNome(x.nome, d.nome))
+        : undefined
+
+      if (d.nome !== null) {
+        if (dExiste) manter.disciplinas += 1
+        else criar.disciplinas += 1
+      }
+
+      const aulas = d.aulas.map((titulo) => {
+        /* 1. Já está nesta matéria? Então não se toca nela. */
+        const aqui = dExiste?.aulas.findIndex(
+          (t, i) => mesmoNome(t, titulo) && !jaUsadas.has(`${dExiste.nome}#${i}`)
+        )
+        if (dExiste && aqui !== undefined && aqui >= 0) {
+          jaUsadas.add(`${dExiste.nome}#${aqui}`)
+          manter.aulas += 1
+          return { titulo, destino: 'manter' as const }
+        }
+
+        /* 2. Está no módulo, mas em OUTRA matéria? Então ela se muda —
+              com vídeo, material e progresso de quem já assistiu. */
+        if (jaExiste) {
+          for (const outra of jaExiste.disciplinas) {
+            if (outra === dExiste) continue
+            const i = outra.aulas.findIndex(
+              (t, k) => mesmoNome(t, titulo) && !jaUsadas.has(`${outra.nome}#${k}`)
+            )
+            if (i >= 0) {
+              jaUsadas.add(`${outra.nome}#${i}`)
+              mover += 1
+              return { titulo, destino: 'mover' as const, de: outra.nome }
+            }
+          }
+        }
+
+        /* 3. Não existe: nasce. */
+        criar.aulas += 1
+        return { titulo, destino: 'criar' as const }
+      })
+
+      /* O nome ATUAL viaja junto porque a prévia precisa dele.
+         A leitura tira o rótulo ("Módulo 1 - CRER" vira "CRER"), e a
+         prévia mostrando "CRER — já existe" faria ela procurar na tela um
+         módulo com esse nome, que não existe. Mostrando "Módulo 1 - CRER"
+         ela reconhece o próprio curso. */
+      return { nome: d.nome, novo: !dExiste, nomeAtual: dExiste?.nome, aulas }
+    })
+
+    return { nome: m.nome, novo: !jaExiste, nomeAtual: jaExiste?.nome, disciplinas }
+  })
+
+  return { modulos, criar, manter, mover }
+}
+
+/** A frase da prévia, quando parte da matriz já está no curso. */
+export function fraseDoQueVaiAcontecer(c: MatrizComparada): string {
+  const parte = (n: number, um: string, varios: string) =>
+    `${n} ${n === 1 ? um : varios}`
+
+  const novos: string[] = []
+  if (c.criar.modulos > 0) novos.push(parte(c.criar.modulos, 'módulo', 'módulos'))
+  if (c.criar.disciplinas > 0)
+    novos.push(parte(c.criar.disciplinas, 'disciplina', 'disciplinas'))
+  if (c.criar.aulas > 0) novos.push(parte(c.criar.aulas, 'aula', 'aulas'))
+
+  const frases: string[] = []
+  if (novos.length > 0) frases.push(`Criar ${novos.join(' · ')}`)
+  if (c.mover > 0) frases.push(`mover ${parte(c.mover, 'aula', 'aulas')} de matéria`)
+
+  const intactas = c.manter.modulos + c.manter.disciplinas + c.manter.aulas
+
+  if (frases.length === 0) {
+    return intactas > 0
+      ? 'Tudo isso já existe no curso, exatamente assim — nada a fazer.'
+      : 'Nada a criar.'
+  }
+
+  const frase = frases.join(' e ')
+  return intactas > 0 ? `${frase}. O resto já existe e fica como está.` : `${frase}.`
 }

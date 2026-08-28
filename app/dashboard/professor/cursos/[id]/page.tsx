@@ -50,7 +50,7 @@ export default async function CursoProfessorPage({
        CRIA aula, e aula sem módulo é aula que o aluno nunca vê. */
     supabase
       .from('modulos')
-      .select('id, nome, descricao, ordem')
+      .select('id, nome, descricao, ordem, video_boas_vindas')
       .eq('curso_id', id)
       .order('ordem', { ascending: true }),
     /* As matérias de cada módulo, numa consulta só para o curso inteiro. */
@@ -142,6 +142,7 @@ export default async function CursoProfessorPage({
       descricao: (m.descricao as string) ?? null,
       ordem: Number(m.ordem),
       turmas: turmasPorModulo.get(m.id as string) ?? 0,
+      video_boas_vindas: (m.video_boas_vindas as string) ?? null,
       disciplinas: (disciplinas ?? [])
         .filter((d) => d.modulo_id === m.id)
         .map((d) => ({

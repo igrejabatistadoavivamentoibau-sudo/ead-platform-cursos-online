@@ -54,7 +54,7 @@ export default async function CursoDoAlunoPage({
   ] = await Promise.all([
       supabase
         .from('modulos')
-        .select('id, nome, descricao, ordem')
+        .select('id, nome, descricao, ordem, video_boas_vindas')
         .eq('curso_id', id)
         .order('ordem', { ascending: true }),
       /* As matérias, para a lista de aulas poder dizer de qual delas é
@@ -101,6 +101,7 @@ export default async function CursoDoAlunoPage({
       nome: m.nome as string,
       descricao: (m.descricao as string) ?? null,
       ordem: Number(m.ordem),
+      video_boas_vindas: (m.video_boas_vindas as string) ?? null,
     })),
     matriculas
   )

@@ -8,6 +8,7 @@ import { lerJanela } from '@/lib/janelaDaAtividade'
 import ResumoAula from '@/components/Aulas/ResumoAula'
 import CadernoDaAula from '@/components/Caderno/CadernoDaAula'
 import MateriaisDaAula, { type MaterialNaTela } from '@/components/Materiais/MateriaisDaAula'
+import BoasVindasDoAluno from '@/components/Cursos/BoasVindasDoAluno'
 import { corDoCurso, urlDaCapa, NIVEL_LABEL, type Curso } from '@/lib/cursos'
 import type { EstadoDoModulo } from '@/lib/modulosDoAluno'
 import { enderecoDoVideo } from '@/lib/video'
@@ -67,6 +68,8 @@ export interface ModuloNaTela {
   aberto: boolean
   atual: boolean
   motivo?: string
+  /** Vídeo de boas-vindas do módulo (migração 031), se a escola pôs um. */
+  video_boas_vindas?: string | null
   aulas: AulaDoCurso[]
 }
 
@@ -360,6 +363,15 @@ export default function VisaoDoCurso({
 
                   {!g.aberto && g.motivo && (
                     <p className="w-full text-[12px] leading-relaxed text-gray-500">{g.motivo}</p>
+                  )}
+
+                  {/* AS BOAS-VINDAS DO MÓDULO.
+                      Só para módulo aberto: num módulo trancado ela seria
+                      um convite para uma porta que não abre. */}
+                  {g.aberto && g.video_boas_vindas && (
+                    <div className="w-full">
+                      <BoasVindasDoAluno moduloNome={g.nome} video={g.video_boas_vindas} />
+                    </div>
                   )}
                 </div>
               )}

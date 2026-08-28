@@ -11,6 +11,7 @@ import type { AulaItem } from '@/components/Aulas/LinhaDaAula'
 import type { MaterialNaTela } from '@/components/Materiais/MateriaisDaAula'
 import ConteudoDoCurso, { type ModuloComAulas } from '@/components/Cursos/ConteudoDoCurso'
 import MatrizCurricular from '@/components/Cursos/MatrizCurricular'
+import type { EstruturaExistente } from '@/lib/nucleo/matrizCurricular'
 import {
   corDoCurso,
   urlDaCapa,
@@ -42,7 +43,7 @@ export default async function CursoDetalhePage({
     supabase.from('turmas').select('id, nome, status, modulo_id').eq('curso_id', id),
     supabase
       .from('modulos')
-      .select('id, nome, descricao, ordem')
+      .select('id, nome, descricao, ordem, video_boas_vindas')
       .eq('curso_id', id)
       .order('ordem', { ascending: true }),
     /* As matérias de cada módulo. Uma consulta só para o curso inteiro, e
@@ -146,6 +147,7 @@ export default async function CursoDetalhePage({
       descricao: (m.descricao as string) ?? null,
       ordem: Number(m.ordem),
       turmas: turmasPorModulo.get(m.id as string) ?? 0,
+      video_boas_vindas: (m.video_boas_vindas as string) ?? null,
       disciplinas: (disciplinas ?? [])
         .filter((d) => d.modulo_id === m.id)
         .map((d) => ({
@@ -163,6 +165,23 @@ export default async function CursoDetalhePage({
      nasçam novas, mas as antigas precisam ser ENCONTRÁVEIS — aula fora de
      módulo é aula que nenhum aluno vê. */
   const semModulo = lista.filter((a) => !a.modulo_id)
+
+  /* A ÁRVORE ATUAL, achatada em nomes, para a matriz poder comparar.
+
+     Sem isto a prévia diria "criar 3 módulos, 6 disciplinas, 60 aulas"
+     mesmo quando metade disso já está no curso — e ela só descobriria a
+     duplicata depois de clicar. Com isto, cada linha da prévia vem
+     marcada: nova, já existe, ou muda de matéria. */
+  const estruturaAtual: EstruturaExistente = {
+    modulos: arvore.map((m) => ({
+      nome: m.nome,
+      disciplinas: m.disciplinas.map((d) => ({
+        nome: d.nome,
+        padrao: d.padrao,
+        aulas: d.aulas.map((a) => a.titulo),
+      })),
+    })),
+  }
 
   const cor = corDoCurso(curso.cor)
   const capa = urlDaCapa(curso.capa_path)
@@ -284,7 +303,11 @@ export default async function CursoDetalhePage({
            lista de nada. Num curso que já tem conteúdo, é um botão
            fechado que não atrapalha. */}
       <div className="mb-5">
-        <MatrizCurricular cursoId={curso.id} cursoVazio={lista.length === 0} />
+        <MatrizCurricular
+          cursoId={curso.id}
+          cursoVazio={lista.length === 0}
+          existente={estruturaAtual}
+        />
       </div>
 
       {/* ---------- Módulos e vídeo aulas, numa árvore só ---------- */}

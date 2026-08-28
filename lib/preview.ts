@@ -25,7 +25,7 @@ export async function montarPreview(
       .order('numero', { ascending: true }),
     supabase
       .from('modulos')
-      .select('id, nome, descricao, ordem')
+      .select('id, nome, descricao, ordem, video_boas_vindas')
       .eq('curso_id', cursoId)
       .order('ordem', { ascending: true }),
   ])
@@ -46,6 +46,7 @@ export async function montarPreview(
     nome: m.nome as string,
     descricao: (m.descricao as string) ?? null,
     ordem: Number(m.ordem),
+    video_boas_vindas: (m.video_boas_vindas as string) ?? null,
     estado: 'cursando' as const,
     aberto: true,
     atual: false,

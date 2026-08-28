@@ -75,16 +75,20 @@ export default function ColocarEmTurma({
     if (!escolhida) return
     setError(null)
     startTransition(async () => {
-      try {
-        /* Sem `ignorarPreRequisito`: refazer o MESMO módulo não exige
-           pré-requisito nenhum, então a regra passa naturalmente. Se um
-           dia isto virar exceção, ela tem que ser escrita. */
-        await matricularAluno(escolhida, repetente.alunoId)
-        setFeito(true)
-        router.refresh()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Não consegui matricular.')
+      /* Sem `ignorarPreRequisito`: refazer o MESMO módulo não exige
+         pré-requisito nenhum, então a regra passa naturalmente. Se um
+         dia isto virar exceção, ela tem que ser escrita.
+
+         A ação devolve o motivo em vez de lançar — em produção o Next
+         apaga a mensagem de exceção, e a coordenação via um parágrafo em
+         inglês no lugar da frase. */
+      const r = await matricularAluno(escolhida, repetente.alunoId)
+      if (!r.ok) {
+        setError(r.erro)
+        return
       }
+      setFeito(true)
+      router.refresh()
     })
   }
 

@@ -4,7 +4,18 @@ import { revalidatePath } from 'next/cache'
 import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolverPermissoes, type ChavePermissao, type UserRole } from '@/lib/permissoes'
-import { lerMatriz, conferirMatriz } from '@/lib/nucleo/matrizCurricular'
+/* `mesmoNome` chega com outro nome de propósito. Existe aqui embaixo um
+   `mesmoNome` local, usado para conferir se a pessoa digitou o nome de um
+   usuário antes de excluí-lo — e aquele NÃO pode ignorar rótulo de módulo.
+   Os dois têm o mesmo nome porque fazem a mesma coisa em domínios
+   diferentes; juntá-los faria "Módulo 1 - Ana" apagar a conta da Ana. */
+import {
+  lerMatriz,
+  conferirMatriz,
+  mesmoNome as mesmoNomeNaMatriz,
+} from '@/lib/nucleo/matrizCurricular'
+import { traduzirErroDeMatricula } from '@/lib/nucleo/matricula'
+import { analisarVideo } from '@/lib/video'
 
 /**
  * Confirma, a partir da sessão (cookies), que quem está chamando a action
@@ -212,40 +223,60 @@ export async function matricularAluno(
   turmaId: string,
   alunoId: string,
   opcoes?: { ignorarPreRequisito?: boolean; motivo?: string }
-) {
-  await requireAdmin()
-  const admin = createAdminClient()
+): Promise<Resultado> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
 
-  if (!opcoes?.ignorarPreRequisito) {
-    const r = await conferirPreRequisito(turmaId, alunoId)
-    if (!r.pode) throw new Error(r.motivo ?? 'Este aluno não cumpre o pré-requisito do módulo.')
-  }
+    if (!opcoes?.ignorarPreRequisito) {
+      const r = await conferirPreRequisito(turmaId, alunoId)
+      if (!r.pode) throw new Error(r.motivo ?? 'Este aluno não cumpre o pré-requisito do módulo.')
+    }
 
-  const { error } = await admin.from('turma_alunos').insert({
-    turma_id: turmaId,
-    aluno_id: alunoId,
-    ...(opcoes?.ignorarPreRequisito
-      ? {
-          observacao_conclusao:
-            'Matriculado sem o pré-requisito do módulo pela coordenação.' +
-            (opcoes.motivo ? ` Motivo: ${opcoes.motivo}` : ''),
-        }
-      : {}),
-  })
+    /* A MESMA MATRÍCULA DUAS VEZES NÃO É ERRO DE SISTEMA, É REPETIÇÃO.
+       Quem clica duas vezes, ou volta na tela antes de ela atualizar,
+       está pedindo o que já foi feito. O banco continua sendo a trava
+       (é ele quem garante isso mesmo com dois cliques simultâneos), mas
+       a resposta aqui não precisa ser uma quebra: é só dizer que já
+       está. */
+    const { count } = await admin
+      .from('turma_alunos')
+      .select('id', { count: 'exact', head: true })
+      .eq('turma_id', turmaId)
+      .eq('aluno_id', alunoId)
+    if ((count ?? 0) > 0) throw new Error('Esse aluno já está matriculado nesta turma.')
 
-  if (error) throw new Error(error.message)
-  revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
-  revalidatePath('/dashboard/admin/repetentes')
+    const { error } = await admin.from('turma_alunos').insert({
+      turma_id: turmaId,
+      aluno_id: alunoId,
+      ...(opcoes?.ignorarPreRequisito
+        ? {
+            observacao_conclusao:
+              'Matriculado sem o pré-requisito do módulo pela coordenação.' +
+              (opcoes.motivo ? ` Motivo: ${opcoes.motivo}` : ''),
+          }
+        : {}),
+    })
+
+    if (error) throw new Error(traduzirErroDeMatricula(error.message))
+    revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
+    revalidatePath('/dashboard/admin/repetentes')
+  }, 'Não consegui matricular. Tente de novo.')
 }
 
-export async function removerMatricula(turmaId: string, matriculaId: string) {
-  await requireAdmin()
-  const admin = createAdminClient()
+export async function removerMatricula(
+  turmaId: string,
+  matriculaId: string
+): Promise<Resultado> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
 
-  const { error } = await admin.from('turma_alunos').delete().eq('id', matriculaId)
+    const { error } = await admin.from('turma_alunos').delete().eq('id', matriculaId)
 
-  if (error) throw new Error(error.message)
-  revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
+    if (error) throw new Error(error.message)
+    revalidatePath(`/dashboard/admin/turmas/${turmaId}`)
+  }, 'Não consegui remover a matrícula. Tente de novo.')
 }
 
 // ============ ENCONTROS / CHAMADA ============
@@ -1690,6 +1721,63 @@ export async function renomearModulo(
   })
 }
 
+/* ============================================================
+   O VÍDEO DE BOAS-VINDAS DO MÓDULO
+
+   Pedido dela: "no módulo deixe disponível a possibilidade de incluir um
+   vídeo de boas vindas".
+
+   É uma ação separada de `renomearModulo` de propósito. Renomear é uma
+   frase curta que se salva num Enter; anexar vídeo é colar um link e
+   conferir se ele foi reconhecido. Juntas num formulário só, quem quisesse
+   corrigir uma vírgula no nome teria de passar pelo campo do vídeo — e
+   um campo de link em branco ao lado de um botão "Salvar" é o caminho
+   mais curto para apagar o vídeo sem querer.
+
+   APAGAR O VÍDEO É EXPLÍCITO: mandar string vazia limpa. Não é acidente
+   de formulário, é o botão "Tirar o vídeo".
+   ============================================================ */
+export async function definirBoasVindasDoModulo(
+  moduloId: string,
+  cursoId: string,
+  input: { video?: string | null; descricao?: string | null }
+): Promise<Resultado> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
+
+    const video = (input.video ?? '').trim()
+    /* A MESMA leitura de link que vale para a aula. Se um dia a
+       plataforma aprender um provedor novo, o vídeo de boas-vindas
+       aprende junto — não há segunda lista de provedores para divergir. */
+    if (video && analisarVideo(video).tipo === 'desconhecido') {
+      throw new Error(
+        'Não reconheci esse link de vídeo. Vale YouTube, Vimeo, Google Drive, OneDrive ou um arquivo de vídeo direto.'
+      )
+    }
+
+    const mudanca: Record<string, unknown> = {
+      video_boas_vindas: video || null,
+      updated_at: new Date().toISOString(),
+    }
+    /* `descricao` só é mexida quando vem: assim salvar o vídeo não apaga
+       o recado escrito, e vice-versa. */
+    if (input.descricao !== undefined) {
+      mudanca.descricao = (input.descricao ?? '').trim() || null
+    }
+
+    const { error } = await admin
+      .from('modulos')
+      .update(mudanca)
+      .eq('id', moduloId)
+      .eq('curso_id', cursoId)
+    if (error) throw new Error(error.message)
+
+    revalidarAulas(cursoId)
+    revalidatePath(`/dashboard/admin/cursos/${cursoId}`)
+  }, 'Não consegui salvar o vídeo de boas-vindas.')
+}
+
 /**
  * Troca de lugar com o vizinho.
  *
@@ -1994,6 +2082,64 @@ export async function moverAulaDeDisciplina(
   })
 }
 
+/* ============================================================
+   LEVAR TODAS AS AULAS DE UMA MATÉRIA PARA OUTRA
+
+   Este é o caminho de conversão de um curso ANTIGO — o pedido:
+   *"os cursos já criados precisam ser editáveis para as novas alterações
+   também, não só os antigos."*
+
+   Um módulo antigo tem vinte aulas soltas, todas na matéria automática.
+   A escola quer dividir em Bibliologia e Teologia. Sem isto, seriam vinte
+   movimentos um a um, e ninguém faz vinte movimentos: a pessoa desiste e
+   o curso fica sem matriz.
+
+   POR QUE UM `update` SÓ, E NÃO VINTE
+
+   As aulas mudam de matéria numa instrução, e o gatilho da 030 renumera
+   cada uma no destino. Vinte chamadas separadas dariam vinte idas ao
+   banco e, se a nona falhasse, o módulo ficaria metade numa matéria e
+   metade na outra — pior do que não ter começado.
+   ============================================================ */
+export async function moverAulasParaDisciplina(
+  cursoId: string,
+  deDisciplinaId: string,
+  paraDisciplinaId: string
+): Promise<Resultado<{ movidas: number }>> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
+
+    if (deDisciplinaId === paraDisciplinaId) {
+      throw new Error('A matéria de origem e a de destino são a mesma.')
+    }
+
+    /* As duas matérias precisam ser do MESMO módulo. Levar aula para a
+       matéria de outro módulo mudaria a turma que a vê — e isso é uma
+       decisão de outra ordem, que já tem o seu próprio caminho
+       ("mover para o módulo…" na linha da aula). */
+    const { data: duas, error: erroDuas } = await admin
+      .from('disciplinas')
+      .select('id, modulo_id, nome')
+      .in('id', [deDisciplinaId, paraDisciplinaId])
+    if (erroDuas) throw new Error(erroDuas.message)
+    if ((duas ?? []).length !== 2) throw new Error('Uma das matérias não existe mais.')
+    if (duas![0].modulo_id !== duas![1].modulo_id) {
+      throw new Error('As duas matérias precisam ser do mesmo módulo.')
+    }
+
+    const { data: movidas, error } = await admin
+      .from('aulas')
+      .update({ disciplina_id: paraDisciplinaId, updated_at: new Date().toISOString() })
+      .eq('disciplina_id', deDisciplinaId)
+      .select('id')
+    if (error) throw new Error(error.message)
+
+    revalidarAulas(cursoId)
+    return { movidas: (movidas ?? []).length }
+  }, 'Não consegui mover as aulas.')
+}
+
 /**
  * Cria a matriz inteira de uma vez.
  *
@@ -2003,7 +2149,9 @@ export async function moverAulaDeDisciplina(
 export async function criarMatrizCurricular(
   cursoId: string,
   texto: string
-): Promise<Resultado<{ modulos: number; disciplinas: number; aulas: number }>> {
+): Promise<
+  Resultado<{ modulos: number; disciplinas: number; aulas: number; movidas: number }>
+> {
   return tentar(async () => {
     await requireAdmin()
     const admin = createAdminClient()
@@ -2012,114 +2160,281 @@ export async function criarMatrizCurricular(
     const conferida = conferirMatriz(matriz)
     if (!conferida.ok) throw new Error(conferida.erro)
 
-    /* O CURSO RECÉM-CRIADO JÁ TEM UM "Módulo 1" VAZIO, posto pelo gatilho
-       da migração 022. Se a matriz começasse a criar módulos do zero, o
-       curso ficaria com um módulo fantasma na frente de tudo — e ela
-       teria de apagar na mão logo depois de montar a matriz.
-       Então o primeiro módulo da matriz REAPROVEITA aquele, quando ele
-       está vazio (sem aula e sem turma). */
-    const { data: existentes } = await admin
-      .from('modulos')
-      .select('id, nome, ordem')
-      .eq('curso_id', cursoId)
-      .order('ordem', { ascending: true })
+    /* ------------------------------------------------------------
+       PRIMEIRO SE LÊ O QUE JÁ EXISTE.
 
-    let reaproveitar: string | null = null
-    if ((existentes ?? []).length === 1) {
-      const unico = existentes![0]
-      const [{ count: comAula }, { count: comTurma }] = await Promise.all([
-        admin.from('aulas').select('id', { count: 'exact', head: true }).eq('modulo_id', unico.id),
-        admin.from('turmas').select('id', { count: 'exact', head: true }).eq('modulo_id', unico.id),
+       Pedido dela: "os cursos já criados precisam ser editáveis para as
+       novas alterações também". Antes esta ação só sabia CRIAR — colar a
+       matriz num curso que já tinha "Módulo 1 - CRER" fazia nascer um
+       segundo "Módulo 1 - CRER" ao lado, e as turmas continuavam
+       apontando para o primeiro, agora vazio de estrutura.
+
+       Agora a matriz JUNTA PELO NOME: módulo que existe é reaproveitado,
+       matéria que existe é reaproveitada, e aula que já existe no módulo
+       — ainda que na matéria errada — MUDA DE MATÉRIA em vez de nascer de
+       novo. Mudar de matéria preserva o vídeo, o material de apoio e o
+       progresso de quem já assistiu; criar de novo perderia os três e
+       deixaria a aula velha órfã na tela.
+       ------------------------------------------------------------ */
+    const [{ data: modulosBanco }, { data: discBanco }, { data: aulasBanco }] =
+      await Promise.all([
+        admin
+          .from('modulos')
+          .select('id, nome, ordem')
+          .eq('curso_id', cursoId)
+          .order('ordem', { ascending: true }),
+        admin
+          .from('disciplinas')
+          .select('id, nome, ordem, padrao, modulo_id, modulos!disciplinas_modulo_id_fkey!inner(curso_id)')
+          .eq('modulos.curso_id', cursoId)
+          .order('ordem', { ascending: true }),
+        admin
+          .from('aulas')
+          .select('id, titulo, disciplina_id, modulo_id')
+          .eq('curso_id', cursoId),
       ])
-      if ((comAula ?? 0) === 0 && (comTurma ?? 0) === 0) reaproveitar = unico.id
+
+    const modulosDoCurso = modulosBanco ?? []
+    const disciplinasDoCurso = (discBanco ?? []).map((d) => ({
+      id: d.id as string,
+      nome: d.nome as string,
+      ordem: Number(d.ordem),
+      padrao: Boolean(d.padrao),
+      moduloId: d.modulo_id as string,
+    }))
+    const aulasDoCurso = (aulasBanco ?? []).map((a) => ({
+      id: a.id as string,
+      titulo: a.titulo as string,
+      disciplinaId: (a.disciplina_id as string) ?? null,
+      moduloId: (a.modulo_id as string) ?? null,
+    }))
+
+    /* O CURSO RECÉM-CRIADO JÁ TEM UM "Módulo 1" VAZIO, posto pelo gatilho
+       da migração 022. Ele não tem nome nenhum de verdade, então não entra
+       na junção por nome: é só uma casca a ser batizada pelo primeiro
+       módulo da matriz. Sem isto, o curso ficaria com um módulo fantasma
+       na frente de tudo, para ela apagar na mão. */
+    let cascaVazia: string | null = null
+    if (modulosDoCurso.length === 1 && aulasDoCurso.length === 0) {
+      const unico = modulosDoCurso[0]
+      const { count: comTurma } = await admin
+        .from('turmas')
+        .select('id', { count: 'exact', head: true })
+        .eq('modulo_id', unico.id)
+      if ((comTurma ?? 0) === 0) cascaVazia = unico.id as string
     }
 
-    const jaTinha = (existentes ?? []).length
-    let ordem = reaproveitar ? 0 : jaTinha
+    let ordem = modulosDoCurso.length
     let criouModulos = 0
     let criouDisciplinas = 0
     let criouAulas = 0
+    let moveuAulas = 0
+
+    /* Uma aula já existente só pode ser reclamada UMA vez. Sem isto, uma
+       matriz com o mesmo título em duas matérias do mesmo módulo faria a
+       segunda roubar a aula da primeira, e nenhuma das duas seria
+       criada. */
+    const jaUsadas = new Set<string>()
+    /* Os módulos que esta matriz encostou. A limpeza da matéria vazia no
+       fim só olha para eles: um módulo que a matriz nem mencionou não
+       pode perder nada por causa dela. */
+    const modulosMexidos = new Set<string>()
 
     for (const m of matriz.modulos) {
-      ordem += 1
       let moduloId: string
 
-      if (reaproveitar) {
+      const moduloExistente = modulosDoCurso.find((x) =>
+        mesmoNomeNaMatriz(x.nome as string, m.nome)
+      )
+
+      if (moduloExistente) {
+        moduloId = moduloExistente.id as string
+        /* O nome NÃO é reescrito. "Módulo 1 - CRER" no banco e "CRER"
+           escrito na matriz são o mesmo módulo (a leitura tira o rótulo),
+           e regravar transformaria o nome que a escola usa há meses no
+           que sobrou da limpeza. */
+      } else if (cascaVazia) {
+        ordem += 0
         const { error } = await admin
           .from('modulos')
-          .update({ nome: m.nome, ordem, updated_at: new Date().toISOString() })
-          .eq('id', reaproveitar)
+          .update({ nome: m.nome, updated_at: new Date().toISOString() })
+          .eq('id', cascaVazia)
         if (error) throw new Error(error.message)
-        moduloId = reaproveitar
-        reaproveitar = null
+        moduloId = cascaVazia
+        cascaVazia = null
       } else {
+        ordem += 1
         const { data, error } = await admin
           .from('modulos')
           .insert({ curso_id: cursoId, nome: m.nome, ordem })
           .select('id')
           .single()
         if (error) throw new Error(error.message)
-        moduloId = data.id
+        moduloId = data.id as string
         criouModulos += 1
       }
 
-      /* Todo módulo tem a sua disciplina automática (gatilho da 030).
-         Ela é quem recebe as aulas quando a matriz não separa matérias. */
-      const { data: padrao } = await admin
-        .from('disciplinas')
-        .select('id')
-        .eq('modulo_id', moduloId)
-        .eq('padrao', true)
-        .order('ordem', { ascending: true })
-        .limit(1)
-        .maybeSingle()
+      modulosMexidos.add(moduloId)
+      const materiasDoModulo = disciplinasDoCurso.filter((d) => d.moduloId === moduloId)
+      const padrao = materiasDoModulo.find((d) => d.padrao) ?? materiasDoModulo[0]
 
-      let ordemDisc = 0
+      let ordemDisc = materiasDoModulo.length
       for (const d of m.disciplinas) {
-        ordemDisc += 1
         let disciplinaId: string
 
-        if (d.nome === null) {
-          if (!padrao) throw new Error('O módulo ficou sem disciplina onde pôr as aulas.')
-          disciplinaId = padrao.id
+        const nomeEscrito = d.nome
+        const materiaExistente =
+          nomeEscrito === null
+            ? padrao
+            : materiasDoModulo.find((x) => mesmoNomeNaMatriz(x.nome, nomeEscrito))
+
+        if (materiaExistente) {
+          disciplinaId = materiaExistente.id
+        } else if (nomeEscrito === null) {
+          throw new Error('O módulo ficou sem matéria onde pôr as aulas.')
         } else {
+          ordemDisc += 1
           const { data, error } = await admin
             .from('disciplinas')
-            .insert({ modulo_id: moduloId, nome: d.nome, ordem: ordemDisc })
+            .insert({ modulo_id: moduloId, nome: nomeEscrito, ordem: ordemDisc })
             .select('id')
             .single()
           if (error) throw new Error(error.message)
-          disciplinaId = data.id
+          disciplinaId = data.id as string
           criouDisciplinas += 1
+          const nascida = {
+            id: disciplinaId,
+            nome: nomeEscrito,
+            ordem: ordemDisc,
+            padrao: false,
+            moduloId,
+          }
+          /* Nas DUAS listas. `materiasDoModulo` é uma cópia filtrada — só
+             ela não bastaria: a limpeza da matéria vazia, lá no fim, lê
+             `disciplinasDoCurso`, e sem esta linha ela via um módulo com
+             uma matéria só e desistia. */
+          materiasDoModulo.push(nascida)
+          disciplinasDoCurso.push(nascida)
         }
 
         if (d.aulas.length === 0) continue
 
-        /* Todas as aulas de uma disciplina numa tacada só. Sessenta
-           inserções separadas seriam sessenta idas ao banco, e uma falha
-           no meio deixaria a matriz pela metade.
+        const paraCriar: string[] = []
+        const paraMover: string[] = []
 
-           NASCEM COMO RASCUNHO (`publicada: false`) de propósito: a
-           estrutura existe para receber vídeo e material, e aula
-           publicada dispara o aviso da migração 028. Publicar sessenta
-           aulas vazias mandaria sessenta recados de "nova aula
-           disponível" para a escola inteira. */
-        const { error } = await admin.from('aulas').insert(
-          d.aulas.map((titulo, i) => ({
-            curso_id: cursoId,
-            disciplina_id: disciplinaId,
-            numero: i + 1,
-            titulo,
-            publicada: false,
-          }))
-        )
-        if (error) throw new Error(error.message)
-        criouAulas += d.aulas.length
+        for (const titulo of d.aulas) {
+          const daqui = aulasDoCurso.filter(
+            (a) => a.moduloId === moduloId && !jaUsadas.has(a.id)
+          )
+          /* 1. Já está NESTA matéria: não se toca. Mover uma aula que já
+                está no lugar só a renumeraria, sem motivo. */
+          const noLugar = daqui.find(
+            (a) => a.disciplinaId === disciplinaId && mesmoNomeNaMatriz(a.titulo, titulo)
+          )
+          if (noLugar) {
+            jaUsadas.add(noLugar.id)
+            continue
+          }
+          /* 2. Está no módulo, noutra matéria: muda de matéria. */
+          const noutraMateria = daqui.find((a) => mesmoNomeNaMatriz(a.titulo, titulo))
+          if (noutraMateria) {
+            jaUsadas.add(noutraMateria.id)
+            paraMover.push(noutraMateria.id)
+            continue
+          }
+          /* 3. Não existe: nasce. */
+          paraCriar.push(titulo)
+        }
+
+        if (paraMover.length > 0) {
+          /* Numa instrução só. O gatilho da 030 renumera cada uma no
+             destino; vinte chamadas separadas dariam vinte idas ao banco
+             e, se a nona falhasse, o módulo ficaria metade numa matéria e
+             metade na outra. */
+          const { error } = await admin
+            .from('aulas')
+            .update({ disciplina_id: disciplinaId, updated_at: new Date().toISOString() })
+            .in('id', paraMover)
+          if (error) throw new Error(error.message)
+          moveuAulas += paraMover.length
+          for (const id of paraMover) {
+            const a = aulasDoCurso.find((x) => x.id === id)
+            if (a) a.disciplinaId = disciplinaId
+          }
+        }
+
+        if (paraCriar.length > 0) {
+          /* NASCEM COMO RASCUNHO (`publicada: false`) de propósito: a
+             estrutura existe para receber vídeo e material, e aula
+             publicada dispara o aviso da migração 028. Publicar sessenta
+             aulas vazias mandaria sessenta recados de "nova aula
+             disponível" para a escola inteira.
+
+             Sem `numero`: quem numera é o gatilho da 030, e a numeração
+             recomeça em cada matéria. */
+          const { data: nascidas, error } = await admin
+            .from('aulas')
+            .insert(
+              paraCriar.map((titulo) => ({
+                curso_id: cursoId,
+                disciplina_id: disciplinaId,
+                titulo,
+                publicada: false,
+              }))
+            )
+            .select('id, titulo')
+          if (error) throw new Error(error.message)
+          criouAulas += paraCriar.length
+          for (const n of nascidas ?? []) {
+            jaUsadas.add(n.id as string)
+            aulasDoCurso.push({
+              id: n.id as string,
+              titulo: n.titulo as string,
+              disciplinaId,
+              moduloId,
+            })
+          }
+        }
       }
+    }
+
+    /* ------------------------------------------------------------
+       A MATÉRIA AUTOMÁTICA VAZIA SAI DE CENA.
+
+       Num curso antigo, todas as aulas moravam na "Conteúdo do módulo"
+       criada pelo gatilho. Depois de a matriz distribuí-las em
+       Bibliologia e Teologia, ela fica lá: uma seção com zero aulas e um
+       nome que não é de matéria nenhuma, no topo do módulo.
+
+       Ela nunca foi uma decisão da escola — nasceu do banco, para que
+       nenhuma aula ficasse sem casa. Cumprido o papel e estando vazia, e
+       havendo outra matéria no módulo, ela some. Nenhuma aula é tocada:
+       o `.is('disciplina_id', null)` da conferência abaixo garante que
+       só sai o que está vazio.
+
+       Se um dia o módulo voltar a ficar sem matéria nenhuma, o gatilho
+       da 030 cria outra na hora em que a primeira aula chegar. */
+    for (const moduloId of modulosMexidos) {
+      const daqui = disciplinasDoCurso.filter((d) => d.moduloId === moduloId)
+      const padraoVazia = daqui.find((d) => d.padrao)
+      if (!padraoVazia || daqui.length < 2) continue
+
+      const { count } = await admin
+        .from('aulas')
+        .select('id', { count: 'exact', head: true })
+        .eq('disciplina_id', padraoVazia.id)
+      if ((count ?? 0) > 0) continue
+
+      await admin.from('disciplinas').delete().eq('id', padraoVazia.id)
     }
 
     revalidarAulas(cursoId)
     revalidatePath('/dashboard/admin/cursos')
-    return { modulos: criouModulos + (jaTinha === 1 ? 1 : 0), disciplinas: criouDisciplinas, aulas: criouAulas }
+    return {
+      modulos: criouModulos,
+      disciplinas: criouDisciplinas,
+      aulas: criouAulas,
+      movidas: moveuAulas,
+    }
   })
 }

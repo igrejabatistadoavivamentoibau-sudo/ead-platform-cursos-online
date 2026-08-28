@@ -8,7 +8,11 @@ import {
   lerMatriz,
   conferirMatriz,
   resumoDaMatriz,
+  compararComOQueExiste,
+  fraseDoQueVaiAcontecer,
   MATRIZ_DE_EXEMPLO,
+  type EstruturaExistente,
+  type DestinoDaAula,
 } from '@/lib/nucleo/matrizCurricular'
 import { Alerta } from '@/components/ui'
 
@@ -38,13 +42,52 @@ import { Alerta } from '@/components/ui'
    onde é testada caso a caso. Esta tela só mostra e manda criar.
    ============================================================ */
 
+/* A marca de cada linha da prévia.
+
+   Ela existe porque juntar por nome, sem mostrar, seria pior do que
+   duplicar: pelo menos duplicata se vê depois. Aqui a pessoa vê ANTES —
+   e "já existe" é a informação que a impede de desistir achando que vai
+   criar tudo em dobro. */
+/** O que o botão promete, num curso que já tem conteúdo. */
+function rotuloDoBotao(c: {
+  criar: { modulos: number; disciplinas: number; aulas: number }
+  mover: number
+}): string {
+  const total = c.criar.modulos + c.criar.disciplinas + c.criar.aulas
+  if (total === 0 && c.mover === 0) return 'Nada a fazer'
+  if (total === 0) return `Mover ${c.mover} ${c.mover === 1 ? 'aula' : 'aulas'} de matéria`
+  if (c.mover === 0) return 'Aplicar a matriz'
+  return 'Aplicar a matriz'
+}
+
+function Etiqueta({ destino, de }: { destino: DestinoDaAula; de?: string }) {
+  if (destino === 'manter') {
+    return (
+      <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-gray-500">
+        já existe
+      </span>
+    )
+  }
+  return (
+    <span
+      className="shrink-0 rounded-full bg-amber-100 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-amber-800"
+      title={de ? `Hoje está em "${de}". Muda de matéria levando vídeo, material e progresso.` : undefined}
+    >
+      muda de matéria
+    </span>
+  )
+}
+
 export default function MatrizCurricular({
   cursoId,
   cursoVazio,
+  existente = { modulos: [] },
 }: {
   cursoId: string
   /** Curso ainda sem aula nenhuma: aí a matriz é o próximo passo óbvio. */
   cursoVazio: boolean
+  /** A árvore que o curso JÁ tem, para a prévia comparar antes de criar. */
+  existente?: EstruturaExistente
 }) {
   const router = useRouter()
   const [aberto, setAberto] = useState(false)
@@ -59,6 +102,23 @@ export default function MatrizCurricular({
   const resumo = useMemo(() => resumoDaMatriz(matriz), [matriz])
   const conferida = useMemo(() => conferirMatriz(matriz), [matriz])
 
+  /* O QUE VAI ACONTECER DE VERDADE, e não o que a matriz diz no papel.
+     Num curso que já existe, boa parte do que está escrito já está lá — e
+     a diferença entre "criar 60 aulas" e "criar 2 e mudar 3 de matéria" é
+     a diferença entre confiar no botão e não clicar nele. */
+  const comparada = useMemo(
+    () => compararComOQueExiste(matriz, existente),
+    [matriz, existente]
+  )
+  const cursoTemCoisa = existente.modulos.length > 0
+  /* Botão que não vai fazer nada fica desligado. Clicar e receber
+     "pronto: 0 módulos, 0 aulas" é a tela fingindo que trabalhou. */
+  const nadaAFazer =
+    cursoTemCoisa &&
+    conferida.ok &&
+    comparada.criar.modulos + comparada.criar.disciplinas + comparada.criar.aulas === 0 &&
+    comparada.mover === 0
+
   const criar = () => {
     setErro(null)
     setPronto(null)
@@ -68,12 +128,27 @@ export default function MatrizCurricular({
         setErro(r.erro)
         return
       }
+      const criados = [
+        r.modulos > 0 ? `${r.modulos} ${r.modulos === 1 ? 'módulo' : 'módulos'}` : '',
+        r.disciplinas > 0
+          ? `${r.disciplinas} ${r.disciplinas === 1 ? 'disciplina' : 'disciplinas'}`
+          : '',
+        r.aulas > 0 ? `${r.aulas} ${r.aulas === 1 ? 'aula' : 'aulas'}` : '',
+      ].filter(Boolean)
+
+      const partes: string[] = []
+      if (criados.length > 0) partes.push(`Criei ${criados.join(', ')}`)
+      if (r.movidas > 0) {
+        partes.push(
+          `${criados.length > 0 ? 'e mudei' : 'Mudei'} ${r.movidas} ${
+            r.movidas === 1 ? 'aula de matéria' : 'aulas de matéria'
+          }`
+        )
+      }
       setPronto(
-        `Pronto: ${r.modulos} ${r.modulos === 1 ? 'módulo' : 'módulos'}` +
-          (r.disciplinas > 0
-            ? `, ${r.disciplinas} ${r.disciplinas === 1 ? 'disciplina' : 'disciplinas'}`
-            : '') +
-          ` e ${r.aulas} ${r.aulas === 1 ? 'aula' : 'aulas'}.`
+        partes.length > 0
+          ? `${partes.join(' ')}.`
+          : 'Tudo isso já estava no curso — nada precisou mudar.'
       )
       setTexto('')
       router.refresh()
@@ -166,7 +241,7 @@ export default function MatrizCurricular({
         {/* ---------------- O que vai nascer ---------------- */}
         <div className="min-w-0">
           <p className="mb-1.5 flex items-center justify-between gap-2 text-[12px] font-semibold text-gray-600">
-            <span>O que vai ser criado</span>
+            <span>{cursoTemCoisa ? 'Como o curso vai ficar' : 'O que vai ser criado'}</span>
             {resumo.aulas + resumo.modulos > 0 && (
               <span
                 data-teste="resumo-da-matriz"
@@ -189,29 +264,42 @@ export default function MatrizCurricular({
               <ul className="space-y-2.5">
                 {matriz.modulos.map((m, i) => (
                   <li key={i}>
-                    <p className="text-[13px] font-bold text-gray-900">
-                      <span className="tabular-nums text-gray-400">{i + 1}.</span> {m.nome}
+                    <p className="flex flex-wrap items-center gap-1.5 text-[13px] font-bold text-gray-900">
+                      <span className="tabular-nums text-gray-400">{i + 1}.</span>{' '}
+                      {comparada.modulos[i]?.nomeAtual ?? m.nome}
+                      {cursoTemCoisa && comparada.modulos[i] && !comparada.modulos[i].novo && (
+                        <Etiqueta destino="manter" />
+                      )}
                     </p>
                     <ul className="mt-1 space-y-1.5 border-l border-gray-200 pl-3">
-                      {m.disciplinas.map((d, j) => (
+                      {m.disciplinas.map((d, j) => {
+                        const cd = comparada.modulos[i]?.disciplinas[j]
+                        return (
                         <li key={j}>
                           {d.nome && (
-                            <p className="text-[12.5px] font-semibold text-brand-800">{d.nome}</p>
+                            <p className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-semibold text-brand-800">
+                              {cd?.nomeAtual ?? d.nome}
+                              {cursoTemCoisa && cd && !cd.novo && <Etiqueta destino="manter" />}
+                            </p>
                           )}
                           {d.aulas.length === 0 ? (
                             <p className="text-[12px] italic text-gray-400">sem aulas ainda</p>
                           ) : (
                             <ol className="mt-0.5 space-y-0.5">
                               {d.aulas.map((a, k) => (
-                                <li key={k} className="flex gap-1.5 text-[12px] text-gray-600">
+                                <li key={k} className="flex items-center gap-1.5 text-[12px] text-gray-600">
                                   <span className="tabular-nums text-gray-400">{k + 1}.</span>
                                   <span className="min-w-0 truncate">{a}</span>
+                                  {cursoTemCoisa && cd?.aulas[k] && cd.aulas[k].destino !== 'criar' && (
+                                    <Etiqueta destino={cd.aulas[k].destino} de={cd.aulas[k].de} />
+                                  )}
                                 </li>
                               ))}
                             </ol>
                           )}
                         </li>
-                      ))}
+                        )
+                      })}
                     </ul>
                   </li>
                 ))}
@@ -253,18 +341,38 @@ export default function MatrizCurricular({
             </div>
           )}
 
+          {cursoTemCoisa && conferida.ok && (
+            <p
+              className="mt-3 rounded-lg bg-gray-50 px-2.5 py-2 text-[12px] font-medium leading-snug text-gray-700 ring-1 ring-gray-200"
+              data-teste="o-que-vai-acontecer"
+            >
+              {fraseDoQueVaiAcontecer(comparada)}
+            </p>
+          )}
+
           <button
             type="button"
-            disabled={criando || !conferida.ok}
+            disabled={criando || !conferida.ok || nadaAFazer}
             onClick={criar}
             data-teste="criar-matriz"
             className="mt-3 h-10 w-full rounded-xl bg-brand-700 text-[13.5px] font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-50"
           >
-            {criando ? 'Criando a estrutura...' : `Criar ${resumo.frase || 'a matriz'}`}
+            {/* O RÓTULO DO BOTÃO DIZ O QUE VAI ACONTECER, não o que a
+                matriz descreve. Num curso que já existe os dois números
+                são diferentes — "Criar 4 aulas" logo abaixo de "mover 3
+                aulas de matéria" seria a tela se contradizendo. */}
+            {criando
+              ? 'Criando a estrutura...'
+              : cursoTemCoisa
+                ? conferida.ok
+                  ? rotuloDoBotao(comparada)
+                  : 'Aplicar a matriz'
+                : `Criar ${resumo.frase || 'a matriz'}`}
           </button>
 
           <p className="mt-2 text-center text-[11.5px] leading-snug text-gray-400">
-            Nada é apagado: a matriz é acrescentada ao que já existe no curso.
+            Nada é apagado. O que já existe no curso é reaproveitado pelo nome — colar a
+            mesma matriz duas vezes não cria nada em dobro.
           </p>
         </div>
       </div>

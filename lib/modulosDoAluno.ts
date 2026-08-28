@@ -36,6 +36,8 @@ export interface ModuloBruto {
   nome: string
   descricao?: string | null
   ordem: number
+  /** Vídeo de boas-vindas do módulo (migração 031). Só atravessa até a tela. */
+  video_boas_vindas?: string | null
 }
 
 /** Uma matrícula do aluno, já reduzida ao que importa aqui. */

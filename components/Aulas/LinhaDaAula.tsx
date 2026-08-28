@@ -17,6 +17,7 @@ import {
   PlayCircle,
   AlertCircle,
   CornerUpRight,
+  BookMarked,
 } from 'lucide-react'
 import {
   atualizarAula,
@@ -24,6 +25,7 @@ import {
   moverAula,
   removerAula,
   moverAulaDeModulo,
+  moverAulaDeDisciplina,
 } from '@/app/dashboard/admin/actions'
 import { analisarVideo, miniaturaDoVideo } from '@/lib/video'
 import GerenciarMateriais from '@/components/Materiais/GerenciarMateriais'
@@ -73,6 +75,7 @@ export default function LinhaDaAula({
   podeSubir,
   podeDescer,
   outrosModulos = [],
+  outrasMaterias = [],
   destacar = '',
 }: {
   aula: AulaItem
@@ -82,6 +85,8 @@ export default function LinhaDaAula({
   podeDescer: boolean
   /** Para onde esta aula pode ser movida. Vazio: a opção some. */
   outrosModulos?: { id: string; nome: string }[]
+  /** As OUTRAS matérias do mesmo módulo. Vazio: a opção some. */
+  outrasMaterias?: { id: string; nome: string }[]
   /** Termo buscado, para pintar o trecho encontrado. */
   destacar?: string
 }) {
@@ -388,6 +393,35 @@ export default function LinhaDaAula({
                     {outrosModulos.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.nome}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {/* Trocar de MATÉRIA dentro do mesmo módulo.
+                  É o movimento fino da conversão de um curso antigo: a
+                  turma não muda, o pré-requisito não muda, só o bloco em
+                  que a aula aparece. Por isso é uma escolha separada da de
+                  módulo, que muda quem vê a aula. */}
+              {outrasMaterias.length > 0 && (
+                <label className="ml-1 inline-flex items-center gap-1.5">
+                  <BookMarked className="h-3.5 w-3.5 text-gray-400" strokeWidth={2.25} />
+                  <select
+                    value=""
+                    disabled={isPending}
+                    data-teste="mover-de-materia"
+                    onChange={(e) => {
+                      if (!e.target.value) return
+                      acao(() => moverAulaDeDisciplina(aula.id, cursoId, e.target.value))
+                    }}
+                    className="rounded-md border border-gray-200 bg-white px-1.5 py-1 text-[11.5px] font-medium text-gray-600 disabled:opacity-40"
+                    aria-label={`Mover ${aula.titulo} para outra matéria`}
+                  >
+                    <option value="">mover para a matéria…</option>
+                    {outrasMaterias.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.nome}
                       </option>
                     ))}
                   </select>

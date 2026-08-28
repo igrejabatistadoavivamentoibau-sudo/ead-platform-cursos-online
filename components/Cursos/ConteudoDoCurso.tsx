@@ -27,7 +27,9 @@ import {
   renomearDisciplina,
   moverDisciplina,
   removerDisciplina,
+  moverAulasParaDisciplina,
 } from '@/app/dashboard/admin/actions'
+import BoasVindasDoModulo from '@/components/Cursos/BoasVindasDoModulo'
 import LinhaDaAula, { type AulaItem } from '@/components/Aulas/LinhaDaAula'
 import NovaAula from '@/components/Aulas/NovaAula'
 import AulaAvulsaForm from '@/components/Aulas/AulaAvulsaForm'
@@ -49,6 +51,8 @@ export interface ModuloComAulas {
   ordem: number
   /** Quantas turmas estão penduradas neste módulo. */
   turmas: number
+  /** Link do vídeo de boas-vindas do módulo, se houver (migração 031). */
+  video_boas_vindas?: string | null
   /** As matérias do módulo, em ordem. Sempre tem pelo menos uma. */
   disciplinas: DisciplinaComAulas[]
   /** Todas as aulas do módulo, planas. Serve para contagem e para a busca. */
@@ -56,18 +60,26 @@ export interface ModuloComAulas {
 }
 
 /* ------------------------------------------------------------------
-   QUANDO O DEGRAU DA DISCIPLINA APARECE
+   O DEGRAU DA DISCIPLINA APARECE SEMPRE — E POR QUÊ ISSO MUDOU
 
-   Um curso simples — módulo com dez aulas, sem matérias separadas — não
-   pode ganhar um nível a mais na tela só porque o banco tem espaço para
-   ele. Seria um clique extra para chegar em toda aula, em troca de nada.
+   Até aqui esta função escondia o degrau enquanto o módulo tivesse só a
+   matéria automática. A ideia era poupar um clique no curso simples.
 
-   Então: enquanto o módulo tiver só a disciplina automática, as aulas
-   ficam direto embaixo dele, como sempre foram. Assim que existe uma
-   segunda matéria — ou a pessoa dá nome à primeira — o degrau aparece.
+   Ela mudou a pedido: *"Módulo é só um nome, as disciplinas que têm as
+   aulas."* E o pedido está certo por um motivo que a tela anterior
+   escondia: com o degrau ora visível ora não, a coordenação aprendia
+   DUAS estruturas diferentes conforme o módulo. No módulo A a aula ficava
+   solta; no módulo B ficava dentro de uma matéria. O lugar de anexar
+   mudava de módulo para módulo, que é exatamente a queixa que originou
+   toda esta parte do trabalho.
 
-   A estrutura no banco é a mesma para os dois casos. O que muda é o que
-   se mostra.
+   Agora é sempre o mesmo caminho: módulo → matéria → aula. O módulo passa
+   a ter o que é dele — nome, recado e o vídeo de boas-vindas.
+
+   A função continua existindo, e continua exportada, porque a TELA DO
+   ALUNO usa outro critério: lá a faixa da matéria só aparece quando ela
+   informa alguma coisa (mais de uma matéria no módulo). Mostrar
+   "Conteúdo do módulo" para o aluno seria ruído, não estrutura.
    ------------------------------------------------------------------ */
 export function mostrarDisciplinas(m: { disciplinas: DisciplinaComAulas[] }): boolean {
   const d = m.disciplinas ?? []
@@ -515,80 +527,63 @@ export default function ConteudoDoCurso({
                 )}
               </div>
 
-              {/* ----- As aulas do módulo ----- */}
+              {/* ----- O que é do módulo, e depois as matérias ----- */}
               {aberto && (
                 <div className="space-y-3 border-t border-gray-100 bg-gray-50/40 p-4">
-                  {mostrarDisciplinas(m) ? (
-                    /* ===== COM DISCIPLINAS =====
-                       Cada matéria é uma seção com as SUAS aulas e o SEU
-                       botão de adicionar. É este o "entro no módulo, na
-                       disciplina, e anexo o vídeo naquela aula": não há
-                       campo de escolher matéria, porque a matéria é o
-                       lugar onde a pessoa clicou. */
-                    <div className="space-y-4">
-                      {(m.disciplinas ?? [])
-                        .slice()
-                        .sort((a, b) => a.ordem - b.ordem)
-                        .map((d) => (
-                          <SecaoDaDisciplina
-                            key={d.id}
-                            cursoId={cursoId}
-                            modulo={m}
-                            disciplina={d}
-                            totalAlunos={totalAlunos}
-                            outros={outros}
-                            termo={termo}
-                            busca={busca}
-                            podeEditar={podeEditarModulos}
-                          />
-                        ))}
-                    </div>
-                  ) : (
-                    /* ===== SEM DISCIPLINAS: como sempre foi ===== */
-                    <>
-                      {m.aulas.length === 0 ? (
-                        <p className="py-2 text-center text-[13px] text-gray-500">
-                          Nenhuma aula neste módulo ainda.
-                        </p>
-                      ) : (
-                        m.aulas.map((a, j) => (
-                          <LinhaDaAula
-                            key={a.id}
-                            aula={a}
-                            cursoId={cursoId}
-                            totalAlunos={totalAlunos}
-                            podeSubir={j > 0 && !termo}
-                            podeDescer={j < m.aulas.length - 1 && !termo}
-                            outrosModulos={podeEditarModulos ? outros : []}
-                            destacar={busca}
-                          />
-                        ))
-                      )}
+                  {/* O QUE É DO MÓDULO: o vídeo de boas-vindas.
+                      Vem primeiro porque é o que o aluno vê primeiro. */}
+                  {!termo && podeEditarModulos && (
+                    <BoasVindasDoModulo
+                      cursoId={cursoId}
+                      moduloId={m.id}
+                      moduloNome={m.nome}
+                      videoAtual={m.video_boas_vindas ?? null}
+                    />
+                  )}
 
-                      {!termo && (
-                        <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
-                          <div className="flex-1">
-                            <NovaAula
-                              cursoId={cursoId}
-                              moduloId={m.id}
-                              disciplinaId={m.disciplinas?.[0]?.id}
-                              moduloNome={m.nome}
-                              proximoNumero={
-                                m.aulas.reduce((max, a) => Math.max(max, a.numero), 0) + 1
-                              }
-                            />
-                          </div>
-                          <AulaAvulsaForm
-                            cursoId={cursoId}
-                            modulos={[{ id: m.id, nome: m.nome, ordem: m.ordem }]}
-                          />
-                        </div>
-                      )}
-                    </>
+                  {/* AS AULAS MORAM SEMPRE DENTRO DE UMA MATÉRIA.
+                      Cada matéria é uma seção com as SUAS aulas e o SEU
+                      botão de adicionar. É este o "entro no módulo, na
+                      disciplina, e anexo o vídeo naquela aula": não há
+                      campo de escolher matéria, porque a matéria é o
+                      lugar onde a pessoa clicou. */}
+                  <div className="space-y-4">
+                    {(m.disciplinas ?? [])
+                      .slice()
+                      .sort((a, b) => a.ordem - b.ordem)
+                      .map((d) => (
+                        <SecaoDaDisciplina
+                          key={d.id}
+                          cursoId={cursoId}
+                          modulo={m}
+                          disciplina={d}
+                          totalAlunos={totalAlunos}
+                          outros={outros}
+                          termo={termo}
+                          busca={busca}
+                          podeEditar={podeEditarModulos}
+                          soUmaMateria={(m.disciplinas ?? []).length === 1}
+                        />
+                      ))}
+                  </div>
+
+                  {/* Módulo sem matéria nenhuma não deveria existir (o
+                      gatilho da 030 cria uma junto com o módulo), mas se
+                      um dia existir, a tela não pode ficar muda. */}
+                  {(m.disciplinas ?? []).length === 0 && (
+                    <p className="py-2 text-center text-[13px] text-gray-500">
+                      Este módulo ainda não tem nenhuma matéria. Crie a primeira abaixo.
+                    </p>
                   )}
 
                   {!termo && podeEditarModulos && (
-                    <NovaDisciplina cursoId={cursoId} moduloId={m.id} moduloNome={m.nome} />
+                    <>
+                      <NovaDisciplina cursoId={cursoId} moduloId={m.id} moduloNome={m.nome} />
+                      <AulaAvulsaForm
+                        cursoId={cursoId}
+                        modulos={[{ id: m.id, nome: m.nome, ordem: m.ordem }]}
+                      />
+                    </>
                   )}
                 </div>
               )}
@@ -672,6 +667,7 @@ function SecaoDaDisciplina({
   termo,
   busca,
   podeEditar,
+  soUmaMateria,
 }: {
   cursoId: string
   modulo: ModuloComAulas
@@ -681,12 +677,19 @@ function SecaoDaDisciplina({
   termo: string
   busca: string
   podeEditar: boolean
+  /** Última matéria do módulo: apagar deixaria as aulas sem casa. */
+  soUmaMateria: boolean
 }) {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
   const [nome, setNome] = useState(disciplina.nome)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, iniciar] = useTransition()
+
+  /* As OUTRAS matérias deste módulo, para levar aulas de uma para outra.
+     É o que transforma um módulo antigo de vinte aulas soltas em duas
+     matérias de dez — sem isso, seriam vinte movimentos um a um. */
+  const outrasMaterias = (modulo.disciplinas ?? []).filter((d) => d.id !== disciplina.id)
 
   /* Uma transição POR DISCIPLINA, e não uma para a página inteira. Com um
      estado só, renomear a segunda matéria desabilitaria os botões de
@@ -774,9 +777,14 @@ function SecaoDaDisciplina({
             </button>
             <button
               type="button"
-              disabled={salvando}
+              disabled={salvando || soUmaMateria}
               onClick={() => executar(() => removerDisciplina(disciplina.id, cursoId))}
               aria-label={`Apagar ${disciplina.nome}`}
+              title={
+                soUmaMateria
+                  ? 'É a única matéria do módulo — as aulas ficariam sem casa.'
+                  : `Apagar ${disciplina.nome}`
+              }
               className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -784,6 +792,26 @@ function SecaoDaDisciplina({
           </span>
         )}
       </header>
+
+      {/* A MATÉRIA AUTOMÁTICA PEDINDO NOME.
+          Ela nasce chamada "Conteúdo do módulo" — nome de lugar, não de
+          matéria. Enquanto ficava escondida isso não incomodava; agora
+          que ela aparece sempre, o convite a batizar precisa estar ali,
+          onde se olha. Sem cobrança: um curso pode ter mesmo um módulo
+          de conteúdo corrido. */}
+      {podeEditar && !termo && disciplina.padrao && !editando && (
+        <div className="border-b border-gray-100 bg-brand-50/40 px-3.5 py-2">
+          <button
+            type="button"
+            onClick={() => setEditando(true)}
+            data-teste="batizar-materia"
+            className="text-[11.5px] font-medium text-brand-700 underline decoration-brand-300 underline-offset-2 hover:decoration-brand-600"
+          >
+            Dar um nome a esta matéria (Bibliologia, Homilética…) — hoje ela se chama
+            &ldquo;{disciplina.nome}&rdquo;.
+          </button>
+        </div>
+      )}
 
       {erro && (
         <div className="px-3.5 pt-3">
@@ -809,29 +837,60 @@ function SecaoDaDisciplina({
                 podeSubir={j > 0 && !termo}
                 podeDescer={j < disciplina.aulas.length - 1 && !termo}
                 outrosModulos={podeEditar ? outros : []}
+                outrasMaterias={podeEditar ? outrasMaterias : []}
                 destacar={busca}
               />
             ))
         )}
 
         {!termo && (
-          <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
-            <div className="flex-1">
-              <NovaAula
-                cursoId={cursoId}
-                moduloId={modulo.id}
-                disciplinaId={disciplina.id}
-                moduloNome={disciplina.nome}
-                proximoNumero={
-                  disciplina.aulas.reduce((max, a) => Math.max(max, a.numero), 0) + 1
-                }
-              />
-            </div>
-            <AulaAvulsaForm
+          <div className="pt-1">
+            <NovaAula
               cursoId={cursoId}
-              modulos={[{ id: modulo.id, nome: modulo.nome, ordem: modulo.ordem }]}
+              moduloId={modulo.id}
+              disciplinaId={disciplina.id}
+              moduloNome={disciplina.nome}
+              proximoNumero={
+                disciplina.aulas.reduce((max, a) => Math.max(max, a.numero), 0) + 1
+              }
             />
           </div>
+        )}
+
+        {/* CONVERTER UM MÓDULO ANTIGO EM MATÉRIAS.
+            Vinte aulas soltas viram Bibliologia e Teologia por aqui. Sem
+            isto seriam vinte movimentos um a um — e ninguém faz vinte
+            movimentos: desiste, e o curso fica sem matriz. */}
+        {podeEditar && !termo && outrasMaterias.length > 0 && disciplina.aulas.length > 0 && (
+          <label className="flex flex-wrap items-center gap-1.5 pt-1 text-[11.5px] text-gray-500">
+            <CornerUpRight className="h-3.5 w-3.5 shrink-0 text-gray-400" strokeWidth={2.25} />
+            <span>
+              Levar as {disciplina.aulas.length} aulas de {disciplina.nome} para
+            </span>
+            <select
+              value=""
+              disabled={salvando}
+              data-teste="mover-todas-as-aulas"
+              onChange={(e) => {
+                if (!e.target.value) return
+                const destino = e.target.value
+                e.target.value = ''
+                executar(() => moverAulasParaDisciplina(cursoId, disciplina.id, destino))
+              }}
+              className="rounded-md border border-gray-200 bg-white px-1.5 py-1 text-[11.5px] font-medium text-gray-600 disabled:opacity-50"
+              aria-label={`Mover todas as aulas de ${disciplina.nome} para outra matéria`}
+            >
+              <option value="">outra matéria…</option>
+              {outrasMaterias
+                .slice()
+                .sort((a, b) => a.ordem - b.ordem)
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.nome}
+                  </option>
+                ))}
+            </select>
+          </label>
         )}
       </div>
     </section>

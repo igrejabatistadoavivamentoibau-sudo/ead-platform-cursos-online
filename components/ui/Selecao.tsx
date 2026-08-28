@@ -51,6 +51,26 @@ export default function Selecao({
 
   const escolhida = opcoes.find((o) => o.valor === valor)
 
+  /* QUANDO A TELA MANDA LIMPAR, ESTE SELETOR TEM DE OBEDECER.
+
+     O valor escolhido morava só aqui dentro: `valorInicial` era lido uma
+     vez, no primeiro desenho, e ignorado daí em diante. Quem chamava não
+     tinha como desfazer a escolha.
+
+     Isso derrubou a matrícula de aluno em produção. Ao matricular, a tela
+     fazia `setSelecionado('')` para esvaziar a caixa — e a caixa continuava
+     mostrando o mesmo aluno, porque ela não escutava. O segundo clique em
+     "Adicionar" mandava o MESMO aluno de novo, o banco recusava por
+     matrícula repetida (e fez certo), e o Next apagou a mensagem em
+     produção: sobrou o parágrafo em inglês na tela.
+
+     Nenhuma tela precisou mudar por causa disto. Quem passa um valor fixo
+     continua igual, porque o efeito só dispara quando o valor MUDA; quem
+     passa um estado agora é obedecido de verdade. */
+  useEffect(() => {
+    setValor(valorInicial)
+  }, [valorInicial])
+
   useEffect(() => {
     if (!aberto) return
     const foraDaCaixa = (e: MouseEvent) => {
