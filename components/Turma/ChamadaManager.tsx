@@ -31,6 +31,10 @@ export interface LinhaPresenca {
   nome: string
   email: string
   presente: boolean
+  /** Ainda sem marca neste encontro — entrou na turma depois dele. */
+  semRegistro?: boolean
+  /** Tem marca, mas já não está na turma. Aparece para não sumir do registro. */
+  saiu?: boolean
 }
 
 function formatarData(d: string) {
@@ -311,17 +315,39 @@ export default function ChamadaManager({
                     </button>
 
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13.5px] font-medium text-gray-800">{l.nome}</p>
+                      <p className="flex flex-wrap items-center gap-1.5 truncate text-[13.5px] font-medium text-gray-800">
+                        {l.nome}
+                        {/* Entrou na turma depois deste encontro. Sem esta
+                            marca, ele apareceria como falta de alguém que
+                            ainda nem era da turma no dia. */}
+                        {l.semRegistro && (
+                          <span
+                            className="rounded-full bg-blue-50 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-blue-700 ring-1 ring-blue-200"
+                            data-teste="sem-registro"
+                          >
+                            entrou depois
+                          </span>
+                        )}
+                        {l.saiu && (
+                          <span
+                            className="rounded-full bg-gray-100 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-gray-500"
+                            data-teste="saiu-da-turma"
+                          >
+                            saiu da turma
+                          </span>
+                        )}
+                      </p>
                       <p className="truncate text-[11.5px] text-gray-500">{l.email}</p>
                     </div>
 
-                    {!l.presente && <Selo tom="vermelho">Ausente</Selo>}
+                    {!l.presente && !l.semRegistro && <Selo tom="vermelho">Ausente</Selo>}
+                    {l.semRegistro && <Selo tom="neutro">Sem marca</Selo>}
                   </li>
                 ))}
               </ul>
             ) : (
               <div className="px-4 py-10 text-center text-[13px] text-gray-500">
-                Nenhum aluno matriculado nesta turma.
+                Nenhum aluno matriculado nesta turma ainda.
               </div>
             )}
 

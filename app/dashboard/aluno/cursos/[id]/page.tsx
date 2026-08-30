@@ -8,6 +8,7 @@ import VisaoDoCurso, {
   type ProgressoAula,
   type JanelaDaAula,
   type ModuloNaTela,
+  type DisciplinaNaTela,
 } from '@/components/Cursos/VisaoDoCurso'
 import type { MaterialNaTela } from '@/components/Materiais/MateriaisDaAula'
 import {
@@ -125,15 +126,49 @@ export default async function CursoDoAlunoPage({
   const todasAsAulas = (aulas ?? []).map((a) => ({
     ...(a as unknown as AulaDoCurso),
     moduloId: (a.modulo_id as string) ?? null,
+    disciplinaId: (a.disciplina_id as string) ?? null,
     disciplina: nomeDaDisciplina.get(a.disciplina_id as string) ?? null,
   }))
 
-  const gruposDeModulo: ModuloNaTela[] = estadoDosModulos.map((m) => ({
-    ...m,
-    aulas: todasAsAulas
-      .filter((a) => a.moduloId === m.id)
-      .sort((x, y) => x.numero - y.numero) as AulaDoCurso[],
-  }))
+  /* A ORDEM DAS AULAS É "MATÉRIA, DEPOIS NÚMERO" — e isto era um defeito.
+
+     A numeração recomeça em cada matéria (migração 030). Ordenar o módulo
+     inteiro por número dava Aula 1 de Bibliologia, Aula 1 de Teologia,
+     Aula 2 de Bibliologia... duas matérias trançadas uma na outra, com
+     dois "Aula 1" seguidos. */
+  const ordemDaDisciplina = new Map<string, number>(
+    (disciplinas ?? []).map((d) => [d.id as string, Number(d.ordem)])
+  )
+  const emOrdemDeAula = (x: (typeof todasAsAulas)[number], y: (typeof todasAsAulas)[number]) => {
+    const dx = ordemDaDisciplina.get(x.disciplinaId ?? '') ?? 0
+    const dy = ordemDaDisciplina.get(y.disciplinaId ?? '') ?? 0
+    return dx !== dy ? dx - dy : x.numero - y.numero
+  }
+
+  const gruposDeModulo: ModuloNaTela[] = estadoDosModulos.map((m) => {
+    const doModulo = todasAsAulas.filter((a) => a.moduloId === m.id).sort(emOrdemDeAula)
+
+    /* AS MATÉRIAS COMO PORTAS.
+       Só as que têm aula publicada viram porta: uma matéria vazia na tela
+       do aluno é uma porta que não abre para lugar nenhum. */
+    const materias: DisciplinaNaTela[] = (disciplinas ?? [])
+      .filter((d) => d.modulo_id === m.id)
+      .map((d) => ({
+        id: d.id as string,
+        nome: d.nome as string,
+        ordem: Number(d.ordem),
+        padrao: Boolean(d.padrao),
+        aulas: doModulo.filter((a) => a.disciplinaId === d.id) as AulaDoCurso[],
+      }))
+      .filter((d) => d.aulas.length > 0)
+      .sort((a, b) => a.ordem - b.ordem)
+
+    return {
+      ...m,
+      disciplinas: materias,
+      aulas: doModulo as AulaDoCurso[],
+    }
+  })
 
   const abertos = new Set(gruposDeModulo.filter((g) => g.aberto).map((g) => g.id))
   const disponiveis = gruposDeModulo.filter((g) => g.aberto).flatMap((g) => g.aulas)

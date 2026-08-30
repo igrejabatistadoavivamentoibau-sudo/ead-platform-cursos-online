@@ -8,6 +8,7 @@ import ChamadaManager, {
   type LinhaPresenca,
 } from '@/components/Turma/ChamadaManager'
 import Justificativas, { type JustificativaPendente } from '@/components/Turma/Justificativas'
+import { listaDeChamada } from '@/lib/nucleo/chamada'
 
 export default async function ChamadaDaTurmaPage({
   params,
@@ -23,7 +24,7 @@ export default async function ChamadaDaTurmaPage({
 
   const { data: turma } = await supabase
     .from('turmas')
-    .select('id, nome, professor_id, curso_id, cursos(titulo, modalidade)')
+    .select('id, nome, professor_id, curso_id, modalidade, cursos(titulo, modalidade)')
     .eq('id', id)
     .single()
 
@@ -32,8 +33,16 @@ export default async function ChamadaDaTurmaPage({
     redirect('/dashboard/professor')
   }
 
+  /* A MODALIDADE É DA TURMA, não do curso — mudou de dono na migração
+     022, e esta tela ficou para trás. O mesmo módulo pode ter uma turma
+     presencial e uma EAD; lendo do curso, a turma presencial dentro de
+     um curso EAD via a tela errada (frequência automática por vídeo, sem
+     lista de chamada) e a coordenação não tinha onde marcar presença.
+     O curso continua como queda para as turmas antigas, sem modalidade. */
   const curso = turma.cursos as unknown as { titulo?: string; modalidade?: string } | null
-  const presencial = curso?.modalidade === 'presencial'
+  const presencial =
+    (turma.modalidade as string | null) === 'presencial' ||
+    ((turma.modalidade as string | null) == null && curso?.modalidade === 'presencial')
 
   const [{ data: encontros }, { count: totalAtividades }] = await Promise.all([
     supabase
@@ -78,24 +87,55 @@ export default async function ChamadaDaTurmaPage({
   })
   const atual = lista.find((e) => e.id === encontroSelecionado) ?? lista[0] ?? null
 
+  /* A LISTA DE CHAMADA É A TURMA DE HOJE, não a foto do dia em que o
+     encontro foi criado.
+
+     Antes esta consulta lia só `presencas`, e as presenças nascem uma
+     vez, na criação do encontro. Quem fosse matriculado depois nunca
+     aparecia — matriculado no banco, invisível na lista. Era esta a
+     queixa: "diz que está matriculado e não aparece na chamada".
+
+     Quem decide o que aparece é `listaDeChamada`, com teste próprio. */
   let linhas: LinhaPresenca[] = []
   if (atual) {
-    const { data: presencas } = await supabase
-      .from('presencas')
-      .select('aluno_id, presente, users(name, email)')
-      .eq('encontro_id', atual.id)
+    const [{ data: matriculados }, { data: presencas }] = await Promise.all([
+      supabase
+        .from('turma_alunos')
+        .select('aluno_id, status, users(name, email)')
+        .eq('turma_id', id),
+      supabase
+        .from('presencas')
+        .select('aluno_id, presente, users(name, email)')
+        .eq('encontro_id', atual.id),
+    ])
 
-    linhas = (presencas ?? [])
-      .map((p) => {
-        const u = p.users as unknown as { name?: string; email?: string } | null
+    linhas = listaDeChamada(
+      (matriculados ?? []).map((m) => {
+        const u = m.users as unknown as { name?: string; email?: string } | null
         return {
-          aluno_id: p.aluno_id as string,
+          alunoId: m.aluno_id as string,
           nome: u?.name ?? '',
           email: u?.email ?? '',
-          presente: p.presente as boolean,
+          status: (m.status as string) ?? 'ativo',
+        }
+      }),
+      (presencas ?? []).map((p) => {
+        const u = p.users as unknown as { name?: string; email?: string } | null
+        return {
+          alunoId: p.aluno_id as string,
+          presente: Boolean(p.presente),
+          nome: u?.name ?? '',
+          email: u?.email ?? '',
         }
       })
-      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    ).map((l) => ({
+      aluno_id: l.alunoId,
+      nome: l.nome,
+      email: l.email,
+      presente: l.presente,
+      semRegistro: l.semRegistro,
+      saiu: l.saiu,
+    }))
   }
 
   return (

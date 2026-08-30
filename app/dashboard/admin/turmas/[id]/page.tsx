@@ -4,7 +4,7 @@ import { ArrowRight, Video } from 'lucide-react'
 import Voltar from '@/components/ui/Voltar'
 import { createClient } from '@/lib/supabase/server'
 import TurmaStatusActions from '@/components/Dashboard/TurmaStatusActions'
-import MatriculaManager from '@/components/Dashboard/MatriculaManager'
+import MatriculaManager, { type TurmaParaMover } from '@/components/Dashboard/MatriculaManager'
 import EncontroManager from '@/components/Dashboard/EncontroManager'
 import CursoDaTurma from '@/components/Dashboard/CursoDaTurma'
 import ModuloDaTurma, { type ModuloEscolhivel } from '@/components/Dashboard/ModuloDaTurma'
@@ -96,6 +96,39 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
       email: aluno?.email as string,
     }
   })
+
+  /* PARA ONDE ESTE ALUNO PODE IR.
+
+     Outras turmas do MESMO CURSO que ainda não encerraram. As do mesmo
+     módulo são troca de sala; as de outro módulo são avanço de etapa — e
+     a ação decide qual é qual pelo destino, para não haver como escolher
+     errado na tela.
+
+     Só do mesmo curso: mover para uma turma de outro curso não é mudar
+     de sala nem avançar, é uma matrícula nova em outra escola de fato. */
+  const { data: turmasDoCurso } = turma.curso_id
+    ? await supabase
+        .from('turmas')
+        .select('id, nome, status, modulo_id, modulos!turmas_modulo_id_fkey(nome, ordem)')
+        .eq('curso_id', turma.curso_id)
+        .neq('id', turma.id)
+        .neq('status', 'encerrada')
+    : { data: [] as unknown[] }
+
+  const turmasParaMover: TurmaParaMover[] = ((turmasDoCurso ?? []) as Record<string, unknown>[])
+    .map((t) => {
+      const m = t.modulos as unknown as { nome?: string; ordem?: number } | null
+      return {
+        id: t.id as string,
+        nome: t.nome as string,
+        moduloId: (t.modulo_id as string) ?? null,
+        moduloNome: m?.nome ?? 'Sem módulo',
+        mesmoModulo: Boolean(turma.modulo_id) && t.modulo_id === turma.modulo_id,
+        status: (t.status as string) ?? 'planejada',
+        ordem: Number(m?.ordem ?? 0),
+      }
+    })
+    .sort((a, b) => (a.ordem - b.ordem) || a.nome.localeCompare(b.nome, 'pt-BR'))
 
   // Nome do professor por consulta direta, sem join embutido (ver lib/consulta.ts)
   const { data: professor } = turma.professor_id
@@ -192,7 +225,12 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <MatriculaManager turmaId={turma.id} matriculados={matriculados} disponiveis={alunos ?? []} />
+        <MatriculaManager
+          turmaId={turma.id}
+          matriculados={matriculados}
+          disponiveis={alunos ?? []}
+          turmasParaMover={turmasParaMover}
+        />
         <EncontroManager turmaId={turma.id} encontros={encontros ?? []} />
       </div>
     </div>

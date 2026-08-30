@@ -1,7 +1,19 @@
 import { Fragment } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { CheckCircle2, Clock, Trophy, Lock, Video, EyeOff, Layers, Check } from 'lucide-react'
+import {
+  CheckCircle2,
+  Clock,
+  Trophy,
+  Lock,
+  Video,
+  EyeOff,
+  Layers,
+  Check,
+  BookMarked,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react'
 import VideoPlayer from '@/components/Aulas/VideoPlayer'
 import AulaTrancada, { type SituacaoDoPedido } from '@/components/Aulas/AulaTrancada'
 import { lerJanela } from '@/lib/janelaDaAtividade'
@@ -70,6 +82,26 @@ export interface ModuloNaTela {
   motivo?: string
   /** Vídeo de boas-vindas do módulo (migração 031), se a escola pôs um. */
   video_boas_vindas?: string | null
+  /**
+   * As matérias do módulo, cada uma com as SUAS aulas, em ordem.
+   *
+   * Pedido dela: *"Cada disciplina deve ter uma porta individual para o
+   * aluno acessar a que quiser, não ficar tudo junto."*
+   *
+   * Sem isto as 12 aulas de uma matéria e as 12 da outra caíam numa fila
+   * só — e, pior, EMBARALHADAS: a numeração recomeça em cada matéria, e
+   * ordenar por número dava Aula 1, Aula 1, Aula 2, Aula 2...
+   */
+  disciplinas?: DisciplinaNaTela[]
+  aulas: AulaDoCurso[]
+}
+
+export interface DisciplinaNaTela {
+  id: string
+  nome: string
+  ordem: number
+  /** Nasceu junto com o módulo e não foi batizada: não vira porta. */
+  padrao: boolean
   aulas: AulaDoCurso[]
 }
 
@@ -163,6 +195,18 @@ export default function VisaoDoCurso({
           },
         ]
 
+  /* QUANDO A MATÉRIA VIRA PORTA.
+
+     Só quando ela informa alguma coisa: mais de uma matéria no módulo, ou
+     uma com nome próprio. Um módulo com a matéria automática sozinha
+     ("Conteúdo do módulo") viraria uma porta escrita "conteúdo do
+     módulo" dentro do módulo — um clique a mais para chegar em toda aula,
+     em troca de nada. */
+  const comPortas = (g: ModuloNaTela) => {
+    const d = g.disciplinas ?? []
+    return d.length > 1 || d.some((x) => !x.padrao)
+  }
+
   const temModulos = (modulos?.length ?? 0) > 1
   const grupoDoAvanco = grupos.find((g) => g.atual) ?? grupos.find((g) => g.aberto) ?? grupos[0]
 
@@ -170,6 +214,119 @@ export default function VisaoDoCurso({
   const totalConcluidas = publicadas.filter((a) => progressoPorAula.get(a.id)?.concluida).length
   const pctGeral =
     publicadas.length > 0 ? Math.round((totalConcluidas / publicadas.length) * 100) : 0
+
+
+  /* ---------- A LISTA DE AULAS, reaproveitada nos dois lugares ----------
+
+     Ela desenha um bloco de aulas — seja o módulo inteiro (curso sem
+     matérias separadas), seja o conteúdo de UMA matéria. Uma função só
+     para os dois casos: duas cópias divergiriam, e a que divergisse
+     mostraria o cadeado ou o progresso errado para metade dos alunos. */
+  const listaDeAulas = (lista: AulaDoCurso[]) => (
+          <div className="card-alive divide-y divide-gray-100 overflow-hidden">
+            {lista.map((a, indiceNaLista) => {
+              /* O NOME DA MATÉRIA ENTRA COMO UMA FAIXA, e só quando muda.
+                 Repetir "Bibliologia" em cada uma das dez linhas encheria
+                 a lista de uma informação que o olho já sabe; escrevê-la
+                 uma vez, no alto do bloco, é o que faz o aluno entender
+                 que aquelas dez aulas são de uma matéria e as próximas
+                 dez, de outra.
+
+                 Só aparece quando o módulo tem mais de uma matéria — num
+                 curso simples, seria um rótulo dizendo o óbvio. */
+              const anterior = indiceNaLista > 0 ? lista[indiceNaLista - 1] : null
+              const materias = new Set(
+                lista.map((x) => x.disciplina?.id).filter(Boolean) as string[]
+              )
+              const abreMateria =
+                materias.size > 1 &&
+                !!a.disciplina &&
+                a.disciplina.id !== anterior?.disciplina?.id
+
+              const p = progressoPorAula.get(a.id)
+              const ativa = a.id === aulaAtual.id
+              const rascunho = a.publicada === false
+              const tranca = janelaDe(a.id)
+
+              return (
+                <Fragment key={a.id}>
+                  {abreMateria && (
+                    <p className="bg-gray-50/80 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.1em] text-brand-700">
+                      {a.disciplina!.nome}
+                    </p>
+                  )}
+                <Link
+                  href={hrefAula(a.id)}
+                  scroll={false}
+                  className={`flex items-center gap-3 px-4 py-3.5 transition-colors ${
+                    ativa ? cor.suave : 'hover:bg-gray-50'
+                  } ${rascunho ? 'bg-amber-50/40' : ''}`}
+                >
+                  <span
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold transition-colors ${
+                      p?.concluida
+                        ? `${cor.solido} text-white`
+                        : ativa
+                          ? `bg-white ${cor.texto} ring-1 ${cor.anel}`
+                          : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {p?.concluida ? (
+                      <CheckCircle2 className="h-4.5 w-4.5" strokeWidth={2.25} />
+                    ) : tranca ? (
+                      /* O cadeado ocupa o lugar do número de propósito: é a
+                         informação que muda o que a pessoa vai fazer a
+                         seguir, e o número dela continua no título. */
+                      <Lock className="h-4 w-4" strokeWidth={2.25} />
+                    ) : (
+                      a.numero
+                    )}
+                  </span>
+
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`text-sm font-medium truncate ${ativa ? cor.texto : 'text-gray-800'}`}
+                    >
+                      {a.titulo}
+                    </p>
+                    <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
+                      {a.duracao_minutos && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-gray-500">
+                          <Clock className="h-3 w-3" strokeWidth={2} />
+                          {a.duracao_minutos} min
+                        </span>
+                      )}
+                      {rascunho ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                          <EyeOff className="h-3 w-3" strokeWidth={2.25} />
+                          Rascunho
+                        </span>
+                      ) : tranca ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500">
+                          <Lock className="h-3 w-3" strokeWidth={2.25} />
+                          {tranca.estado === 'ainda_nao_abriu' ? 'Abre depois' : 'Prazo encerrado'}
+                        </span>
+                      ) : p?.concluida ? (
+                        <span className={`text-[11px] font-semibold ${cor.texto}`}>Concluída</span>
+                      ) : p && p.percentual > 0 ? (
+                        <span className="text-[11px] text-gray-500 tabular-nums">
+                          {Math.round(p.percentual)}% assistido
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-gray-400">Não iniciada</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {!a.video_url && (
+                    <Lock className="h-3.5 w-3.5 shrink-0 text-gray-300" strokeWidth={2.25} />
+                  )}
+                </Link>
+                </Fragment>
+              )
+            })}
+          </div>
+  )
 
   return (
     <>
@@ -377,109 +534,96 @@ export default function VisaoDoCurso({
               )}
 
               {g.aberto && g.aulas.length > 0 && (
-          <div className="card-alive divide-y divide-gray-100 overflow-hidden">
-            {g.aulas.map((a, indiceNaLista) => {
-              /* O NOME DA MATÉRIA ENTRA COMO UMA FAIXA, e só quando muda.
-                 Repetir "Bibliologia" em cada uma das dez linhas encheria
-                 a lista de uma informação que o olho já sabe; escrevê-la
-                 uma vez, no alto do bloco, é o que faz o aluno entender
-                 que aquelas dez aulas são de uma matéria e as próximas
-                 dez, de outra.
+                comPortas(g) ? (
+                  /* ===== CADA MATÉRIA COM A SUA PORTA =====
+                     Pedido dela. O aluno vê as matérias do módulo, cada
+                     uma com o seu avanço, e entra na que quiser. A que
+                     contém a aula aberta já vem expandida — senão, clicar
+                     numa aula fecharia a lista onde ela está. */
+                  <div className="space-y-2.5">
+                    {(g.disciplinas ?? []).map((d) => {
+                      const publicadasDaMateria = d.aulas.filter((a) => a.publicada !== false)
+                      const feitas = publicadasDaMateria.filter(
+                        (a) => progressoPorAula.get(a.id)?.concluida
+                      ).length
+                      const pct =
+                        publicadasDaMateria.length > 0
+                          ? Math.round((feitas / publicadasDaMateria.length) * 100)
+                          : 0
+                      const aberta = d.aulas.some((a) => a.id === aulaAtual.id)
+                      /* A porta leva à primeira aula que ele ainda não
+                         concluiu — "continuar de onde parou" é o que ele
+                         quer nove em cada dez vezes. */
+                      const proxima =
+                        d.aulas.find((a) => !progressoPorAula.get(a.id)?.concluida) ?? d.aulas[0]
 
-                 Só aparece quando o módulo tem mais de uma matéria — num
-                 curso simples, seria um rótulo dizendo o óbvio. */
-              const anterior = indiceNaLista > 0 ? g.aulas[indiceNaLista - 1] : null
-              const materias = new Set(
-                g.aulas.map((x) => x.disciplina?.id).filter(Boolean) as string[]
-              )
-              const abreMateria =
-                materias.size > 1 &&
-                !!a.disciplina &&
-                a.disciplina.id !== anterior?.disciplina?.id
+                      return (
+                        <div
+                          key={d.id}
+                          className={`overflow-hidden rounded-2xl ring-1 transition-all ${
+                            aberta ? `bg-white ${cor.anel}` : 'bg-white ring-brand-950/[0.06]'
+                          }`}
+                          data-teste="porta-da-materia"
+                        >
+                          <Link
+                            href={hrefAula(proxima?.id ?? aulaAtual.id)}
+                            scroll={false}
+                            className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                              aberta ? cor.suave : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <span
+                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                                feitas === publicadasDaMateria.length && publicadasDaMateria.length > 0
+                                  ? `${cor.solido} text-white`
+                                  : `bg-white ${cor.texto} ring-1 ${cor.anel}`
+                              }`}
+                            >
+                              {feitas === publicadasDaMateria.length && publicadasDaMateria.length > 0 ? (
+                                <Check className="h-4.5 w-4.5" strokeWidth={2.6} />
+                              ) : (
+                                <BookMarked className="h-4 w-4" strokeWidth={2.1} />
+                              )}
+                            </span>
 
-              const p = progressoPorAula.get(a.id)
-              const ativa = a.id === aulaAtual.id
-              const rascunho = a.publicada === false
-              const tranca = janelaDe(a.id)
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[14px] font-bold text-gray-900">
+                                {d.nome}
+                              </span>
+                              <span className="mt-1 flex items-center gap-2">
+                                <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
+                                  <span
+                                    className={`block h-full rounded-full ${cor.solido}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </span>
+                                <span className="shrink-0 text-[11.5px] tabular-nums text-gray-500">
+                                  {feitas}/{publicadasDaMateria.length}
+                                </span>
+                              </span>
+                            </span>
 
-              return (
-                <Fragment key={a.id}>
-                  {abreMateria && (
-                    <p className="bg-gray-50/80 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.1em] text-brand-700">
-                      {a.disciplina!.nome}
-                    </p>
-                  )}
-                <Link
-                  href={hrefAula(a.id)}
-                  scroll={false}
-                  className={`flex items-center gap-3 px-4 py-3.5 transition-colors ${
-                    ativa ? cor.suave : 'hover:bg-gray-50'
-                  } ${rascunho ? 'bg-amber-50/40' : ''}`}
-                >
-                  <span
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold transition-colors ${
-                      p?.concluida
-                        ? `${cor.solido} text-white`
-                        : ativa
-                          ? `bg-white ${cor.texto} ring-1 ${cor.anel}`
-                          : 'bg-gray-100 text-gray-500'
-                    }`}
-                  >
-                    {p?.concluida ? (
-                      <CheckCircle2 className="h-4.5 w-4.5" strokeWidth={2.25} />
-                    ) : tranca ? (
-                      /* O cadeado ocupa o lugar do número de propósito: é a
-                         informação que muda o que a pessoa vai fazer a
-                         seguir, e o número dela continua no título. */
-                      <Lock className="h-4 w-4" strokeWidth={2.25} />
-                    ) : (
-                      a.numero
-                    )}
-                  </span>
+                            <span className="shrink-0 text-gray-400">
+                              {aberta ? (
+                                <ChevronDown className="h-4 w-4" strokeWidth={2.25} />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" strokeWidth={2.25} />
+                              )}
+                            </span>
+                          </Link>
 
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={`text-sm font-medium truncate ${ativa ? cor.texto : 'text-gray-800'}`}
-                    >
-                      {a.titulo}
-                    </p>
-                    <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
-                      {a.duracao_minutos && (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-gray-500">
-                          <Clock className="h-3 w-3" strokeWidth={2} />
-                          {a.duracao_minutos} min
-                        </span>
-                      )}
-                      {rascunho ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700">
-                          <EyeOff className="h-3 w-3" strokeWidth={2.25} />
-                          Rascunho
-                        </span>
-                      ) : tranca ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500">
-                          <Lock className="h-3 w-3" strokeWidth={2.25} />
-                          {tranca.estado === 'ainda_nao_abriu' ? 'Abre depois' : 'Prazo encerrado'}
-                        </span>
-                      ) : p?.concluida ? (
-                        <span className={`text-[11px] font-semibold ${cor.texto}`}>Concluída</span>
-                      ) : p && p.percentual > 0 ? (
-                        <span className="text-[11px] text-gray-500 tabular-nums">
-                          {Math.round(p.percentual)}% assistido
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-gray-400">Não iniciada</span>
-                      )}
-                    </div>
+                          {aberta && (
+                            <div className="border-t border-gray-100">
+                              {listaDeAulas(d.aulas)}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
-
-                  {!a.video_url && (
-                    <Lock className="h-3.5 w-3.5 shrink-0 text-gray-300" strokeWidth={2.25} />
-                  )}
-                </Link>
-                </Fragment>
-              )
-            })}
-          </div>
+                ) : (
+                  listaDeAulas(g.aulas)
+                )
               )}
 
               {g.aberto && g.aulas.length === 0 && (

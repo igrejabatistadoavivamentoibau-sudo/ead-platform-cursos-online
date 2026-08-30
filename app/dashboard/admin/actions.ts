@@ -264,6 +264,119 @@ export async function matricularAluno(
   }, 'Não consegui matricular. Tente de novo.')
 }
 
+/* ============================================================
+   O ALUNO É MÓVEL
+
+   Pedido dela: *"O aluno precisa ser móvel caso precisemos trocá-lo de
+   turma ou até mesmo avançá-lo de módulo."*
+
+   Até aqui o único caminho era desmatricular e matricular de novo — o
+   que apaga a linha da matrícula e, com ela, a situação, a média final e
+   a observação de conclusão. Fazer isso para trocar alguém de horário é
+   perder o histórico por causa de uma mudança de agenda.
+
+   SÃO DUAS OPERAÇÕES DIFERENTES, E TRATÁ-LAS COMO UMA SÓ ESTRAGA UMA DAS
+   DUAS:
+
+   * TROCAR DE TURMA (mesmo módulo) — ele muda de sala, não de etapa. A
+     linha da matrícula MUDA de turma. As presenças e notas que ele já
+     tem continuam penduradas nos encontros e avaliações da turma antiga,
+     que é onde elas aconteceram de verdade.
+
+   * AVANÇAR DE MÓDULO — ele passou de etapa. Aqui a matrícula antiga
+     PERMANECE: é ela que guarda "aprovado no Módulo 1", com a média
+     congelada. Mover a linha apagaria a aprovação que abriu a porta do
+     módulo seguinte, e no dia seguinte a plataforma diria que ele nunca
+     cursou o Módulo 1.
+
+   Quem decide qual das duas é o próprio destino: turma do mesmo módulo,
+   troca; de outro, avança. A tela não pergunta, e não há como escolher
+   errado.
+   ============================================================ */
+export async function moverAluno(
+  matriculaId: string,
+  turmaDestinoId: string,
+  opcoes?: { ignorarPreRequisito?: boolean; motivo?: string }
+): Promise<Resultado<{ modo: 'trocou' | 'avancou'; turma: string }>> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
+
+    const { data: matricula, error: erroM } = await admin
+      .from('turma_alunos')
+      .select('id, aluno_id, turma_id, situacao')
+      .eq('id', matriculaId)
+      .maybeSingle()
+    if (erroM) throw new Error(erroM.message)
+    if (!matricula) throw new Error('Essa matrícula não existe mais. Atualize a tela.')
+
+    const { data: turmas, error: erroT } = await admin
+      .from('turmas')
+      .select('id, nome, modulo_id, curso_id, status')
+      .in('id', [matricula.turma_id as string, turmaDestinoId])
+    if (erroT) throw new Error(erroT.message)
+
+    const origem = (turmas ?? []).find((t) => t.id === matricula.turma_id)
+    const destino = (turmas ?? []).find((t) => t.id === turmaDestinoId)
+    if (!destino) throw new Error('Essa turma não existe mais. Atualize a tela.')
+    if (destino.id === origem?.id) throw new Error('Ele já está nesta turma.')
+    if (destino.status === 'encerrada') {
+      throw new Error('Essa turma já foi encerrada. Escolha uma turma aberta.')
+    }
+
+    /* Já está no destino por outro caminho? A trava do banco recusaria de
+       qualquer jeito; aqui a resposta chega em português. */
+    const { count } = await admin
+      .from('turma_alunos')
+      .select('id', { count: 'exact', head: true })
+      .eq('turma_id', turmaDestinoId)
+      .eq('aluno_id', matricula.aluno_id as string)
+    if ((count ?? 0) > 0) {
+      throw new Error(`Ele já está matriculado em "${destino.nome}".`)
+    }
+
+    const mesmoModulo =
+      origem?.modulo_id != null && origem.modulo_id === destino.modulo_id
+
+    if (mesmoModulo) {
+      const { error } = await admin
+        .from('turma_alunos')
+        .update({ turma_id: turmaDestinoId })
+        .eq('id', matriculaId)
+      if (error) throw new Error(traduzirErroDeMatricula(error.message))
+    } else {
+      /* Etapa nova: matrícula nova, e a regra do pré-requisito vale — com
+         a mesma porta de exceção explícita e registrada da matrícula
+         comum. Regra sem porta de exceção é regra contornada por fora. */
+      if (!opcoes?.ignorarPreRequisito) {
+        const r = await conferirPreRequisito(turmaDestinoId, matricula.aluno_id as string)
+        if (!r.pode) throw new Error(r.motivo ?? 'Este aluno não cumpre o pré-requisito do módulo.')
+      }
+      const { error } = await admin.from('turma_alunos').insert({
+        turma_id: turmaDestinoId,
+        aluno_id: matricula.aluno_id as string,
+        ...(opcoes?.ignorarPreRequisito
+          ? {
+              observacao_conclusao:
+                'Avançado sem o pré-requisito do módulo pela coordenação.' +
+                (opcoes.motivo ? ` Motivo: ${opcoes.motivo}` : ''),
+            }
+          : {}),
+      })
+      if (error) throw new Error(traduzirErroDeMatricula(error.message))
+    }
+
+    if (origem?.id) revalidatePath(`/dashboard/admin/turmas/${origem.id}`)
+    revalidatePath(`/dashboard/admin/turmas/${turmaDestinoId}`)
+    revalidatePath('/dashboard/admin/turmas')
+    revalidatePath('/dashboard/admin/repetentes')
+    return {
+      modo: mesmoModulo ? ('trocou' as const) : ('avancou' as const),
+      turma: destino.nome as string,
+    }
+  }, 'Não consegui mover o aluno.')
+}
+
 export async function removerMatricula(
   turmaId: string,
   matriculaId: string
@@ -2101,6 +2214,56 @@ export async function moverAulaDeDisciplina(
    banco e, se a nona falhasse, o módulo ficaria metade numa matéria e
    metade na outra — pior do que não ter começado.
    ============================================================ */
+/* ============================================================
+   PUBLICAR (OU ESCONDER) A DISCIPLINA INTEIRA
+
+   POR QUE ISTO PRECISOU EXISTIR
+
+   A matriz cria as aulas como rascunho de propósito: publicar sessenta
+   aulas vazias dispararia sessenta avisos de "nova aula" para a escola
+   inteira. Só que não havia o outro lado — publicar em bloco. Sobrava
+   "publique uma por uma, vinte e quatro vezes", e ninguém faz isso.
+
+   Medido em produção: o "Módulo 1 - CRER" ficou com 12 + 12 aulas e
+   ZERO publicadas. A aluna matriculada abria o curso e não via NADA — e
+   a coordenação concluiu, com razão, que a matrícula não tinha
+   funcionado. O defeito não era a matrícula; era a aula invisível.
+
+   QUEM FAZ O TRABALHO É O BANCO, numa transação só
+   (`publicar_disciplina`, migração 033). Aqui só se confere a permissão
+   e se traduz o resultado. Duas razões:
+
+   1. Doze UPDATEs daqui seriam doze idas ao banco, e uma falha na nona
+      deixaria a matéria metade publicada.
+   2. É lá dentro que dá para calar o gatilho de aviso por aula e mandar
+      UM recado com a conta do conjunto. Doze "nova aula disponível" na
+      mesma tela é o caminho mais curto para pararem de ler a central.
+   ============================================================ */
+export async function publicarDisciplina(
+  disciplinaId: string,
+  cursoId: string,
+  publicar: boolean
+): Promise<Resultado<{ aulas: number; avisados: number }>> {
+  return tentar(async () => {
+    await requireAdmin()
+    const admin = createAdminClient()
+
+    const { data, error } = await admin.rpc('publicar_disciplina', {
+      p_disciplina: disciplinaId,
+      p_publicar: publicar,
+    })
+    if (error) throw new Error(error.message)
+
+    const linha = (Array.isArray(data) ? data[0] : data) as
+      | { aulas?: number; avisados?: number }
+      | undefined
+
+    revalidarAulas(cursoId)
+    revalidatePath('/dashboard/admin/cursos')
+    return { aulas: Number(linha?.aulas ?? 0), avisados: Number(linha?.avisados ?? 0) }
+  }, 'Não consegui mudar a publicação da matéria.')
+}
+
 export async function moverAulasParaDisciplina(
   cursoId: string,
   deDisciplinaId: string,

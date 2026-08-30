@@ -2,10 +2,10 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { UserPlus, X } from 'lucide-react'
-import { matricularAluno, removerMatricula } from '@/app/dashboard/admin/actions'
+import { UserPlus, X, CornerUpRight, ArrowUpRight, Check } from 'lucide-react'
+import { matricularAluno, removerMatricula, moverAluno } from '@/app/dashboard/admin/actions'
 import { alunosQuePodemEntrar } from '@/lib/nucleo/matricula'
-import { Selecao } from '@/components/ui'
+import { Selecao, Alerta } from '@/components/ui'
 
 interface AlunoMatriculado {
   matriculaId: string
@@ -36,16 +36,29 @@ interface AlunoDisponivel {
    parecida para ser passada por engano.
    ============================================================ */
 
+export interface TurmaParaMover {
+  id: string
+  nome: string
+  moduloId: string | null
+  moduloNome: string
+  mesmoModulo: boolean
+  status: string
+}
+
 export default function MatriculaManager({
   turmaId,
   matriculados,
   disponiveis,
+  turmasParaMover = [],
 }: {
   turmaId: string
   matriculados: AlunoMatriculado[]
   disponiveis: AlunoDisponivel[]
+  /** Outras turmas deste curso, para trocar ou avançar o aluno. */
+  turmasParaMover?: TurmaParaMover[]
 }) {
   const [selecionado, setSelecionado] = useState('')
+  const [movido, setMovido] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
@@ -67,6 +80,24 @@ export default function MatriculaManager({
         return
       }
       setSelecionado('')
+      router.refresh()
+    })
+  }
+
+  const handleMover = (matriculaId: string, destino: string) => {
+    setError(null)
+    setMovido(null)
+    startTransition(async () => {
+      const r = await moverAluno(matriculaId, destino)
+      if (!r.ok) {
+        setError(r.erro)
+        return
+      }
+      setMovido(
+        r.modo === 'trocou'
+          ? `Trocado para a turma "${r.turma}".`
+          : `Avançou para "${r.turma}". A matrícula anterior fica no histórico, com a aprovação dele.`
+      )
       router.refresh()
     })
   }
@@ -97,15 +128,64 @@ export default function MatriculaManager({
                 <p className="text-sm font-medium text-gray-800">{aluno.name}</p>
                 <p className="text-xs text-gray-500">{aluno.email}</p>
               </div>
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => handleRemover(aluno.matriculaId)}
-                className="text-gray-400 hover:text-red-600 disabled:opacity-50"
-                aria-label={`Remover ${aluno.name} da turma`}
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {/* MOVER, em vez de desmatricular e rematricular.
+                    Tirar e pôr de novo apaga a linha da matrícula — e com
+                    ela a situação, a média final e a observação de
+                    conclusão. Trocar alguém de horário não pode custar o
+                    histórico dele. */}
+                {turmasParaMover.length > 0 && (
+                  <label className="inline-flex items-center gap-1.5">
+                    <CornerUpRight className="h-3.5 w-3.5 text-gray-400" strokeWidth={2.25} />
+                    <select
+                      value=""
+                      disabled={isPending}
+                      data-teste="mover-aluno"
+                      onChange={(e) => {
+                        if (!e.target.value) return
+                        const destino = e.target.value
+                        e.target.value = ''
+                        handleMover(aluno.matriculaId, destino)
+                      }}
+                      className="rounded-md border border-gray-200 bg-white px-1.5 py-1 text-[11.5px] font-medium text-gray-600 disabled:opacity-50"
+                      aria-label={`Mover ${aluno.name} para outra turma`}
+                    >
+                      <option value="">mover para…</option>
+                      {turmasParaMover.some((t) => t.mesmoModulo) && (
+                        <optgroup label="Trocar de turma (mesma etapa)">
+                          {turmasParaMover
+                            .filter((t) => t.mesmoModulo)
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.nome}
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                      {turmasParaMover.some((t) => !t.mesmoModulo) && (
+                        <optgroup label="Avançar de módulo">
+                          {turmasParaMover
+                            .filter((t) => !t.mesmoModulo)
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.moduloNome} · {t.nome}
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                    </select>
+                  </label>
+                )}
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => handleRemover(aluno.matriculaId)}
+                  className="text-gray-400 hover:text-red-600 disabled:opacity-50"
+                  aria-label={`Remover ${aluno.name} da turma`}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -139,6 +219,16 @@ export default function MatriculaManager({
           {disponiveis.length === 0
             ? 'Nenhum aluno ativo cadastrado ainda.'
             : 'Todos os alunos cadastrados já estão nesta turma.'}
+        </p>
+      )}
+
+      {movido && (
+        <p
+          className="mt-3 inline-flex items-start gap-1.5 rounded-xl bg-brand-50 p-3 text-[12.5px] font-medium leading-snug text-brand-800 ring-1 ring-brand-200"
+          data-teste="aluno-movido"
+        >
+          <Check className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2.6} />
+          {movido}
         </p>
       )}
 

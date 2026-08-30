@@ -19,7 +19,7 @@ export async function montarPreview(
     supabase
       .from('aulas')
       .select(
-        'id, numero, titulo, descricao, video_url, video_path, duracao_minutos, publicada, modulo_id'
+        'id, numero, titulo, descricao, video_url, video_path, duracao_minutos, publicada, modulo_id, disciplina_id'
       )
       .eq('curso_id', cursoId)
       .order('numero', { ascending: true }),
@@ -29,6 +29,16 @@ export async function montarPreview(
       .eq('curso_id', cursoId)
       .order('ordem', { ascending: true }),
   ])
+
+  /* As matérias, para a pré-visualização mostrar as MESMAS portas que o
+     aluno vê. Sem isto o professor conferiria uma tela que não existe
+     para ninguém — e a pré-visualização deixaria de servir para o que
+     ela serve. */
+  const { data: disciplinas } = await supabase
+    .from('disciplinas')
+    .select('id, nome, ordem, padrao, modulo_id, modulos!disciplinas_modulo_id_fkey!inner(curso_id)')
+    .eq('modulos.curso_id', cursoId)
+    .order('ordem', { ascending: true })
 
   if (!curso) return null
 
@@ -41,19 +51,43 @@ export async function montarPreview(
      e trancar o conteúdo justamente para quem precisa revisá-lo seria o
      contrário do que ela serve. O que ela precisa reproduzir fielmente é a
      ORDEM e o agrupamento, que é onde um erro de cadastro aparece. */
-  const grupos = (modulos ?? []).map((m) => ({
-    id: m.id as string,
-    nome: m.nome as string,
-    descricao: (m.descricao as string) ?? null,
-    ordem: Number(m.ordem),
-    video_boas_vindas: (m.video_boas_vindas as string) ?? null,
-    estado: 'cursando' as const,
-    aberto: true,
-    atual: false,
-    aulas: aulas
-      .filter((a) => a.modulo_id === m.id)
-      .sort((x, y) => Number(x.numero) - Number(y.numero)),
-  }))
+  const ordemDaDisciplina = new Map<string, number>(
+    (disciplinas ?? []).map((d) => [d.id as string, Number(d.ordem)])
+  )
+  /* Matéria, depois número — a numeração recomeça em cada matéria, e
+     ordenar só por número trança as duas uma na outra. */
+  const emOrdemDeAula = (x: { disciplina_id?: string | null; numero: number | string },
+                         y: { disciplina_id?: string | null; numero: number | string }) => {
+    const dx = ordemDaDisciplina.get((x.disciplina_id as string) ?? '') ?? 0
+    const dy = ordemDaDisciplina.get((y.disciplina_id as string) ?? '') ?? 0
+    return dx !== dy ? dx - dy : Number(x.numero) - Number(y.numero)
+  }
+
+  const grupos = (modulos ?? []).map((m) => {
+    const doModulo = aulas.filter((a) => a.modulo_id === m.id).sort(emOrdemDeAula)
+    return {
+      id: m.id as string,
+      nome: m.nome as string,
+      descricao: (m.descricao as string) ?? null,
+      ordem: Number(m.ordem),
+      video_boas_vindas: (m.video_boas_vindas as string) ?? null,
+      estado: 'cursando' as const,
+      aberto: true,
+      atual: false,
+      disciplinas: (disciplinas ?? [])
+        .filter((d) => d.modulo_id === m.id)
+        .map((d) => ({
+          id: d.id as string,
+          nome: d.nome as string,
+          ordem: Number(d.ordem),
+          padrao: Boolean(d.padrao),
+          aulas: doModulo.filter((a) => a.disciplina_id === d.id),
+        }))
+        .filter((d) => d.aulas.length > 0)
+        .sort((a, b) => a.ordem - b.ordem),
+      aulas: doModulo,
+    }
+  })
 
   // Na ordem em que o aluno veria: módulo, depois número dentro dele.
   const emOrdem = grupos.flatMap((g) => g.aulas)

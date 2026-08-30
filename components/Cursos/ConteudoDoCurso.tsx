@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   CornerUpRight,
   BookMarked,
+  Eye,
 } from 'lucide-react'
 import {
   criarModulo,
@@ -28,6 +29,7 @@ import {
   moverDisciplina,
   removerDisciplina,
   moverAulasParaDisciplina,
+  publicarDisciplina,
 } from '@/app/dashboard/admin/actions'
 import BoasVindasDoModulo from '@/components/Cursos/BoasVindasDoModulo'
 import LinhaDaAula, { type AulaItem } from '@/components/Aulas/LinhaDaAula'
@@ -691,6 +693,36 @@ function SecaoDaDisciplina({
      matérias de dez — sem isso, seriam vinte movimentos um a um. */
   const outrasMaterias = (modulo.disciplinas ?? []).filter((d) => d.id !== disciplina.id)
 
+  /* AULA EM RASCUNHO É AULA QUE O ALUNO NÃO VÊ.
+     A matriz cria tudo como rascunho de propósito, e sem esta conta na
+     cara a matéria parece pronta: "12 aulas" no cabeçalho, e a turma
+     inteira abrindo o curso vazio. Foi assim que 24 aulas ficaram
+     invisíveis por dois dias. */
+  const rascunhos = disciplina.aulas.filter((a) => !a.publicada).length
+  const publicadas = disciplina.aulas.length - rascunhos
+  const [feito, setFeito] = useState<string | null>(null)
+
+  const publicarTudo = (publicar: boolean) => {
+    setErro(null)
+    setFeito(null)
+    iniciar(async () => {
+      const r = await publicarDisciplina(disciplina.id, cursoId, publicar)
+      if (!r.ok) {
+        setErro(r.erro)
+        return
+      }
+      setFeito(
+        publicar
+          ? `${r.aulas} ${r.aulas === 1 ? 'aula publicada' : 'aulas publicadas'}` +
+              (r.avisados > 0
+                ? ` · ${r.avisados} ${r.avisados === 1 ? 'aluno avisado' : 'alunos avisados'}`
+                : ' · nenhum aluno na turma ainda')
+          : `${r.aulas} ${r.aulas === 1 ? 'aula escondida' : 'aulas escondidas'}.`
+      )
+      router.refresh()
+    })
+  }
+
   /* Uma transição POR DISCIPLINA, e não uma para a página inteira. Com um
      estado só, renomear a segunda matéria desabilitaria os botões de
      todas as outras — o mesmo motivo que fez cada linha de aula ter a
@@ -735,6 +767,14 @@ function SecaoDaDisciplina({
         <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-gray-500">
           {disciplina.aulas.length} {disciplina.aulas.length === 1 ? 'aula' : 'aulas'}
         </span>
+        {rascunhos > 0 && (
+          <span
+            className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold tabular-nums text-amber-800"
+            data-teste="conta-de-rascunhos"
+          >
+            {rascunhos} em rascunho
+          </span>
+        )}
 
         {podeEditar && !termo && (
           <span className="flex shrink-0 items-center gap-0.5">
@@ -817,6 +857,61 @@ function SecaoDaDisciplina({
         <div className="px-3.5 pt-3">
           <Alerta>{erro}</Alerta>
         </div>
+      )}
+
+      {/* PUBLICAR A MATÉRIA INTEIRA.
+          Fica aqui, colada na contagem de rascunhos, porque é a resposta
+          direta ao que a contagem acabou de dizer. Num menu, a
+          coordenação teria de saber que a opção existe. */}
+      {podeEditar && !termo && disciplina.aulas.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-amber-50/50 px-3.5 py-2">
+          {rascunhos > 0 ? (
+            <>
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" strokeWidth={2.4} />
+              <span className="min-w-0 flex-1 text-[11.5px] leading-snug text-amber-900">
+                {rascunhos === disciplina.aulas.length
+                  ? 'Nenhuma aula desta matéria está publicada — o aluno abre o curso e não vê nada.'
+                  : `${rascunhos} ${rascunhos === 1 ? 'aula ainda é rascunho' : 'aulas ainda são rascunho'} e não aparecem para o aluno.`}
+              </span>
+              <button
+                type="button"
+                disabled={salvando}
+                onClick={() => publicarTudo(true)}
+                data-teste="publicar-disciplina"
+                className="shrink-0 rounded-lg bg-brand-700 px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-50"
+              >
+                {salvando
+                  ? 'Publicando...'
+                  : `Publicar ${rascunhos === 1 ? 'a aula' : `as ${rascunhos} aulas`}`}
+              </button>
+            </>
+          ) : (
+            <>
+              <Eye className="h-3.5 w-3.5 shrink-0 text-brand-600" strokeWidth={2.2} />
+              <span className="min-w-0 flex-1 text-[11.5px] text-gray-600">
+                As {publicadas} aulas estão publicadas e visíveis para o aluno.
+              </span>
+              <button
+                type="button"
+                disabled={salvando}
+                onClick={() => publicarTudo(false)}
+                data-teste="esconder-disciplina"
+                className="shrink-0 rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50"
+              >
+                Esconder a matéria
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {feito && (
+        <p
+          className="border-b border-gray-100 bg-brand-50/60 px-3.5 py-2 text-[12px] font-semibold text-brand-800"
+          data-teste="publicacao-feita"
+        >
+          {feito}
+        </p>
       )}
 
       <div className="space-y-3 p-3.5">
