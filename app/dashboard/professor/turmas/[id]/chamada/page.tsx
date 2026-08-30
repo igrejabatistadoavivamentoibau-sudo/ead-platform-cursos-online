@@ -9,6 +9,7 @@ import ChamadaManager, {
 } from '@/components/Turma/ChamadaManager'
 import Justificativas, { type JustificativaPendente } from '@/components/Turma/Justificativas'
 import { listaDeChamada } from '@/lib/nucleo/chamada'
+import { exigirDados } from '@/lib/consulta'
 
 export default async function ChamadaDaTurmaPage({
   params,
@@ -64,7 +65,7 @@ export default async function ChamadaDaTurmaPage({
     ? await supabase
         .from('presencas')
         .select(
-          'id, justificativa, justificativa_status, justificativa_resposta, justificativa_em, encontro_id, users(name)'
+          'id, justificativa, justificativa_status, justificativa_resposta, justificativa_em, encontro_id, users:users!presencas_aluno_id_fkey(name)'
         )
         .in('encontro_id', idsEncontros)
         .not('justificativa', 'is', null)
@@ -98,16 +99,28 @@ export default async function ChamadaDaTurmaPage({
      Quem decide o que aparece é `listaDeChamada`, com teste próprio. */
   let linhas: LinhaPresenca[] = []
   if (atual) {
-    const [{ data: matriculados }, { data: presencas }] = await Promise.all([
+    /* Também por `exigirDados`: era a MESMA armadilha aqui. `presencas`
+       tem dois caminhos para a tabela de pessoas (`aluno_id` e
+       `justificativa_decidida_por`, da migração 021), e a consulta
+       ambígua voltava erro que ninguém conferia — a chamada aparecia
+       vazia como se a turma não tivesse ninguém. */
+    const [matriculadosR, presencasR] = await Promise.all([
       supabase
         .from('turma_alunos')
-        .select('aluno_id, status, users(name, email)')
+        .select('aluno_id, status, users:users!turma_alunos_aluno_id_fkey(name, email)')
         .eq('turma_id', id),
       supabase
         .from('presencas')
-        .select('aluno_id, presente, users(name, email)')
+        .select('aluno_id, presente, users:users!presencas_aluno_id_fkey(name, email)')
         .eq('encontro_id', atual.id),
     ])
+
+    const matriculados = exigirDados<
+      { aluno_id: string; status: string; users: unknown }[]
+    >(matriculadosR, 'os alunos desta turma')
+    const presencas = exigirDados<
+      { aluno_id: string; presente: boolean; users: unknown }[]
+    >(presencasR, 'as presenças deste encontro')
 
     linhas = listaDeChamada(
       (matriculados ?? []).map((m) => {

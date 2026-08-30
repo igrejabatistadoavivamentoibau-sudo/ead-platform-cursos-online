@@ -74,7 +74,7 @@ export default async function AulasDaTurmaPage({ params }: { params: Promise<{ i
     supabase
       .from('liberacoes_de_aula')
       .select(
-        'id, aula_id, motivo, status, resposta, libera_ate, created_at, users(name), aulas(titulo)'
+        'id, aula_id, motivo, status, resposta, libera_ate, created_at, users:users!liberacoes_de_aula_aluno_id_fkey(name), aulas(titulo)'
       )
       .eq('turma_id', id)
       .order('created_at', { ascending: true }),

@@ -33,7 +33,7 @@ export default async function NotasDaTurmaPage({ params }: { params: Promise<{ i
         .order('ordem', { ascending: true }),
       supabase
         .from('turma_alunos')
-        .select('aluno_id, users(id, name, email)')
+        .select('aluno_id, users:users!turma_alunos_aluno_id_fkey(id, name, email)')
         .eq('turma_id', id)
         .eq('status', 'ativo'),
       supabase.from('atividades').select('id', { count: 'exact', head: true }).eq('turma_id', id),

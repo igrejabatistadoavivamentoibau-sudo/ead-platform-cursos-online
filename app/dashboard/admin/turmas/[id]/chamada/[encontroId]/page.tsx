@@ -21,7 +21,7 @@ export default async function ChamadaPage({
     supabase.from('encontros').select('id, titulo, data').eq('id', encontroId).single(),
     supabase
       .from('presencas')
-      .select('aluno_id, presente, observacao, users(name, email)')
+      .select('aluno_id, presente, observacao, users:users!presencas_aluno_id_fkey(name, email)')
       .eq('encontro_id', encontroId),
   ])
 

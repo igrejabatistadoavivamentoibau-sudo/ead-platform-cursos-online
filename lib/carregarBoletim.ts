@@ -39,7 +39,7 @@ export async function carregarBoletim(
 
   let alunosQuery = supabase
     .from('turma_alunos')
-    .select('aluno_id, status, users(name)')
+    .select('aluno_id, status, users:users!turma_alunos_aluno_id_fkey(name)')
     .eq('turma_id', turmaId)
     .eq('status', 'ativo')
   if (alunoId) alunosQuery = alunosQuery.eq('aluno_id', alunoId)

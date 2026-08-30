@@ -23,7 +23,7 @@ export default async function RepetentesPage() {
   const { data: reprovados } = await supabase
     .from('turma_alunos')
     .select(
-      'id, aluno_id, media_final, observacao_conclusao, concluida_em, users(name, email), turmas(id, nome, modulo_id, modulos(id, nome, ordem, curso_id, cursos(titulo)))'
+      'id, aluno_id, media_final, observacao_conclusao, concluida_em, users:users!turma_alunos_aluno_id_fkey(name, email), turmas(id, nome, modulo_id, modulos(id, nome, ordem, curso_id, cursos(titulo)))'
     )
     .eq('situacao', 'reprovado')
     .order('concluida_em', { ascending: false })

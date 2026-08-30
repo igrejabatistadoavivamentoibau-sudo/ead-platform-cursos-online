@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { ArrowRight, Video } from 'lucide-react'
 import Voltar from '@/components/ui/Voltar'
 import { createClient } from '@/lib/supabase/server'
+import { exigirDados } from '@/lib/consulta'
 import TurmaStatusActions from '@/components/Dashboard/TurmaStatusActions'
 import MatriculaManager, { type TurmaParaMover } from '@/components/Dashboard/MatriculaManager'
 import EncontroManager from '@/components/Dashboard/EncontroManager'
@@ -35,10 +36,24 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
 
   if (!turma) notFound()
 
-  const [{ data: matriculas }, { data: alunos }, { data: encontros }] = await Promise.all([
+  /* ESTAS TRÊS PASSAM POR `exigirDados` DE PROPÓSITO.
+
+     Era aqui que a plataforma mentia. A consulta das matrículas voltava
+     ERRO — `turma_alunos` tem dois caminhos para a tabela de pessoas
+     (`aluno_id` e `concluida_por`, este último da migração 022), e o
+     servidor recusa o vínculo ambíguo —, o `error` era jogado fora, e a
+     tela dizia "Alunos matriculados (0)" com dois alunos matriculados no
+     banco. No clique, a ação (que não usa vínculo nenhum) respondia
+     "esse aluno já está matriculado". A mesma tela afirmando as duas
+     coisas.
+
+     Lista vazia por defeito agora aparece COMO defeito, com o nome da
+     consulta na mensagem. Vale a pena a tela quebrar: quebrada, ela é
+     consertada em minutos; mentindo, ficou dias enganando a escola. */
+  const [matriculasR, alunosR, encontrosR] = await Promise.all([
     supabase
       .from('turma_alunos')
-      .select('id, aluno_id, users(id, name, email)')
+      .select('id, aluno_id, status, users:users!turma_alunos_aluno_id_fkey(id, name, email)')
       .eq('turma_id', id),
     /* Só quem está ativo aparece para ser matriculado. Quem foi desativado
        saiu da escola; oferecê-lo numa lista de matrícula seria convidar ao
@@ -51,6 +66,15 @@ export default async function TurmaDetailPage({ params }: { params: Promise<{ id
       .order('name'),
     supabase.from('encontros').select('id, titulo, data').eq('turma_id', id).order('data', { ascending: false }),
   ])
+
+  const matriculas = exigirDados<
+    { id: string; aluno_id: string; status: string; users: unknown }[]
+  >(matriculasR, 'as matrículas desta turma')
+  const alunos = exigirDados<{ id: string; name: string }[]>(alunosR, 'a lista de alunos')
+  const encontros = exigirDados<{ id: string; titulo: string | null; data: string }[]>(
+    encontrosR,
+    'os encontros da turma'
+  )
 
   const { data: cursos } = await supabase
     .from('cursos')

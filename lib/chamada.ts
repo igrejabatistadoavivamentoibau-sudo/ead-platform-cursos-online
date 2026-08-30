@@ -55,7 +55,7 @@ export async function carregarChamada(encontroId: string): Promise<DadosChamada 
 
   const { data: presencas } = await supabase
     .from('presencas')
-    .select('presente, observacao, users(name, email)')
+    .select('presente, observacao, users:users!presencas_aluno_id_fkey(name, email)')
     .eq('encontro_id', encontroId)
 
   const linhas: LinhaChamada[] = (presencas ?? [])

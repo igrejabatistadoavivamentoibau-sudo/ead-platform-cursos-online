@@ -46,7 +46,7 @@ export default async function ConclusaoDaTurmaPage({
     carregarBoletim(id),
     supabase
       .from('turma_alunos')
-      .select('aluno_id, situacao, media_final, observacao_conclusao, concluida_em, users(name)')
+      .select('aluno_id, situacao, media_final, observacao_conclusao, concluida_em, users:users!turma_alunos_aluno_id_fkey(name)')
       .eq('turma_id', id)
       .in('status', ['ativo', 'concluido']),
   ])

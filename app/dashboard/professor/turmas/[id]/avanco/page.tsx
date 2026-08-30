@@ -30,7 +30,7 @@ export default async function AvancoDaTurmaPage({
   const [{ data: matriculas }, { data: aulas }] = await Promise.all([
     supabase
       .from('turma_alunos')
-      .select('aluno_id, users(id, name, email)')
+      .select('aluno_id, users:users!turma_alunos_aluno_id_fkey(id, name, email)')
       .eq('turma_id', id)
       .eq('status', 'ativo'),
     /* AS AULAS DO MÓDULO DESTA TURMA. O avanço é uma grade aluno × aula:

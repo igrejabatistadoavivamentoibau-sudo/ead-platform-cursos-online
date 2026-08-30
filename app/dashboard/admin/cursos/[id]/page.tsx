@@ -60,6 +60,10 @@ export default async function CursoDetalhePage({
   /* Quantas turmas estão penduradas em cada módulo. O número importa na
      tela: apagar um módulo com turma dentro é recusado, e a pessoa precisa
      ver isso ANTES de tentar. */
+  const modulosPorId = new Map<string, { nome: string; ordem: number }>(
+    (modulos ?? []).map((m) => [m.id as string, { nome: m.nome as string, ordem: Number(m.ordem) }])
+  )
+
   const turmasPorModulo = new Map<string, number>()
   for (const t of turmas ?? []) {
     const k = (t.modulo_id as string) ?? ''
@@ -83,6 +87,15 @@ export default async function CursoDetalhePage({
   ])
 
   const totalAlunos = matriculas?.length ?? 0
+
+  /* Quantos alunos em cada turma. O número no cartão é o que faz a
+     coordenação ver, do próprio curso, que uma turma está vazia — sem
+     abrir uma por uma. */
+  const alunosPorTurma = new Map<string, number>()
+  for (const m of matriculas ?? []) {
+    const k = m.turma_id as string
+    alunosPorTurma.set(k, (alunosPorTurma.get(k) ?? 0) + 1)
+  }
 
   const concluidasPorAula = new Map<string, number>()
   for (const p of progresso ?? []) {
@@ -282,17 +295,68 @@ export default async function CursoDetalhePage({
       {turmas && turmas.length > 0 && (
         <div className="mb-7">
           <h2 className="font-bold text-gray-900 mb-3">Turmas usando este curso</h2>
-          <div className="flex flex-wrap gap-2">
-            {turmas.map((t) => (
-              <Link
-                key={t.id}
-                href={`/dashboard/admin/turmas/${t.id}`}
-                className="inline-flex items-center gap-2 rounded-xl bg-white ring-1 ring-gray-200 px-3.5 py-2 text-sm font-medium text-gray-700 transition-all hover:ring-brand-300 hover:text-brand-800 hover:shadow-soft"
-              >
-                <GraduationCap className="h-4 w-4 text-brand-600" strokeWidth={2} />
-                {t.nome}
-              </Link>
-            ))}
+          {/* CADA TURMA COM O CAMINHO PARA O QUE SE FAZ NELA.
+
+              Antes eram etiquetas com o nome da turma e mais nada — para
+              puxar a chamada era preciso sair do curso, ir em Turmas,
+              achar a turma certa e entrar nela. Dentro do curso, as
+              turmas dele são o lugar óbvio de procurar, e cada uma agora
+              diz de qual MÓDULO é (duas turmas do mesmo curso em etapas
+              diferentes têm chamadas diferentes) e quantos alunos tem. */}
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {turmas.map((t) => {
+              const mod = modulosPorId.get((t.modulo_id as string) ?? '')
+              const quantos = alunosPorTurma.get(t.id as string) ?? 0
+              return (
+                <div
+                  key={t.id}
+                  className="superficie overflow-hidden rounded-2xl"
+                  data-teste="turma-do-curso"
+                >
+                  <Link
+                    href={`/dashboard/admin/turmas/${t.id}`}
+                    className="flex items-start gap-2.5 px-3.5 py-3 transition-colors hover:bg-gray-50"
+                  >
+                    <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" strokeWidth={2} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13.5px] font-bold text-gray-900">
+                        {t.nome}
+                      </span>
+                      <span className="mt-0.5 block text-[11.5px] text-gray-500">
+                        {mod ? `${mod.ordem}. ${mod.nome}` : 'Sem módulo'} ·{' '}
+                        <span
+                          className={quantos === 0 ? 'font-semibold text-amber-700' : ''}
+                          data-teste="alunos-da-turma"
+                        >
+                          {quantos} {quantos === 1 ? 'aluno' : 'alunos'}
+                        </span>
+                      </span>
+                    </span>
+                  </Link>
+                  <div className="flex divide-x divide-gray-100 border-t border-gray-100 text-[11.5px] font-semibold">
+                    <Link
+                      href={`/dashboard/professor/turmas/${t.id}/chamada`}
+                      data-teste="atalho-chamada"
+                      className="flex-1 px-2 py-2 text-center text-gray-600 transition-colors hover:bg-brand-50 hover:text-brand-800"
+                    >
+                      Chamada
+                    </Link>
+                    <Link
+                      href={`/dashboard/professor/turmas/${t.id}/notas`}
+                      className="flex-1 px-2 py-2 text-center text-gray-600 transition-colors hover:bg-brand-50 hover:text-brand-800"
+                    >
+                      Notas
+                    </Link>
+                    <Link
+                      href={`/dashboard/admin/turmas/${t.id}`}
+                      className="flex-1 px-2 py-2 text-center text-gray-600 transition-colors hover:bg-brand-50 hover:text-brand-800"
+                    >
+                      Alunos
+                    </Link>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

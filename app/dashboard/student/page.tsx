@@ -37,27 +37,48 @@ export default async function StudentDashboard() {
     .eq('id', user.id)
     .single()
 
+  /* O NOME DO PROFESSOR VEM POR FORA, e não aninhado.
+
+     `turmas(..., users(name))` parece inofensivo e não é: entre `turmas`
+     e `users` há mais de um caminho (o professor da turma, e os alunos
+     por `turma_alunos`), e o servidor recusa a consulta INTEIRA. O
+     resultado seria esta tela sem nenhuma turma — sem erro nenhum, como
+     se o aluno não estivesse matriculado em nada.
+
+     É o mesmo defeito que fez a tela da turma dizer "Alunos matriculados
+     (0)" com dois alunos no banco. Duas consultas simples são imunes a
+     isso e continuam sendo duas idas ao banco, não N. */
   const { data: matriculas } = await supabase
     .from('turma_alunos')
-    .select('turma_id, turmas(id, nome, descricao, status, users(name))')
+    .select('turma_id, turmas(id, nome, descricao, status, professor_id)')
     .eq('aluno_id', user.id)
 
-  const turmas = (matriculas ?? []).map((m) => {
-    const turma = m.turmas as unknown as {
-      id?: string
-      nome?: string
-      descricao?: string
-      status?: string
-      users?: { name?: string } | null
-    } | null
-    return {
-      id: turma?.id as string,
-      nome: turma?.nome as string,
-      descricao: turma?.descricao as string | undefined,
-      status: turma?.status as string,
-      professorNome: turma?.users?.name as string | undefined,
-    }
-  })
+  const cruas = (matriculas ?? []).map(
+    (m) =>
+      m.turmas as unknown as {
+        id?: string
+        nome?: string
+        descricao?: string
+        status?: string
+        professor_id?: string | null
+      } | null
+  )
+
+  const idsProfessores = [...new Set(cruas.map((t) => t?.professor_id).filter(Boolean))] as string[]
+  const { data: professores } = idsProfessores.length
+    ? await supabase.from('users').select('id, name').in('id', idsProfessores)
+    : { data: [] as { id: string; name: string }[] }
+  const nomeDoProfessor = new Map((professores ?? []).map((u) => [u.id as string, u.name as string]))
+
+  const turmas = cruas.map((turma) => ({
+    id: turma?.id as string,
+    nome: turma?.nome as string,
+    descricao: turma?.descricao as string | undefined,
+    status: turma?.status as string,
+    professorNome: turma?.professor_id
+      ? nomeDoProfessor.get(turma.professor_id)
+      : undefined,
+  }))
 
   const turmaAtiva = turmas.find((t) => t.status === 'em_andamento') ?? turmas[0]
 
